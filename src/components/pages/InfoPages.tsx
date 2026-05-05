@@ -115,7 +115,7 @@ export function EscrowPage() {
         <div className="w-16 h-16 rounded-2xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-5">
           <Icon name="ShieldCheck" size={32} className="text-gold" />
         </div>
-        <h1 className="font-display font-bold text-3xl text-foreground mb-3">Гарантийная защита TrustEx</h1>
+        <h1 className="font-display font-bold text-3xl text-foreground mb-3">Гарантийная защита Gorant Shop</h1>
         <p className="text-muted-foreground max-w-lg mx-auto leading-relaxed">
           Система эскроу — это финансовый посредник, который гарантирует честность сделки для обеих сторон
         </p>
@@ -159,7 +159,7 @@ export function EscrowPage() {
       <div className="bg-gold/10 border border-gold/25 rounded-2xl p-8 text-center">
         <h3 className="font-display font-bold text-xl text-foreground mb-2">Комиссия платформы</h3>
         <div className="flex items-baseline justify-center gap-1 my-4">
-          <span className="font-display font-black text-5xl text-gold">2%</span>
+          <span className="font-display font-black text-5xl text-gold">5%</span>
           <span className="text-muted-foreground">от суммы сделки</span>
         </div>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 
-export function Nav({ active, setActive }: { active: string; setActive: (s: string) => void }) {
+export function Nav({ active, setActive, isAdmin }: { active: string; setActive: (s: string) => void; isAdmin?: boolean }) {
   const links = [
     { id: "home", label: "Главная" },
     { id: "catalog", label: "Каталог" },
@@ -21,7 +21,7 @@ export function Nav({ active, setActive }: { active: string; setActive: (s: stri
             <Icon name="Shield" size={16} className="text-background" />
           </div>
           <span className="font-display font-bold text-lg tracking-tight text-foreground">
-            Trust<span className="text-gold">Ex</span>
+            Gorant<span className="text-gold"> Shop</span>
           </span>
         </button>
 
@@ -39,18 +39,38 @@ export function Nav({ active, setActive }: { active: string; setActive: (s: stri
               {l.label}
             </button>
           ))}
+          {isAdmin && (
+            <button
+              onClick={() => setActive("admin")}
+              className={`px-3.5 py-2 text-sm font-medium rounded transition-colors ${
+                active === "admin"
+                  ? "text-red-400 bg-red-400/10"
+                  : "text-red-400/70 hover:text-red-400 hover:bg-red-400/10"
+              }`}
+            >
+              Админ
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActive("cabinet")}
-            className="text-muted-foreground hover:text-foreground border border-transparent hover:border-border"
-          >
-            <Icon name="User" size={15} className="mr-1.5" />
-            Войти
-          </Button>
+          {isAdmin ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-400/10 border border-red-400/30">
+              <Icon name="ShieldAlert" size={14} className="text-red-400" />
+              <span className="text-xs font-bold text-red-400">Slumon4ik</span>
+              <span className="text-[10px] text-red-400/70 font-semibold bg-red-400/20 px-1.5 py-0.5 rounded">Админ</span>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActive("cabinet")}
+              className="text-muted-foreground hover:text-foreground border border-transparent hover:border-border"
+            >
+              <Icon name="User" size={15} className="mr-1.5" />
+              Войти
+            </Button>
+          )}
           <Button
             size="sm"
             className="bg-gold text-background hover:bg-gold/90 font-bold"
@@ -77,7 +97,7 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
                 <Icon name="Shield" size={16} className="text-background" />
               </div>
               <span className="font-display font-bold text-lg text-foreground">
-                Trust<span className="text-gold">Ex</span>
+                Gorant<span className="text-gold"> Shop</span>
               </span>
             </button>
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -104,8 +124,8 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
           ))}
         </div>
         <div className="mt-10 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-muted-foreground">© 2026 TrustEx. Все права защищены.</p>
-          <p className="text-xs text-muted-foreground">ИНН 7701234567 · ООО «ТрастЭкс» · Москва</p>
+          <p className="text-xs text-muted-foreground">© 2026 Gorant Shop. Все права защищены.</p>
+          <p className="text-xs text-muted-foreground">ИНН 7701234567 · ООО «Горант Шоп» · Москва</p>
         </div>
       </div>
     </footer>
