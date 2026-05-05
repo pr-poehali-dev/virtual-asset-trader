@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { Nav, Footer } from "@/components/layout/NavFooter";
-import { HomePage, CatalogPage, CabinetPage } from "@/components/pages/HomePages";
+import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
+import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
 import { AdminPage, AdminLogin } from "@/components/pages/AdminPage";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 
-export default function Index() {
+function AppContent() {
   const [page, setPage] = useState("home");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [frozenReason, setFrozenReason] = useState<string | undefined>();
+  const { user } = useAuth();
 
   const handleSetActive = (p: string) => {
     if (p === "admin" && !isAdmin) {
@@ -16,18 +20,34 @@ export default function Index() {
     }
   };
 
+  const handleFrozen = (reason?: string) => {
+    setFrozenReason(reason);
+    setPage("frozen");
+  };
+
   const renderPage = () => {
+    if (user && user.status === "frozen" && page !== "support") {
+      return <FrozenPage reason={user.freezeReason} onSupport={() => handleSetActive("support")} />;
+    }
+
+    if (page.startsWith("seller-")) {
+      const sellerId = page.replace("seller-", "");
+      return <SellerProfilePage sellerId={sellerId} setActive={handleSetActive} />;
+    }
+
     switch (page) {
       case "home": return <HomePage setActive={handleSetActive} />;
-      case "catalog": return <CatalogPage />;
-      case "cabinet": return <CabinetPage />;
+      case "catalog": return <CatalogPage setActive={handleSetActive} />;
+      case "add-product": return <AddProductPage setActive={handleSetActive} />;
+      case "cabinet": return <CabinetPage setActive={handleSetActive} />;
       case "deals": return <DealsPage />;
       case "escrow": return <EscrowPage />;
       case "support": return <SupportPage />;
       case "about": return <AboutPage />;
-      case "admin-login": return (
-        <AdminLogin onSuccess={() => { setIsAdmin(true); setPage("admin"); }} />
-      );
+      case "login": return <LoginPage onRegister={() => handleSetActive("register")} onFrozen={handleFrozen} />;
+      case "register": return <RegisterPage onLogin={() => handleSetActive("login")} />;
+      case "frozen": return <FrozenPage reason={frozenReason} onSupport={() => handleSetActive("support")} />;
+      case "admin-login": return <AdminLogin onSuccess={() => { setIsAdmin(true); setPage("admin"); }} />;
       case "admin": return isAdmin ? <AdminPage /> : <AdminLogin onSuccess={() => { setIsAdmin(true); setPage("admin"); }} />;
       default: return <HomePage setActive={handleSetActive} />;
     }
@@ -41,5 +61,13 @@ export default function Index() {
       </main>
       <Footer setActive={handleSetActive} />
     </div>
+  );
+}
+
+export default function Index() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

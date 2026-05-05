@@ -1,9 +1,12 @@
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 
 export function Nav({ active, setActive, isAdmin }: { active: string; setActive: (s: string) => void; isAdmin?: boolean }) {
+  const { user, logout } = useAuth();
+
   const links = [
     { id: "home", label: "Главная" },
     { id: "catalog", label: "Каталог" },
@@ -27,27 +30,14 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
 
         <div className="hidden md:flex items-center gap-1">
           {links.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => setActive(l.id)}
-              className={`px-3.5 py-2 text-sm font-medium rounded transition-colors ${
-                active === l.id
-                  ? "text-gold bg-gold/10"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
+            <button key={l.id} onClick={() => setActive(l.id)}
+              className={`px-3.5 py-2 text-sm font-medium rounded transition-colors ${active === l.id ? "text-gold bg-gold/10" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}>
               {l.label}
             </button>
           ))}
           {isAdmin && (
-            <button
-              onClick={() => setActive("admin")}
-              className={`px-3.5 py-2 text-sm font-medium rounded transition-colors ${
-                active === "admin"
-                  ? "text-red-400 bg-red-400/10"
-                  : "text-red-400/70 hover:text-red-400 hover:bg-red-400/10"
-              }`}
-            >
+            <button onClick={() => setActive("admin")}
+              className={`px-3.5 py-2 text-sm font-medium rounded transition-colors ${active === "admin" ? "text-red-400 bg-red-400/10" : "text-red-400/70 hover:text-red-400 hover:bg-red-400/10"}`}>
               Админ
             </button>
           )}
@@ -60,22 +50,26 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
               <span className="text-xs font-bold text-red-400">Slumon4ik</span>
               <span className="text-[10px] text-red-400/70 font-semibold bg-red-400/20 px-1.5 py-0.5 rounded">Админ</span>
             </div>
+          ) : user ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setActive("cabinet")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border hover:border-gold/40 transition-colors">
+                <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold">
+                  {user.username[0].toUpperCase()}
+                </div>
+                <span className="text-xs font-semibold text-foreground">{user.username}</span>
+              </button>
+              <button onClick={logout} className="text-xs text-muted-foreground hover:text-foreground transition-colors p-1.5">
+                <Icon name="LogOut" size={14} />
+              </button>
+            </div>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActive("cabinet")}
-              className="text-muted-foreground hover:text-foreground border border-transparent hover:border-border"
-            >
-              <Icon name="User" size={15} className="mr-1.5" />
-              Войти
+            <Button variant="ghost" size="sm" onClick={() => setActive("login")}
+              className="text-muted-foreground hover:text-foreground border border-transparent hover:border-border">
+              <Icon name="User" size={15} className="mr-1.5" />Войти
             </Button>
           )}
-          <Button
-            size="sm"
-            className="bg-gold text-background hover:bg-gold/90 font-bold"
-            onClick={() => setActive("catalog")}
-          >
+          <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold" onClick={() => setActive("catalog")}>
             Начать сделку
           </Button>
         </div>
@@ -106,7 +100,7 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
           </div>
           {[
             { title: "Платформа", links: [["Каталог", "catalog"], ["Как работает", "escrow"], ["О нас", "about"]] },
-            { title: "Аккаунт", links: [["Войти / Регистрация", "cabinet"], ["Мои сделки", "deals"], ["Продать", "cabinet"]] },
+            { title: "Аккаунт", links: [["Войти / Регистрация", "login"], ["Мои сделки", "deals"], ["Продать", "add-product"]] },
             { title: "Поддержка", links: [["Центр помощи", "support"], ["Разрешение споров", "support"], ["Связаться с нами", "support"]] },
           ].map((col) => (
             <div key={col.title}>
@@ -114,9 +108,7 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
               <ul className="space-y-2.5">
                 {col.links.map(([label, pg]) => (
                   <li key={label}>
-                    <button onClick={() => setActive(pg)} className="text-sm text-muted-foreground hover:text-gold transition-colors">
-                      {label}
-                    </button>
+                    <button onClick={() => setActive(pg)} className="text-sm text-muted-foreground hover:text-gold transition-colors">{label}</button>
                   </li>
                 ))}
               </ul>
@@ -124,8 +116,7 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
           ))}
         </div>
         <div className="mt-10 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-muted-foreground">© 2026 Gorant Shop. Все права защищены.</p>
-          <p className="text-xs text-muted-foreground">ИНН 7701234567 · ООО «Горант Шоп» · Москва</p>
+          <p className="text-xs text-muted-foreground">© 2024 Gorant Shop. Все права защищены.</p>
         </div>
       </div>
     </footer>
