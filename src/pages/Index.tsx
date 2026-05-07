@@ -186,7 +186,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background">
       <Nav active={page} setActive={handleSetActive} isAdmin={isAdmin} />
-      <main className="pt-20">
+      <main className="pt-20 pb-16 md:pb-0">
         {renderPage()}
       </main>
       <Footer setActive={handleSetActive} />

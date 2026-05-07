@@ -82,9 +82,9 @@ export function DealsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 animate-fade-in">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
-        <h1 className="font-display font-bold text-3xl text-foreground">История сделок</h1>
+        <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">История сделок</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

@@ -803,57 +803,59 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-1 p-1 bg-surface border border-border rounded-xl mb-8 w-fit">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              tab === t.key
-                ? "bg-gold text-background"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            {t.key === "notifications" && unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="overflow-x-auto pb-1 mb-6 sm:mb-8 -mx-1 px-1">
+        <div className="flex gap-1 p-1 bg-surface border border-border rounded-xl w-max min-w-full sm:w-fit">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`relative px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap ${
+                tab === t.key
+                  ? "bg-gold text-background"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+              {t.key === "notifications" && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── OVERVIEW ── */}
       {tab === "overview" && (
         <div className="animate-fade-in space-y-5">
           {/* Balance cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <Icon name="Wallet" size={20} className="text-gold mb-3" />
-              <div className="font-display font-bold text-2xl text-foreground">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+              <Icon name="Wallet" size={18} className="text-gold mb-2 sm:mb-3" />
+              <div className="font-display font-bold text-lg sm:text-2xl text-foreground">
                 ₽ {balanceRUB.toLocaleString("ru-RU")}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">Баланс (RUB)</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Баланс (RUB)</div>
             </div>
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <Icon name="Lock" size={20} className="text-amber-400 mb-3" />
-              <div className="font-display font-bold text-2xl text-foreground">
+            <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+              <Icon name="Lock" size={18} className="text-amber-400 mb-2 sm:mb-3" />
+              <div className="font-display font-bold text-lg sm:text-2xl text-foreground">
                 ₽ {lockedRUB.toLocaleString("ru-RU")}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">Заморожено (RUB)</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Заморожено</div>
             </div>
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <Icon name="CheckCircle" size={20} className="text-emerald-400 mb-3" />
-              <div className="font-display font-bold text-2xl text-foreground">{user.deals}</div>
-              <div className="text-xs text-muted-foreground mt-1">Сделок завершено</div>
+            <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+              <Icon name="CheckCircle" size={18} className="text-emerald-400 mb-2 sm:mb-3" />
+              <div className="font-display font-bold text-lg sm:text-2xl text-foreground">{user.deals}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Сделок</div>
             </div>
-            <div className="bg-surface border border-border rounded-xl p-5">
-              <Icon name="Package" size={20} className="text-blue-400 mb-3" />
-              <div className="font-display font-bold text-2xl text-foreground">
+            <div className="bg-surface border border-border rounded-xl p-3 sm:p-5">
+              <Icon name="Package" size={18} className="text-blue-400 mb-2 sm:mb-3" />
+              <div className="font-display font-bold text-lg sm:text-2xl text-foreground">
                 {user.products.length}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">Активных товаров</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Товаров</div>
             </div>
           </div>
 

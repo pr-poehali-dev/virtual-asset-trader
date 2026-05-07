@@ -137,7 +137,7 @@ function SupportChat() {
       </div>
 
       {/* Messages */}
-      <div className="h-80 overflow-y-auto p-5 space-y-3">
+      <div className="h-64 sm:h-80 overflow-y-auto p-3 sm:p-5 space-y-3">
         {loading && (
           <div className="flex justify-center pt-10">
             <Icon name="Loader" size={20} className="text-gold animate-spin" />
@@ -229,8 +229,8 @@ function SupportChat() {
 
 export function SupportPage() {
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 animate-fade-in">
-      <h1 className="font-display font-bold text-3xl text-foreground mb-2">Служба поддержки</h1>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 animate-fade-in">
+      <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">Служба поддержки</h1>
       <p className="text-muted-foreground text-sm mb-8">Мы на связи 24/7 для решения любых вопросов</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
