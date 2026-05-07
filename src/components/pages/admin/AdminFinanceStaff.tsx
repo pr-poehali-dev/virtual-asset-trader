@@ -135,21 +135,72 @@ export function AdminWithdrawalsTab() {
 
 // ─── DEPOSITS TAB ─────────────────────────────────────────────────────────────
 
+type AdminDeposit = {
+  id: string; userId: string; username: string;
+  amount: number; currency: string;
+  requisiteType: string; requisiteName?: string; requisiteDetails?: string;
+  status: string; date: string;
+};
+
 export function AdminDepositsTab() {
-  const { deposits: contextDeposits, confirmDeposit, rejectDeposit } = useAuth();
-  const pendingDeposits = contextDeposits.filter((d) => d.status === "pending");
+  const [deposits, setDeposits] = useState<AdminDeposit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState("");
+
+  const load = () => {
+    setLoading(true);
+    api.finance.adminDeposits()
+      .then(({ deposits: list }) => setDeposits(list as AdminDeposit[]))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const confirm = async (id: string) => {
+    setActionError("");
+    try {
+      await api.finance.confirmDeposit(id);
+      setDeposits((prev) => prev.filter((d) => d.id !== id));
+    } catch (e) { setActionError(apiErrorMessage(e)); }
+  };
+
+  const reject = async (id: string) => {
+    setActionError("");
+    try {
+      await api.finance.rejectDeposit(id);
+      setDeposits((prev) => prev.filter((d) => d.id !== id));
+    } catch (e) { setActionError(apiErrorMessage(e)); }
+  };
 
   return (
     <div className="animate-fade-in">
-      <h2 className="font-display font-semibold text-base text-foreground mb-5">Заявки на пополнение</h2>
-      {pendingDeposits.length === 0 ? (
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="font-display font-semibold text-base text-foreground">
+          Заявки на пополнение
+          {deposits.length > 0 && <span className="ml-2 text-xs bg-amber-400/20 text-amber-400 border border-amber-400/30 px-2 py-0.5 rounded-full">{deposits.length}</span>}
+        </h2>
+        <Button variant="outline" size="sm" className="border-border text-xs" onClick={load} disabled={loading}>
+          <Icon name={loading ? "Loader" : "RefreshCw"} size={13} className={`mr-1.5 ${loading ? "animate-spin" : ""}`} />Обновить
+        </Button>
+      </div>
+
+      {actionError && (
+        <div className="mb-4 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2.5 text-xs text-red-400 flex items-center gap-2">
+          <Icon name="AlertCircle" size={13} />{actionError}
+        </div>
+      )}
+
+      {loading && deposits.length === 0 ? (
+        <div className="flex justify-center py-10"><Icon name="Loader" size={22} className="text-gold animate-spin" /></div>
+      ) : deposits.length === 0 ? (
         <div className="bg-surface border border-border rounded-xl p-10 text-center text-muted-foreground">
           <Icon name="Inbox" size={32} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">Нет ожидающих заявок на пополнение</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {pendingDeposits.map((dep) => {
+          {deposits.map((dep) => {
             const s = DEPOSIT_STATUS_MAP[dep.status] ?? { label: dep.status, color: "text-muted-foreground bg-muted/10 border-border" };
             return (
               <div key={dep.id} className="bg-surface border border-border rounded-xl p-4">
@@ -160,15 +211,21 @@ export function AdminDepositsTab() {
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${s.color}`}>{s.label}</span>
                     </div>
                     <div className="font-display font-bold text-lg text-gold">{dep.amount.toLocaleString("ru-RU")} {dep.currency}</div>
-                    <div className="text-xs text-muted-foreground">{dep.username} · {dep.requisiteType}</div>
+                    <div className="text-xs text-muted-foreground font-semibold text-foreground/80">{dep.username}</div>
+                    {dep.requisiteName && (
+                      <div className="text-xs text-muted-foreground">Реквизит: <span className="text-foreground">{dep.requisiteName}</span></div>
+                    )}
+                    {dep.requisiteDetails && (
+                      <div className="text-xs font-mono text-foreground">{dep.requisiteDetails}</div>
+                    )}
                     <div className="text-xs text-muted-foreground">Дата: {dep.date}</div>
                   </div>
                   <div className="flex flex-col gap-1.5 items-end">
-                    <button onClick={() => confirmDeposit(dep.id)}
+                    <button onClick={() => confirm(dep.id)}
                       className="text-xs px-3 py-1.5 rounded-lg bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-400/20 font-semibold flex items-center gap-1">
                       <Icon name="CheckCircle" size={11} />Успешное пополнение
                     </button>
-                    <button onClick={() => rejectDeposit(dep.id)}
+                    <button onClick={() => reject(dep.id)}
                       className="text-xs px-3 py-1.5 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20 font-semibold flex items-center gap-1">
                       <Icon name="XCircle" size={11} />Оплата не обнаружена
                     </button>

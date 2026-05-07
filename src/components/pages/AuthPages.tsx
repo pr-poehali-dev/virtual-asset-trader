@@ -279,6 +279,261 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+// ─── ВКЛАДКА ПОПОЛНЕНИЯ (полный флоу) ────────────────────────────────────────
+
+const DEPOSIT_TIMEOUT_MIN = 15;
+
+function DepositTab() {
+  const { user } = useAuth();
+  type Phase = "form" | "awaiting" | "processing" | "cancelled" | "expired";
+
+  const [phase, setPhase] = useState<Phase>("form");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("RUB");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [depId, setDepId] = useState("");
+  const [requisite, setRequisite] = useState<ApiDepositRequisite | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+
+  // Восстанавливаем активную заявку при монтировании
+  useEffect(() => {
+    if (!user) return;
+    api.finance.depositActive().then(({ deposit }) => {
+      if (!deposit) return;
+      if (deposit.status === "awaiting_payment" && deposit.expiresAt) {
+        const exp = new Date(deposit.expiresAt);
+        if (exp > new Date()) {
+          setDepId(deposit.id);
+          setRequisite(deposit.requisite);
+          setExpiresAt(exp);
+          setAmount(String(deposit.amount));
+          setPhase("awaiting");
+          return;
+        }
+      }
+      if (deposit.status === "pending") {
+        setPhase("processing");
+        setDepId(deposit.id);
+        setAmount(String(deposit.amount));
+        setCurrency(deposit.currency);
+      }
+    }).catch(() => {});
+  }, [user]);
+
+  // Таймер
+  useEffect(() => {
+    if (phase !== "awaiting" || !expiresAt) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+      setTimeLeft(diff);
+      if (diff === 0) {
+        setShowExpiredModal(true);
+        setPhase("expired");
+      }
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [phase, expiresAt]);
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const pct = expiresAt ? Math.round((timeLeft / (DEPOSIT_TIMEOUT_MIN * 60)) * 100) : 100;
+  const timerColor = timeLeft < 120 ? "text-red-400" : timeLeft < 300 ? "text-amber-400" : "text-emerald-400";
+
+  const handleCreate = async () => {
+    setError("");
+    const num = parseFloat(amount);
+    if (!amount || isNaN(num) || num <= 0) { setError("Введите корректную сумму"); return; }
+    setLoading(true);
+    try {
+      const res = await api.finance.deposit(num, currency);
+      setDepId(res.id);
+      setRequisite(res.requisite);
+      setExpiresAt(new Date(res.expiresAt));
+      setPhase("awaiting");
+    } catch (e) {
+      const ae = e as { error?: string };
+      if (ae?.error === "no_requisites") setError("Реквизиты временно недоступны. Обратитесь в поддержку.");
+      else if (ae?.error === "already_pending") setError("У вас уже есть активная заявка.");
+      else setError(apiErrorMessage(e));
+    }
+    setLoading(false);
+  };
+
+  const handlePaid = async () => {
+    setLoading(true);
+    try {
+      await api.finance.depositPaid(depId);
+      setPhase("processing");
+    } catch { setError("Ошибка. Попробуйте снова."); }
+    setLoading(false);
+  };
+
+  const handleCancel = async () => {
+    setLoading(true);
+    try {
+      await api.finance.depositCancel(depId);
+    } catch {/* ignore */}
+    setPhase("cancelled");
+    setLoading(false);
+  };
+
+  // ── Форма ввода суммы ─────────────────────────────────────────────────────
+  if (phase === "form") return (
+    <div className="animate-fade-in max-w-md">
+      <h2 className="font-display font-semibold text-base text-foreground mb-5">Пополнение баланса</h2>
+      <div className="bg-surface border border-gold/20 rounded-xl p-6 space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Введите сумму — мы выдадим реквизиты для перевода. У вас будет {DEPOSIT_TIMEOUT_MIN} минут на оплату.
+        </p>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Сумма пополнения</label>
+          <Input
+            type="number" min="1" placeholder="1000"
+            value={amount} onChange={(e) => { setAmount(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            className="bg-background border-border text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Валюта</label>
+          <select value={currency} onChange={(e) => setCurrency(e.target.value)}
+            className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground">
+            <option value="RUB">RUB — Российский рубль</option>
+            <option value="USDT">USDT — Tether</option>
+          </select>
+        </div>
+        {error && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={12} />{error}</p>}
+        <Button className="w-full bg-gold text-background hover:bg-gold/90 font-bold" onClick={handleCreate} disabled={loading}>
+          {loading ? <Icon name="Loader" size={15} className="animate-spin mr-2" /> : null}
+          Получить реквизиты
+        </Button>
+      </div>
+    </div>
+  );
+
+  // ── Ожидание оплаты ───────────────────────────────────────────────────────
+  if (phase === "awaiting") return (
+    <div className="animate-fade-in max-w-md space-y-4">
+      <h2 className="font-display font-semibold text-base text-foreground">Пополнение баланса</h2>
+
+      {/* Таймер */}
+      <div className="bg-surface border border-border rounded-xl p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-muted-foreground">Время на оплату</span>
+          <span className={`font-display font-bold text-2xl tabular-nums ${timerColor}`}>{formatTime(timeLeft)}</span>
+        </div>
+        <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${timeLeft < 120 ? "bg-red-400" : timeLeft < 300 ? "bg-amber-400" : "bg-emerald-400"}`}
+            style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Сумма */}
+      <div className="bg-gold/5 border border-gold/30 rounded-xl p-4 flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Сумма к переводу</span>
+        <span className="font-display font-bold text-xl text-gold">{parseFloat(amount).toLocaleString("ru-RU")} {currency}</span>
+      </div>
+
+      {/* Реквизиты */}
+      {requisite && (
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Icon name={requisite.type === "crypto" ? "Bitcoin" : requisite.type === "sbp" ? "Smartphone" : "CreditCard"} size={16} className="text-gold" />
+            <h3 className="font-display font-semibold text-sm text-foreground">{requisite.name}</h3>
+            {requisite.bank && <span className="text-xs text-muted-foreground">· {requisite.bank}</span>}
+          </div>
+          <div className="flex items-center gap-3 bg-background border border-border rounded-lg px-4 py-3">
+            <span className="font-mono text-base text-foreground font-semibold flex-1 select-all">{requisite.details}</span>
+            <button onClick={() => copy(requisite.details)} className="text-xs text-gold hover:text-gold/80 flex items-center gap-1 font-semibold shrink-0">
+              <Icon name={copied ? "Check" : "Copy"} size={14} />{copied ? "Скопировано" : "Копировать"}
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground flex items-start gap-1.5">
+            <Icon name="AlertTriangle" size={11} className="shrink-0 mt-0.5 text-amber-400" />
+            Переводите ровно указанную сумму. Не закрывайте страницу до нажатия «Оплатил».
+          </p>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={12} />{error}</p>}
+
+      <div className="flex gap-3">
+        <Button variant="outline" className="flex-1 border-border" onClick={handleCancel} disabled={loading}>Отмена</Button>
+        <Button className="flex-1 bg-gold text-background hover:bg-gold/90 font-bold" onClick={handlePaid} disabled={loading}>
+          {loading ? <Icon name="Loader" size={14} className="animate-spin mr-1.5" /> : <Icon name="CheckCircle" size={14} className="mr-1.5" />}
+          Оплатил
+        </Button>
+      </div>
+
+      {/* Модалка истечения */}
+      {showExpiredModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-amber-400/10 flex items-center justify-center shrink-0">
+                <Icon name="Clock" size={20} className="text-amber-400" />
+              </div>
+              <h3 className="font-display font-bold text-base text-foreground">Время истекло</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+              Если вы уже отправили средства, но не успели нажать «Оплатил» — не переживайте.
+              Напишите нам в <span className="text-gold font-semibold">службу поддержки</span> с указанием суммы и скриншотом перевода — мы зачислим вручную.
+            </p>
+            <Button className="w-full bg-gold text-background hover:bg-gold/90 font-bold" onClick={() => { setShowExpiredModal(false); setPhase("form"); setAmount(""); }}>
+              Понятно
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── В обработке ───────────────────────────────────────────────────────────
+  if (phase === "processing") return (
+    <div className="animate-fade-in max-w-md">
+      <h2 className="font-display font-semibold text-base text-foreground mb-5">Пополнение баланса</h2>
+      <div className="bg-emerald-400/5 border border-emerald-400/30 rounded-xl p-6 text-center space-y-3">
+        <div className="w-14 h-14 rounded-full bg-emerald-400/10 border border-emerald-400/30 flex items-center justify-center mx-auto">
+          <Icon name="Clock" size={26} className="text-emerald-400" />
+        </div>
+        <h3 className="font-display font-bold text-lg text-foreground">Заявка на проверке</h3>
+        <p className="text-sm text-muted-foreground">
+          Заявка <span className="font-mono text-foreground">{depId}</span> на сумму <span className="font-bold text-gold">{parseFloat(amount).toLocaleString("ru-RU")} {currency}</span> передана администратору. Средства будут зачислены после подтверждения.
+        </p>
+        <p className="text-xs text-muted-foreground">Обычно это занимает от 5 до 30 минут.</p>
+        <Button variant="outline" className="border-border text-sm" onClick={() => { setPhase("form"); setAmount(""); setDepId(""); }}>
+          Создать ещё одну заявку
+        </Button>
+      </div>
+    </div>
+  );
+
+  // ── Отмена / истечение ────────────────────────────────────────────────────
+  return (
+    <div className="animate-fade-in max-w-md">
+      <h2 className="font-display font-semibold text-base text-foreground mb-5">Пополнение баланса</h2>
+      <div className="bg-surface border border-border rounded-xl p-6 text-center space-y-3">
+        <Icon name="XCircle" size={32} className="mx-auto text-muted-foreground opacity-40" />
+        <p className="text-sm text-muted-foreground">{phase === "cancelled" ? "Пополнение отменено." : "Время на оплату истекло."}</p>
+        <Button className="bg-gold text-background hover:bg-gold/90 font-bold" onClick={() => { setPhase("form"); setAmount(""); setDepId(""); }}>
+          Попробовать снова
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── РАНДОМНЫЙ РЕКВИЗИТ ПОПОЛНЕНИЯ ───────────────────────────────────────────
 
 function DepositRequisiteBlock() {
@@ -927,135 +1182,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
 
       {/* ── DEPOSIT ── */}
       {tab === "deposit" && (
-        <div className="animate-fade-in">
-          <h2 className="font-display font-semibold text-base text-foreground mb-5">
-            Пополнение баланса
-          </h2>
-
-          {/* Реквизит пополнения — рандомный из пула */}
-          <DepositRequisiteBlock />
-
-          {/* Requisites list */}
-          <div className="mb-6 space-y-3">
-            <h3 className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">
-              Доступные реквизиты для пополнения
-            </h3>
-            {INITIAL_REQUISITES.filter((r) => r.active).map((r) => (
-              <div
-                key={r.id}
-                className="bg-surface border border-border rounded-xl p-4 flex items-center gap-4"
-              >
-                <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0">
-                  <Icon
-                    name={
-                      r.type === "Криптовалюта"
-                        ? "Bitcoin"
-                        : r.type === "Электронный кошелёк"
-                        ? "Wallet"
-                        : "CreditCard"
-                    }
-                    size={16}
-                    className="text-gold"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-foreground">{r.name}</div>
-                  <div className="text-xs text-muted-foreground">{r.type}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-sm text-foreground">{r.details}</div>
-                  <div className="text-xs text-muted-foreground">{r.currency}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Deposit form */}
-          <div className="bg-surface border border-gold/20 rounded-xl p-5">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-4">
-              Создать заявку на пополнение
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Сумма</label>
-                <Input
-                  placeholder="1000"
-                  value={depAmount}
-                  onChange={(e) => {
-                    setDepAmount(e.target.value);
-                    setDepError("");
-                    setDepSuccess(false);
-                  }}
-                  type="number"
-                  min="1"
-                  className="bg-background border-border text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Валюта</label>
-                <select
-                  value={depCurrency}
-                  onChange={(e) => {
-                    setDepCurrency(e.target.value);
-                    setDepError("");
-                    setDepSuccess(false);
-                  }}
-                  className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
-                >
-                  <option value="RUB">RUB — Российский рубль</option>
-                  <option value="USDT">USDT — Tether</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
-                  Способ пополнения
-                </label>
-                <select
-                  value={depReqType}
-                  onChange={(e) => {
-                    setDepReqType(e.target.value);
-                    setDepError("");
-                    setDepSuccess(false);
-                  }}
-                  className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
-                >
-                  <option value="">Выберите реквизит...</option>
-                  {INITIAL_REQUISITES.filter((r) => r.active).map((r) => (
-                    <option key={r.id} value={r.name}>
-                      {r.name} — {r.details}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                После отправки платежа на указанные реквизиты создайте заявку. Администратор
-                подтвердит поступление средств и зачислит их на ваш баланс.
-              </p>
-
-              {depError && (
-                <p className="text-xs text-red-400 flex items-center gap-1">
-                  <Icon name="AlertCircle" size={12} />
-                  {depError}
-                </p>
-              )}
-
-              {depSuccess && (
-                <div className="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-3 text-xs text-emerald-400 flex items-center gap-2">
-                  <Icon name="CheckCircle" size={14} />
-                  Заявка создана! Ожидайте подтверждения от администратора.
-                </div>
-              )}
-
-              <Button
-                className="w-full bg-gold text-background hover:bg-gold/90 font-bold"
-                onClick={submitDeposit}
-              >
-                Создать заявку на пополнение
-              </Button>
-            </div>
-          </div>
-        </div>
+        <DepositTab />
       )}
     </div>
   );

@@ -159,8 +159,17 @@ export const api = {
     markRead: (id: string) =>
       req("finance", "/notifications/read", "POST", { id }),
 
-    deposit: (amount: number, currency: string, requisite_type: string) =>
-      req<{ id: string }>("finance", "/deposit", "POST", { amount, currency, requisite_type }),
+    deposit: (amount: number, currency: string) =>
+      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
+
+    depositPaid: (dep_id: string) =>
+      req("finance", "/deposit/paid", "POST", { dep_id }),
+
+    depositCancel: (dep_id: string) =>
+      req("finance", "/deposit/cancel", "POST", { dep_id }),
+
+    depositActive: () =>
+      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
 
     withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
       req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
@@ -515,6 +524,17 @@ export type ApiPartnerStatus = {
     rejectReason?: string;
     date: string;
   } | null;
+};
+
+export type ApiActiveDeposit = {
+  id: string;
+  amount: number;
+  currency: string;
+  requisiteName: string;
+  requisiteDetails: string;
+  status: "awaiting_payment" | "pending" | "confirmed" | "rejected" | "cancelled";
+  expiresAt: string | null;
+  requisite: ApiDepositRequisite | null;
 };
 
 export type ApiSupportMessage = {

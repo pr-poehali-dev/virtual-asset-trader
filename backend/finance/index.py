@@ -90,27 +90,153 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
-        # ── POST /finance/deposit ─────────────────────────────────────────────
+        # ── POST /finance/deposit — создать заявку, получить реквизит ───────────
         if method == "POST" and path.endswith("/deposit"):
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             amount   = float(body.get("amount") or 0)
             currency = body.get("currency") or "RUB"
-            req_type = body.get("requisite_type") or ""
-            if amount <= 0 or not req_type:
+            if amount <= 0:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
 
-            dep_id = "DEP-" + secrets.token_hex(3).upper()
+            # Проверяем, нет ли уже незакрытой заявки у пользователя
             cur.execute(
-                f"""INSERT INTO {SCHEMA}.deposits (id, user_id, amount, currency, requisite_type)
-                    VALUES (%s,%s,%s,%s,%s)""",
-                (dep_id, user["id"], amount, currency, req_type)
+                f"""SELECT id, expires_at FROM {SCHEMA}.deposits
+                    WHERE user_id=%s AND status='awaiting_payment'
+                    AND expires_at > NOW() LIMIT 1""",
+                (user["id"],)
             )
-            add_notification(cur, user["id"], "deposit_update",
-                "Заявка на пополнение создана",
-                f"Заявка {dep_id} на {amount:,.0f} {currency} ожидает подтверждения.")
+            existing = cur.fetchone()
+            if existing:
+                return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "already_pending", "depId": existing[0]})}
+
+            # Берём рандомный активный реквизит (по кругу)
+            cur.execute(
+                f"""SELECT id, name, type, details, bank, currency, show_count
+                    FROM {SCHEMA}.deposit_requisites WHERE active=TRUE
+                    ORDER BY show_count ASC, random() LIMIT 1"""
+            )
+            req_row = cur.fetchone()
+            if not req_row:
+                return {"statusCode": 503, "headers": CORS, "body": json.dumps({"error": "no_requisites"})}
+
+            req_id, req_name, req_type_val, req_details, req_bank, req_currency, show_count = req_row
+
+            # Обновляем счётчик показов
+            cur.execute(f"UPDATE {SCHEMA}.deposit_requisites SET show_count=show_count+1 WHERE id=%s", (req_id,))
+            cur.execute(f"SELECT MIN(show_count), MAX(show_count) FROM {SCHEMA}.deposit_requisites WHERE active=TRUE")
+            mn, mx = cur.fetchone()
+            if mn == mx and mn > 0:
+                cur.execute(f"UPDATE {SCHEMA}.deposit_requisites SET show_count=0 WHERE active=TRUE")
+
+            import datetime as dt
+            expires_at = dt.datetime.now() + dt.timedelta(minutes=15)
+            dep_id = "DEP-" + secrets.token_hex(3).upper()
+
+            cur.execute(
+                f"""INSERT INTO {SCHEMA}.deposits
+                    (id, user_id, amount, currency, requisite_type, requisite_id, requisite_name, requisite_details, status, expires_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'awaiting_payment',%s)""",
+                (dep_id, user["id"], amount, currency, req_type_val, req_id, req_name, req_details, expires_at)
+            )
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": dep_id})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "id": dep_id,
+                "requisite": {
+                    "name": req_name,
+                    "type": req_type_val,
+                    "details": req_details,
+                    "bank": req_bank,
+                    "currency": req_currency,
+                },
+                "expiresAt": expires_at.isoformat(),
+                "amount": amount,
+            })}
+
+        # ── POST /finance/deposit/paid — пользователь нажал «Оплатил» ─────────
+        if method == "POST" and path.endswith("/deposit/paid"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            dep_id = body.get("dep_id")
+            cur.execute(
+                f"""SELECT id, amount, currency, requisite_name FROM {SCHEMA}.deposits
+                    WHERE id=%s AND user_id=%s AND status='awaiting_payment'""",
+                (dep_id, user["id"])
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            _, amount, currency, req_name = row
+
+            cur.execute(
+                f"UPDATE {SCHEMA}.deposits SET status='pending' WHERE id=%s",
+                (dep_id,)
+            )
+            # Уведомляем пользователя
+            add_notification(cur, user["id"], "deposit_update",
+                "Заявка на пополнение отправлена",
+                f"Заявка {dep_id} на {float(amount):,.0f} {currency} поступила в обработку. Ожидайте подтверждения.")
+
+            # Уведомляем всех админов
+            cur.execute(f"SELECT id FROM {SCHEMA}.users WHERE role='admin' OR is_owner=TRUE")
+            for (admin_id,) in cur.fetchall():
+                add_notification(cur, admin_id, "deposit_update",
+                    f"Новое пополнение от {user['username']}",
+                    f"Заявка {dep_id} · {float(amount):,.0f} {currency} · {req_name}. Ожидает подтверждения.",
+                    shield=True)
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── POST /finance/deposit/cancel — пользователь отменяет ─────────────
+        if method == "POST" and path.endswith("/deposit/cancel"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            dep_id = body.get("dep_id")
+            cur.execute(
+                f"""UPDATE {SCHEMA}.deposits SET status='cancelled', cancelled_at=NOW()
+                    WHERE id=%s AND user_id=%s AND status='awaiting_payment'""",
+                (dep_id, user["id"])
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── GET /finance/deposit/active — активная заявка пользователя ────────
+        if method == "GET" and path.endswith("/deposit/active"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            cur.execute(
+                f"""SELECT id, amount, currency, requisite_name, requisite_details,
+                           requisite_id, status, expires_at, created_at
+                    FROM {SCHEMA}.deposits
+                    WHERE user_id=%s AND status IN ('awaiting_payment','pending')
+                    ORDER BY created_at DESC LIMIT 1""",
+                (user["id"],)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 200, "headers": CORS, "body": json.dumps({"deposit": None})}
+            # Подтягиваем полные реквизиты
+            req_name = row[3]
+            req_details = row[4]
+            req_id = row[5]
+            cur.execute(
+                f"SELECT name, type, details, bank, currency FROM {SCHEMA}.deposit_requisites WHERE id=%s",
+                (req_id,)
+            )
+            req_row = cur.fetchone()
+            requisite = None
+            if req_row:
+                requisite = {"name": req_row[0], "type": req_row[1], "details": req_row[2],
+                             "bank": req_row[3], "currency": req_row[4]}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "deposit": {
+                    "id": row[0], "amount": float(row[1]), "currency": row[2],
+                    "requisiteName": req_name, "requisiteDetails": req_details,
+                    "status": row[6],
+                    "expiresAt": row[7].isoformat() if row[7] else None,
+                    "requisite": requisite,
+                }
+            })}
 
         # ── GET /finance/deposits (admin) ─────────────────────────────────────
         if method == "GET" and path.endswith("/deposits"):
@@ -118,13 +244,14 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             cur.execute(
                 f"""SELECT d.id, d.user_id, u.username, d.amount, d.currency,
-                           d.requisite_type, d.status, d.created_at
+                           d.requisite_type, d.requisite_name, d.requisite_details, d.status, d.created_at
                     FROM {SCHEMA}.deposits d JOIN {SCHEMA}.users u ON u.id=d.user_id
                     WHERE d.status='pending' ORDER BY d.created_at ASC""",
             )
             deps = [{"id": r[0], "userId": r[1], "username": r[2], "amount": float(r[3]),
-                     "currency": r[4], "requisiteType": r[5], "status": r[6],
-                     "date": r[7].strftime("%d.%m.%Y")} for r in cur.fetchall()]
+                     "currency": r[4], "requisiteType": r[5], "requisiteName": r[6],
+                     "requisiteDetails": r[7], "status": r[8],
+                     "date": r[9].strftime("%d.%m.%Y")} for r in cur.fetchall()]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"deposits": deps})}
 
         # ── POST /finance/deposits/confirm ────────────────────────────────────
