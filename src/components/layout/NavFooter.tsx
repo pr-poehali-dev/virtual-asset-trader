@@ -19,7 +19,7 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
     { id: "home", label: "Главная" },
     { id: "catalog", label: "Каталог" },
     { id: "deals", label: "Сделки" },
-    { id: "about", label: "Gorant Shop" },
+    { id: "about", label: "О платформе" },
     { id: "support", label: "Поддержка" },
   ];
 
