@@ -221,6 +221,50 @@ export const api = {
 
     arbiter: (deal_id: string, arbiter_id: string) =>
       req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
+
+    // Реквизиты пополнения (пул платформы)
+    getDepositRequisites: () =>
+      req<{ requisites: ApiDepositRequisite[] }>("finance", "/admin/deposit-requisites"),
+    addDepositRequisite: (data: { name: string; type: string; details: string; bank?: string; currency: string }) =>
+      req("finance", "/admin/deposit-requisites/add", "POST", data),
+    toggleDepositRequisite: (id: string) =>
+      req("finance", "/admin/deposit-requisites/toggle", "POST", { id }),
+    deleteDepositRequisite: (id: string) =>
+      req("finance", "/admin/deposit-requisites/delete", "POST", { id }),
+
+    // Партнёры
+    getPartnerApplications: () =>
+      req<{ applications: ApiPartnerApplication[] }>("finance", "/admin/partner-applications"),
+    approvePartner: (id: string) =>
+      req<{ ok: boolean; refCode: string }>("finance", "/admin/partner-approve", "POST", { id }),
+    rejectPartner: (id: string, reason: string) =>
+      req("finance", "/admin/partner-reject", "POST", { id, reason }),
+    getPartners: () =>
+      req<{ partners: ApiPartner[] }>("finance", "/admin/partners"),
+    togglePartner: (id: string) =>
+      req("finance", "/admin/partner-toggle", "POST", { id }),
+  },
+
+  // Реквизиты вывода (личные)
+  withdrawalRequisites: {
+    list: () =>
+      req<{ requisites: ApiWithdrawalRequisite[] }>("finance", "/withdrawal-requisites"),
+    add: (data: { type: "sbp" | "card"; phone?: string; bank?: string; card_number?: string; card_holder?: string; label?: string }) =>
+      req<{ id: string }>("finance", "/withdrawal-requisites/add", "POST", data),
+    delete: (id: string) =>
+      req("finance", "/withdrawal-requisites/delete", "POST", { id }),
+  },
+
+  // Реквизит пополнения (рандомный из пула)
+  depositRequisite: () =>
+    req<ApiDepositRequisite>("finance", "/deposit-requisite"),
+
+  // Партнёрство
+  partner: {
+    status: () =>
+      req<ApiPartnerStatus>("finance", "/partner/status"),
+    apply: (platforms: ApiPartnerPlatform[]) =>
+      req<{ id: string }>("finance", "/partner/apply", "POST", { platforms }),
   },
 };
 
@@ -353,21 +397,86 @@ export type ApiVerification = {
 };
 
 export type ApiAdminStats = {
-  // Сделки
   totalDeals: number;
   totalVolume: number;
   openDeals: number;
   openVolume: number;
   successRate: number;
-  // Комиссия
   commissionEarned: number;
   commission: { total: number; day: number; week: number; month: number };
-  // Пользователи
   registeredUsers: number;
   usersGrowth: { total: number; day: number; week: number; month: number };
   usersByStatus: Record<string, number>;
-  // Выводы
   pendingWithdrawals: number;
   pendingWithdrawalsVolume: number;
   withdrawals: { pendingCount: number; pendingVolume: number; day: number; week: number; month: number };
+};
+
+export type ApiWithdrawalRequisite = {
+  id: string;
+  type: "sbp" | "card";
+  phone?: string;
+  bank?: string;
+  cardNumber?: string;
+  cardHolder?: string;
+  label?: string;
+  createdAt: string;
+};
+
+export type ApiDepositRequisite = {
+  id: string;
+  name: string;
+  type: string;
+  details: string;
+  bank?: string;
+  currency: string;
+  active?: boolean;
+  showCount?: number;
+};
+
+export type ApiPartnerPlatform = {
+  platform: string;
+  url: string;
+  subscribers: number;
+  avg_views: number;
+};
+
+export type ApiPartnerApplication = {
+  id: string;
+  userId: string;
+  username: string;
+  email: string;
+  platforms: ApiPartnerPlatform[];
+  status: "pending" | "approved" | "rejected";
+  date: string;
+};
+
+export type ApiPartner = {
+  id: string;
+  userId: string;
+  username: string;
+  email: string;
+  refCode: string;
+  commissionPct: number;
+  totalEarned: number;
+  totalReferrals: number;
+  active: boolean;
+  date: string;
+  platforms: ApiPartnerPlatform[];
+};
+
+export type ApiPartnerStatus = {
+  isPartner: boolean;
+  refCode?: string;
+  commissionPct?: number;
+  totalEarned?: number;
+  totalReferrals?: number;
+  platforms?: ApiPartnerPlatform[];
+  refUrl?: string;
+  application?: {
+    id: string;
+    status: "pending" | "approved" | "rejected";
+    rejectReason?: string;
+    date: string;
+  } | null;
 };

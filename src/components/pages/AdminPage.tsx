@@ -12,6 +12,7 @@ import {
   AdminStaffTab,
 } from "@/components/pages/admin/AdminFinanceStaff";
 import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerifications";
+import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/admin/AdminPartnersRequisites";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -118,20 +119,24 @@ type AdminTab =
   | "users"
   | "deals"
   | "requisites"
+  | "dep-requisites"
   | "withdrawals"
   | "deposits"
   | "staff"
-  | "verifications";
+  | "verifications"
+  | "partners";
 
 const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "stats", label: "Статистика", icon: "BarChart2" },
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
-  { id: "requisites", label: "Реквизиты", icon: "CreditCard" },
+  { id: "requisites", label: "Реквизиты вывода", icon: "CreditCard" },
+  { id: "dep-requisites", label: "Реквизиты пополнения", icon: "ArrowDownCircle" },
   { id: "withdrawals", label: "Выводы", icon: "Banknote" },
   { id: "deposits", label: "Пополнения", icon: "PlusCircle" },
   { id: "staff", label: "Сотрудники", icon: "UserCheck" },
   { id: "verifications", label: "Верификации", icon: "ShieldCheck" },
+  { id: "partners", label: "Партнёры", icon: "Star" },
 ];
 
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
@@ -182,10 +187,12 @@ export function AdminPage() {
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}
       {tab === "requisites" && <AdminRequisitesTab />}
+      {tab === "dep-requisites" && <AdminDepositRequisitesTab />}
       {tab === "withdrawals" && <AdminWithdrawalsTab />}
       {tab === "deposits" && <AdminDepositsTab />}
       {tab === "staff" && <AdminStaffTab />}
       {tab === "verifications" && <AdminVerificationsTab />}
+      {tab === "partners" && <AdminPartnersTab />}
     </div>
   );
 }

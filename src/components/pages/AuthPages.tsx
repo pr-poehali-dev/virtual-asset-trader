@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
-import { api, apiErrorMessage } from "@/api/client";
+import { api, apiErrorMessage, type ApiDepositRequisite } from "@/api/client";
+import { WithdrawalRequisitesTab } from "@/components/pages/WithdrawalRequisites";
+import { PartnerPage as PartnerPageInline } from "@/components/pages/PartnerPage";
 import {
   INITIAL_REQUISITES,
   INITIAL_WITHDRAWALS,
@@ -277,9 +279,60 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+// ─── РАНДОМНЫЙ РЕКВИЗИТ ПОПОЛНЕНИЯ ───────────────────────────────────────────
+
+function DepositRequisiteBlock() {
+  const [req, setReq] = useState<ApiDepositRequisite | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.depositRequisite()
+      .then(setReq)
+      .catch(() => setReq(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading) return <div className="h-24 bg-surface border border-border rounded-xl animate-pulse mb-6" />;
+  if (!req) return null;
+
+  return (
+    <div className="bg-gold/5 border border-gold/30 rounded-xl p-5 mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name="ArrowDownCircle" size={16} className="text-gold" />
+        <h3 className="font-display font-semibold text-sm text-foreground">Реквизиты для перевода</h3>
+        <span className="ml-auto text-[10px] text-muted-foreground bg-background border border-border rounded px-2 py-0.5">Актуально</span>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between bg-background rounded-lg px-3 py-2.5 border border-border">
+          <div>
+            <div className="text-xs text-muted-foreground">{req.name}</div>
+            <div className="font-mono text-sm text-foreground font-semibold">{req.details}</div>
+            {req.bank && <div className="text-[10px] text-muted-foreground">{req.bank}</div>}
+          </div>
+          <button onClick={() => copy(req.details)} className="text-xs text-gold hover:text-gold/80 flex items-center gap-1 font-semibold shrink-0">
+            <Icon name={copied ? "Check" : "Copy"} size={13} />
+            {copied ? "Скопировано" : "Копировать"}
+          </button>
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-3 flex items-start gap-1.5">
+        <Icon name="Info" size={11} className="shrink-0 mt-0.5" />
+        После перевода создайте заявку на пополнение ниже. Реквизиты обновляются автоматически.
+      </p>
+    </div>
+  );
+}
+
 // ─── CABINET / PROFILE ────────────────────────────────────────────────────────
 
-type CabinetTab = "overview" | "notifications" | "withdrawals" | "deposit";
+type CabinetTab = "overview" | "notifications" | "withdrawals" | "deposit" | "requisites" | "partner";
 
 export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   const { user, logout, markNotifRead, addDeposit } = useAuth();
@@ -289,10 +342,11 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
 
   // ── Withdrawals state ──
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
-  const [activeRequisites] = useState(INITIAL_REQUISITES.filter((r) => r.active));
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [wAmount, setWAmount] = useState("");
   const [wReqId, setWReqId] = useState("");
+  const [wReqLabel, setWReqLabel] = useState("");
+  const [wShowReqPicker, setWShowReqPicker] = useState(false);
   const [wError, setWError] = useState("");
 
   // ── Deposit state ──
@@ -330,18 +384,16 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
 
   const submitWithdrawal = async () => {
     setWError("");
-    if (!wAmount || !wReqId) { setWError("Заполните все поля"); return; }
+    if (!wAmount || !wReqId) { setWError("Выберите реквизит и введите сумму"); return; }
     const amount = parseFloat(wAmount);
     if (isNaN(amount) || amount <= 0) { setWError("Введите корректную сумму"); return; }
     if (amount > balanceRUB) { setWError("Недостаточно средств на балансе"); return; }
-    const req = activeRequisites.find((r) => r.id === wReqId);
-    if (!req) { setWError("Выберите реквизит"); return; }
     try {
       const res = await api.finance.withdraw({
         amount,
         currency: "RUB",
-        requisite_type: req.name,
-        requisite_details: req.details,
+        requisite_type: wReqLabel,
+        requisite_details: wReqId,
         commission: PLATFORM_COMMISSION,
       });
       const newWd: WithdrawRequest = {
@@ -352,13 +404,13 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
         currency: "RUB",
         commission: PLATFORM_COMMISSION,
         toReceive: res.to_receive,
-        requisiteType: req.name,
-        requisiteDetails: req.details,
+        requisiteType: wReqLabel,
+        requisiteDetails: wReqId,
         status: "pending",
         date: new Date().toLocaleDateString("ru-RU"),
       };
       setWithdrawals((prev) => [newWd, ...prev]);
-      setWAmount(""); setWReqId(""); setWError("");
+      setWAmount(""); setWReqId(""); setWReqLabel(""); setWError("");
       setShowWithdrawForm(false);
     } catch (e) {
       setWError(apiErrorMessage(e));
@@ -395,7 +447,9 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
     { key: "overview", label: "Обзор" },
     { key: "notifications", label: "Уведомления" },
     { key: "withdrawals", label: "Выводы" },
-    { key: "deposit", label: "Пополнение баланса" },
+    { key: "requisites", label: "Реквизиты" },
+    { key: "deposit", label: "Пополнение" },
+    { key: "partner", label: "Партнёрство" },
   ];
 
   const unreadCount = user.notifications.filter((n) => !n.read).length;
@@ -731,24 +785,34 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
-                    Реквизит для вывода
-                  </label>
-                  <select
-                    value={wReqId}
-                    onChange={(e) => {
-                      setWReqId(e.target.value);
-                      setWError("");
-                    }}
-                    className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
-                  >
-                    <option value="">Выберите реквизит...</option>
-                    {activeRequisites.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} — {r.details}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-xs text-muted-foreground mb-1 block">Реквизит для вывода</label>
+                  {wReqId ? (
+                    <div className="flex items-center gap-2 p-3 bg-background border border-gold/40 rounded-lg">
+                      <Icon name="CreditCard" size={14} className="text-gold shrink-0" />
+                      <span className="text-sm text-foreground flex-1 truncate">{wReqLabel}</span>
+                      <button onClick={() => { setWReqId(""); setWReqLabel(""); setWShowReqPicker(true); }} className="text-xs text-gold hover:underline shrink-0">Изменить</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setWShowReqPicker(true)}
+                      className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-muted-foreground text-left hover:border-gold/40 transition-colors flex items-center gap-2"
+                    >
+                      <Icon name="Plus" size={13} />
+                      Выбрать реквизит...
+                    </button>
+                  )}
+                  {wShowReqPicker && (
+                    <div className="mt-2 bg-background border border-border rounded-xl overflow-hidden">
+                      <WithdrawalRequisitesTab
+                        showSelect
+                        selectedId={wReqId}
+                        onSelect={(id, label) => { setWReqId(id); setWReqLabel(label); setWShowReqPicker(false); setWError(""); }}
+                      />
+                      <div className="p-3 border-t border-border">
+                        <button onClick={() => setWShowReqPicker(false)} className="text-xs text-muted-foreground hover:text-foreground">Отмена</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {wAmountNum > 0 && (
@@ -851,12 +915,25 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
         </div>
       )}
 
+      {/* ── REQUISITES ── */}
+      {tab === "requisites" && (
+        <WithdrawalRequisitesTab />
+      )}
+
+      {/* ── PARTNER ── */}
+      {tab === "partner" && (
+        <PartnerPageInline />
+      )}
+
       {/* ── DEPOSIT ── */}
       {tab === "deposit" && (
         <div className="animate-fade-in">
           <h2 className="font-display font-semibold text-base text-foreground mb-5">
             Пополнение баланса
           </h2>
+
+          {/* Реквизит пополнения — рандомный из пула */}
+          <DepositRequisiteBlock />
 
           {/* Requisites list */}
           <div className="mb-6 space-y-3">

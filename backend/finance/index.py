@@ -480,6 +480,300 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+        # ════════════════════════════════════════════════════════════════════
+        # ── РЕКВИЗИТЫ ВЫВОДА (личные реквизиты пользователя) ────────────────
+        # ════════════════════════════════════════════════════════════════════
+
+        # GET /finance/withdrawal-requisites
+        if method == "GET" and path.endswith("/withdrawal-requisites"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            cur.execute(
+                f"""SELECT id, type, phone, bank, card_number, card_holder, label, created_at
+                    FROM {SCHEMA}.withdrawal_requisites WHERE user_id=%s ORDER BY created_at DESC""",
+                (user["id"],)
+            )
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                result.append({
+                    "id": r[0], "type": r[1], "phone": r[2], "bank": r[3],
+                    "cardNumber": r[4], "cardHolder": r[5], "label": r[6],
+                    "createdAt": r[7].strftime("%d.%m.%Y"),
+                })
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"requisites": result})}
+
+        # POST /finance/withdrawal-requisites/add
+        if method == "POST" and path.endswith("/withdrawal-requisites/add"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            rtype = body.get("type")  # 'sbp' | 'card'
+            label = (body.get("label") or "").strip() or None
+            rid = "wr-" + secrets.token_hex(5)
+            if rtype == "sbp":
+                phone = (body.get("phone") or "").strip()
+                bank  = (body.get("bank") or "").strip()
+                if not phone or not bank:
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.withdrawal_requisites (id, user_id, type, phone, bank, label) VALUES (%s,%s,'sbp',%s,%s,%s)",
+                    (rid, user["id"], phone, bank, label)
+                )
+            elif rtype == "card":
+                card_number = (body.get("card_number") or "").strip()
+                card_holder = (body.get("card_holder") or "").strip()
+                if not card_number or not card_holder:
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.withdrawal_requisites (id, user_id, type, card_number, card_holder, label) VALUES (%s,%s,'card',%s,%s,%s)",
+                    (rid, user["id"], card_number, card_holder, label)
+                )
+            else:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_type"})}
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": rid})}
+
+        # POST /finance/withdrawal-requisites/delete
+        if method == "POST" and path.endswith("/withdrawal-requisites/delete"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            rid = body.get("id")
+            cur.execute(f"DELETE FROM {SCHEMA}.withdrawal_requisites WHERE id=%s AND user_id=%s", (rid, user["id"]))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ════════════════════════════════════════════════════════════════════
+        # ── РЕКВИЗИТЫ ПОПОЛНЕНИЯ (рандомный из пула платформы) ───────────────
+        # ════════════════════════════════════════════════════════════════════
+
+        # GET /finance/deposit-requisite  — возвращает 1 рандомный активный реквизит
+        # Логика: берём реквизит с наименьшим show_count, если все равны — рандом
+        if method == "GET" and path.endswith("/deposit-requisite"):
+            cur.execute(
+                f"""SELECT id, name, type, details, bank, currency, show_count
+                    FROM {SCHEMA}.deposit_requisites WHERE active=TRUE
+                    ORDER BY show_count ASC, random() LIMIT 1"""
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "no_requisites"})}
+            # Увеличиваем счётчик показов; если все реквизиты показаны одинаково много — сбрасываем (цикл)
+            cur.execute(f"UPDATE {SCHEMA}.deposit_requisites SET show_count=show_count+1 WHERE id=%s", (row[0],))
+            # Проверяем — если все реквизиты имеют одинаковый show_count — сбрасываем цикл
+            cur.execute(f"SELECT MIN(show_count), MAX(show_count) FROM {SCHEMA}.deposit_requisites WHERE active=TRUE")
+            mn, mx = cur.fetchone()
+            if mn == mx and mn > 0:
+                cur.execute(f"UPDATE {SCHEMA}.deposit_requisites SET show_count=0 WHERE active=TRUE")
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "id": row[0], "name": row[1], "type": row[2],
+                "details": row[3], "bank": row[4], "currency": row[5],
+            })}
+
+        # ── Admin: управление реквизитами пополнения ──────────────────────
+        # GET /finance/admin/deposit-requisites
+        if method == "GET" and path.endswith("/admin/deposit-requisites"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cur.execute(f"SELECT id, name, type, details, bank, currency, active, show_count FROM {SCHEMA}.deposit_requisites ORDER BY created_at")
+            rows = cur.fetchall()
+            result = [{"id": r[0], "name": r[1], "type": r[2], "details": r[3],
+                       "bank": r[4], "currency": r[5], "active": r[6], "showCount": r[7]} for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"requisites": result})}
+
+        # POST /finance/admin/deposit-requisites/add
+        if method == "POST" and path.endswith("/admin/deposit-requisites/add"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            rid = "dr-" + secrets.token_hex(4)
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.deposit_requisites (id, name, type, details, bank, currency, active) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (rid, body.get("name"), body.get("type"), body.get("details"),
+                 body.get("bank"), body.get("currency", "RUB"), body.get("active", True))
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": rid})}
+
+        # POST /finance/admin/deposit-requisites/toggle
+        if method == "POST" and path.endswith("/admin/deposit-requisites/toggle"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            rid = body.get("id")
+            cur.execute(f"UPDATE {SCHEMA}.deposit_requisites SET active=NOT active WHERE id=%s", (rid,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /finance/admin/deposit-requisites/delete
+        if method == "POST" and path.endswith("/admin/deposit-requisites/delete"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            rid = body.get("id")
+            cur.execute(f"DELETE FROM {SCHEMA}.deposit_requisites WHERE id=%s", (rid,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ════════════════════════════════════════════════════════════════════
+        # ── ПАРТНЁРЫ ─────────────────────────────────────────────────────────
+        # ════════════════════════════════════════════════════════════════════
+
+        # POST /finance/partner/apply
+        if method == "POST" and path.endswith("/partner/apply"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            platforms = body.get("platforms") or []
+            if not platforms:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
+            # Минимальные требования: хотя бы одна платформа с >=2000 подписчиков и >=1000 просмотров
+            valid = any(
+                (p.get("subscribers", 0) >= 2000 and p.get("avg_views", 0) >= 1000)
+                for p in platforms
+            )
+            if not valid:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "requirements_not_met"})}
+            # Проверяем нет ли уже активной заявки
+            cur.execute(f"SELECT id, status FROM {SCHEMA}.partner_applications WHERE user_id=%s ORDER BY created_at DESC LIMIT 1", (user["id"],))
+            existing = cur.fetchone()
+            if existing and existing[1] == "pending":
+                return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "already_pending"})}
+            # Уже партнёр?
+            cur.execute(f"SELECT id FROM {SCHEMA}.partners WHERE user_id=%s AND active=TRUE", (user["id"],))
+            if cur.fetchone():
+                return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "already_partner"})}
+            app_id = "pa-" + secrets.token_hex(6)
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.partner_applications (id, user_id, platforms) VALUES (%s,%s,%s::jsonb)",
+                (app_id, user["id"], json.dumps(platforms))
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": app_id})}
+
+        # GET /finance/partner/status
+        if method == "GET" and path.endswith("/partner/status"):
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            # Проверяем партнёрство
+            cur.execute(
+                f"SELECT id, ref_code, commission_pct, total_earned, total_referrals, platforms FROM {SCHEMA}.partners WHERE user_id=%s AND active=TRUE",
+                (user["id"],)
+            )
+            p = cur.fetchone()
+            if p:
+                return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                    "isPartner": True,
+                    "refCode": p[1],
+                    "commissionPct": float(p[2]),
+                    "totalEarned": float(p[3]),
+                    "totalReferrals": p[4],
+                    "platforms": p[5],
+                    "refUrl": f"https://gorant.shop?ref={p[1]}",
+                })}
+            # Проверяем заявку
+            cur.execute(
+                f"SELECT id, status, reject_reason, created_at FROM {SCHEMA}.partner_applications WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
+                (user["id"],)
+            )
+            app = cur.fetchone()
+            if app:
+                return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                    "isPartner": False,
+                    "application": {"id": app[0], "status": app[1], "rejectReason": app[2],
+                                    "date": app[3].strftime("%d.%m.%Y")},
+                })}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"isPartner": False, "application": None})}
+
+        # ── Admin: управление партнёрами ─────────────────────────────────
+        # GET /finance/admin/partner-applications
+        if method == "GET" and path.endswith("/admin/partner-applications"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cur.execute(
+                f"""SELECT pa.id, pa.user_id, u.username, u.email, pa.platforms, pa.status, pa.created_at
+                    FROM {SCHEMA}.partner_applications pa JOIN {SCHEMA}.users u ON u.id=pa.user_id
+                    ORDER BY pa.created_at DESC"""
+            )
+            rows = cur.fetchall()
+            apps = [{"id": r[0], "userId": r[1], "username": r[2], "email": r[3],
+                     "platforms": r[4], "status": r[5], "date": r[6].strftime("%d.%m.%Y")} for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"applications": apps})}
+
+        # POST /finance/admin/partner-approve
+        if method == "POST" and path.endswith("/admin/partner-approve"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            app_id = body.get("id")
+            cur.execute(
+                f"SELECT user_id, platforms FROM {SCHEMA}.partner_applications WHERE id=%s AND status='pending'",
+                (app_id,)
+            )
+            app = cur.fetchone()
+            if not app:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            target_user_id, platforms = app
+            # Генерируем уникальный реф-код
+            ref_code = secrets.token_urlsafe(8).upper()[:10]
+            partner_id = "p-" + secrets.token_hex(5)
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.partners (id, user_id, ref_code, platforms) VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (user_id) DO UPDATE SET active=TRUE",
+                (partner_id, target_user_id, ref_code, json.dumps(platforms) if isinstance(platforms, list) else platforms)
+            )
+            cur.execute(
+                f"UPDATE {SCHEMA}.partner_applications SET status='approved', reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
+                (user["id"], app_id)
+            )
+            add_notification(cur, target_user_id, "system",
+                "Заявка на партнёрство одобрена! 🎉",
+                f"Ваша заявка одобрена. Ваша реферальная ссылка: https://gorant.shop?ref={ref_code}",
+                shield=True)
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "refCode": ref_code})}
+
+        # POST /finance/admin/partner-reject
+        if method == "POST" and path.endswith("/admin/partner-reject"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            app_id = body.get("id")
+            reason = body.get("reason") or ""
+            cur.execute(f"SELECT user_id FROM {SCHEMA}.partner_applications WHERE id=%s", (app_id,))
+            app = cur.fetchone()
+            if not app:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            cur.execute(
+                f"UPDATE {SCHEMA}.partner_applications SET status='rejected', reject_reason=%s, reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
+                (reason, user["id"], app_id)
+            )
+            add_notification(cur, app[0], "system",
+                "Заявка на партнёрство отклонена",
+                f"Причина: {reason or 'Не указана'}. Вы можете подать новую заявку.")
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # GET /finance/admin/partners
+        if method == "GET" and path.endswith("/admin/partners"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cur.execute(
+                f"""SELECT p.id, p.user_id, u.username, u.email, p.ref_code, p.commission_pct,
+                           p.total_earned, p.total_referrals, p.active, p.created_at, p.platforms
+                    FROM {SCHEMA}.partners p JOIN {SCHEMA}.users u ON u.id=p.user_id
+                    ORDER BY p.created_at DESC"""
+            )
+            rows = cur.fetchall()
+            partners = [{"id": r[0], "userId": r[1], "username": r[2], "email": r[3],
+                         "refCode": r[4], "commissionPct": float(r[5]),
+                         "totalEarned": float(r[6]), "totalReferrals": r[7],
+                         "active": r[8], "date": r[9].strftime("%d.%m.%Y"),
+                         "platforms": r[10]} for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"partners": partners})}
+
+        # POST /finance/admin/partner-toggle
+        if method == "POST" and path.endswith("/admin/partner-toggle"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            pid = body.get("id")
+            cur.execute(f"UPDATE {SCHEMA}.partners SET active=NOT active WHERE id=%s", (pid,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
     except Exception as e:
