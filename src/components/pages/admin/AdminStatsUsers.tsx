@@ -18,12 +18,35 @@ export const STATUS_LABEL: Record<string, string> = {
   blocked: "Заблокирован",
 };
 
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+type Period = "day" | "week" | "month" | "total";
+const PERIOD_LABELS: Record<Period, string> = { day: "За день", week: "За неделю", month: "За месяц", total: "За всё время" };
+
+function PeriodTabs({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+  return (
+    <div className="flex gap-0.5 p-0.5 bg-background rounded-lg">
+      {(["day", "week", "month", "total"] as Period[]).map((p) => (
+        <button key={p} onClick={() => onChange(p)}
+          className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-colors ${value === p ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          {PERIOD_LABELS[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function fmt(n: number) { return `₽\u00A0${Math.round(n).toLocaleString("ru-RU")}`; }
+
 // ─── STATS TAB ────────────────────────────────────────────────────────────────
 
 export function AdminStatsTab() {
   const [stats, setStats] = useState<ApiAdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [userPeriod, setUserPeriod] = useState<Period>("month");
+  const [commPeriod, setCommPeriod] = useState<Period>("month");
+  const [wdPeriod, setWdPeriod] = useState<Period>("month");
 
   const load = () => {
     setLoading(true);
@@ -56,36 +79,55 @@ export function AdminStatsTab() {
     );
   }
 
+  const userGrowthVal = userPeriod === "total" ? stats.usersGrowth.total : stats.usersGrowth[userPeriod];
+  const commVal = commPeriod === "total" ? stats.commission.total : stats.commission[commPeriod];
+  const wdVal = wdPeriod === "total" ? stats.withdrawals.pendingVolume : stats.withdrawals[wdPeriod];
+
   return (
-    <div className="animate-fade-in">
-      <div className="flex justify-end mb-4">
+    <div className="animate-fade-in space-y-6">
+      {/* Кнопка обновления */}
+      <div className="flex justify-end">
         <Button variant="outline" size="sm" className="border-border text-xs" onClick={load}>
           <Icon name="RefreshCw" size={13} className="mr-1.5" />Обновить
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
+      {/* ── Верхние карточки ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: "CheckCircle", label: "Всего сделок", value: stats.totalDeals.toLocaleString("ru-RU"), color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" },
-          { icon: "Banknote", label: "Продано", value: `₽ ${Math.round(stats.totalVolume).toLocaleString("ru-RU")}`, color: "text-gold", bg: "bg-gold/10 border-gold/20" },
-          { icon: "TrendingUp", label: "Успешных", value: `${stats.successRate}%`, color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
-          { icon: "Users", label: "Пользователей", value: stats.registeredUsers.toLocaleString("ru-RU"), color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" },
+          { icon: "CheckCircle", label: "Всего сделок", value: stats.totalDeals.toLocaleString("ru-RU"), sub: `${fmt(stats.totalVolume)} оборот`, color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" },
+          { icon: "ArrowRightLeft", label: "Открытых сделок", value: stats.openDeals.toLocaleString("ru-RU"), sub: `${fmt(stats.openVolume)} на удержании`, color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20" },
+          { icon: "TrendingUp", label: "% успешных", value: `${stats.successRate}%`, sub: "от всех сделок", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
+          { icon: "Users", label: "Всего пользователей", value: stats.registeredUsers.toLocaleString("ru-RU"), sub: `+${stats.usersGrowth.day} сегодня`, color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-border rounded-xl p-5">
             <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-3 ${s.bg}`}>
               <Icon name={s.icon} size={18} className={s.color} />
             </div>
-            <div className={`font-display font-bold text-xl mb-1 ${s.color}`}>{s.value}</div>
+            <div className={`font-display font-bold text-2xl mb-0.5 ${s.color}`}>{s.value}</div>
             <div className="text-xs text-muted-foreground">{s.label}</div>
+            <div className={`text-[10px] mt-1.5 font-semibold ${s.color} opacity-70`}>{s.sub}</div>
           </div>
         ))}
       </div>
 
+      {/* ── Три детальных блока ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Пользователи по статусу */}
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="font-display font-semibold text-sm text-foreground mb-4">Пользователи по статусу</h3>
-          <div className="space-y-3">
+
+        {/* Прирост пользователей */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Icon name="UserPlus" size={16} className="text-purple-400" />
+              <h3 className="font-display font-semibold text-sm text-foreground">Прирост пользователей</h3>
+            </div>
+          </div>
+          <PeriodTabs value={userPeriod} onChange={setUserPeriod} />
+          <div>
+            <div className="font-display font-bold text-4xl text-purple-400">+{userGrowthVal.toLocaleString("ru-RU")}</div>
+            <div className="text-xs text-muted-foreground mt-1">{PERIOD_LABELS[userPeriod].toLowerCase()}</div>
+          </div>
+          <div className="pt-3 border-t border-border space-y-2">
             {(["active", "frozen", "blocked"] as const).map((st) => (
               <div key={st} className="flex items-center justify-between">
                 <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLE[st]}`}>{STATUS_LABEL[st]}</span>
@@ -95,25 +137,92 @@ export function AdminStatsTab() {
           </div>
         </div>
 
-        {/* Доходы */}
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="font-display font-semibold text-sm text-foreground mb-4">Доходы</h3>
-          <div className="flex items-baseline gap-1 mb-2">
-            <span className="font-display font-black text-4xl text-gold">{PLATFORM_COMMISSION}%</span>
-            <span className="text-muted-foreground text-sm">комиссия</span>
+        {/* Комиссии сайта */}
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Icon name="Banknote" size={16} className="text-gold" />
+            <h3 className="font-display font-semibold text-sm text-foreground">Заработано с комиссии</h3>
           </div>
-          <div className="text-xs text-muted-foreground mb-2">Заработано всего:</div>
-          <div className="font-display font-bold text-xl text-gold">₽ {Math.round(stats.commissionEarned).toLocaleString("ru-RU")}</div>
+          <PeriodTabs value={commPeriod} onChange={setCommPeriod} />
+          <div>
+            <div className="font-display font-bold text-3xl text-gold">{fmt(commVal)}</div>
+            <div className="text-xs text-muted-foreground mt-1">{PERIOD_LABELS[commPeriod].toLowerCase()}</div>
+          </div>
+          <div className="pt-3 border-t border-border grid grid-cols-2 gap-2 text-xs">
+            {([["day", "День"], ["week", "Неделя"], ["month", "Месяц"], ["total", "Всего"]] as const).map(([p, l]) => (
+              <div key={p} className="bg-background rounded-lg p-2.5">
+                <div className="text-muted-foreground mb-0.5">{l}</div>
+                <div className="font-display font-bold text-gold">{fmt(stats.commission[p])}</div>
+              </div>
+            ))}
+          </div>
+          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Icon name="Info" size={10} />
+            Ставка комиссии: {PLATFORM_COMMISSION}% от суммы сделки
+          </div>
         </div>
 
         {/* Ожидающие выводы */}
-        <div className="bg-surface border border-border rounded-xl p-6">
-          <h3 className="font-display font-semibold text-sm text-foreground mb-4">Ожидающие выводы</h3>
-          <div className="font-display font-bold text-3xl text-amber-400 mb-1">{stats.pendingWithdrawals}</div>
-          <div className="text-xs text-muted-foreground mb-3">заявок на сумму</div>
-          <div className="font-display font-bold text-lg text-foreground">₽ {Math.round(stats.pendingWithdrawalsVolume).toLocaleString("ru-RU")}</div>
+        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Icon name="Clock" size={16} className="text-amber-400" />
+            <h3 className="font-display font-semibold text-sm text-foreground">Ожидают вывода</h3>
+          </div>
+          <PeriodTabs value={wdPeriod} onChange={setWdPeriod} />
+          <div>
+            <div className="font-display font-bold text-4xl text-amber-400">{stats.withdrawals.pendingCount}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">заявок · {fmt(stats.withdrawals.pendingVolume)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Поданных {PERIOD_LABELS[wdPeriod].toLowerCase()}: <span className="text-foreground font-semibold">{fmt(wdVal)}</span>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-border grid grid-cols-2 gap-2 text-xs">
+            {([["day", "День"], ["week", "Неделя"], ["month", "Месяц"]] as const).map(([p, l]) => (
+              <div key={p} className="bg-background rounded-lg p-2.5">
+                <div className="text-muted-foreground mb-0.5">{l}</div>
+                <div className="font-display font-bold text-amber-400">{fmt(stats.withdrawals[p])}</div>
+              </div>
+            ))}
+            <div className="bg-background rounded-lg p-2.5">
+              <div className="text-muted-foreground mb-0.5">На обработке</div>
+              <div className="font-display font-bold text-foreground">{fmt(stats.withdrawals.pendingVolume)}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Открытые сделки — детальная карточка ── */}
+      <div className="bg-surface border border-amber-400/20 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-amber-400/10 flex items-center justify-center">
+            <Icon name="ArrowRightLeft" size={16} className="text-amber-400" />
+          </div>
+          <h3 className="font-display font-semibold text-base text-foreground">Открытые сделки (эскроу)</h3>
+          <span className="ml-auto font-display font-bold text-2xl text-amber-400">{stats.openDeals}</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-background rounded-xl p-4 text-center">
+            <div className="text-xs text-muted-foreground mb-1">Сумма на удержании</div>
+            <div className="font-display font-bold text-lg text-amber-400">{fmt(stats.openVolume)}</div>
+          </div>
+          <div className="bg-background rounded-xl p-4 text-center">
+            <div className="text-xs text-muted-foreground mb-1">Комиссия (потенц.)</div>
+            <div className="font-display font-bold text-lg text-gold">{fmt(stats.openVolume * PLATFORM_COMMISSION / 100)}</div>
+          </div>
+          <div className="bg-background rounded-xl p-4 text-center">
+            <div className="text-xs text-muted-foreground mb-1">Средняя сумма</div>
+            <div className="font-display font-bold text-lg text-foreground">{fmt(stats.openDeals > 0 ? stats.openVolume / stats.openDeals : 0)}</div>
+          </div>
+          <div className="bg-background rounded-xl p-4 text-center">
+            <div className="text-xs text-muted-foreground mb-1">% от всех сделок</div>
+            <div className="font-display font-bold text-lg text-blue-400">
+              {stats.totalDeals > 0 ? Math.round(stats.openDeals / (stats.totalDeals + stats.openDeals) * 100) : 0}%
+            </div>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }

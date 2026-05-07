@@ -345,12 +345,21 @@ export type ApiVerification = {
 };
 
 export type ApiAdminStats = {
+  // Сделки
   totalDeals: number;
   totalVolume: number;
-  commissionEarned: number;
+  openDeals: number;
+  openVolume: number;
   successRate: number;
+  // Комиссия
+  commissionEarned: number;
+  commission: { total: number; day: number; week: number; month: number };
+  // Пользователи
   registeredUsers: number;
+  usersGrowth: { total: number; day: number; week: number; month: number };
   usersByStatus: Record<string, number>;
+  // Выводы
   pendingWithdrawals: number;
   pendingWithdrawalsVolume: number;
+  withdrawals: { pendingCount: number; pendingVolume: number; day: number; week: number; month: number };
 };

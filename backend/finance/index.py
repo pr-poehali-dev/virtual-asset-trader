@@ -328,52 +328,109 @@ def handler(event: dict, context) -> dict:
             if not require_admin(user):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
 
-            # Всего сделок и объём
+            # ── Сделки: всего, объём, открытые ───────────────────────────────
             cur.execute(
-                f"""SELECT COUNT(*), COALESCE(SUM(amount),0)
-                    FROM {SCHEMA}.deals WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')"""
+                f"""SELECT
+                    COUNT(*) FILTER (WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')) AS total_deals,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')), 0) AS total_volume,
+                    COUNT(*) FILTER (WHERE status = 'escrow') AS open_deals,
+                    COALESCE(SUM(amount) FILTER (WHERE status = 'escrow'), 0) AS open_volume,
+                    COUNT(*) FILTER (WHERE status = 'completed') AS completed_deals
+                FROM {SCHEMA}.deals"""
             )
             r = cur.fetchone()
-            total_deals, total_volume = int(r[0]), float(r[1])
+            total_deals    = int(r[0])
+            total_volume   = float(r[1])
+            open_deals     = int(r[2])
+            open_volume    = float(r[3])
+            completed_deals = int(r[4])
+            success_rate = round(completed_deals / total_deals * 100, 1) if total_deals > 0 else 100
 
-            # Комиссия платформы
+            # ── Комиссия заработана ───────────────────────────────────────────
             cur.execute(
-                f"""SELECT COALESCE(SUM(amount * %s / 100), 0)
-                    FROM {SCHEMA}.deals WHERE status='completed'""",
-                (PLATFORM_COMMISSION,)
+                f"""SELECT
+                    COALESCE(SUM(amount * %s / 100) FILTER (WHERE status='completed'), 0) AS total,
+                    COALESCE(SUM(amount * %s / 100) FILTER (WHERE status='completed' AND created_at >= NOW() - INTERVAL '1 day'), 0) AS day,
+                    COALESCE(SUM(amount * %s / 100) FILTER (WHERE status='completed' AND created_at >= NOW() - INTERVAL '7 days'), 0) AS week,
+                    COALESCE(SUM(amount * %s / 100) FILTER (WHERE status='completed' AND created_at >= NOW() - INTERVAL '30 days'), 0) AS month
+                FROM {SCHEMA}.deals""",
+                (PLATFORM_COMMISSION, PLATFORM_COMMISSION, PLATFORM_COMMISSION, PLATFORM_COMMISSION)
             )
-            commission_earned = float(cur.fetchone()[0])
+            cr = cur.fetchone()
+            commission = {
+                "total": float(cr[0]),
+                "day":   float(cr[1]),
+                "week":  float(cr[2]),
+                "month": float(cr[3]),
+            }
 
-            # Пользователи по статусу
+            # ── Пользователи: всего + прирост по периодам ─────────────────────
             cur.execute(
-                f"""SELECT status, COUNT(*) FROM {SCHEMA}.users
-                    WHERE role='user' GROUP BY status"""
+                f"""SELECT
+                    COUNT(*) FILTER (WHERE role='user') AS total,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '1 day') AS day,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '7 days') AS week,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '30 days') AS month,
+                    status
+                FROM {SCHEMA}.users GROUP BY status"""
             )
-            user_stats = {row[0]: row[1] for row in cur.fetchall()}
+            # Для прироста — отдельный запрос без GROUP BY
+            cur.execute(
+                f"""SELECT
+                    COUNT(*) FILTER (WHERE role='user') AS total,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '1 day') AS day,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '7 days') AS week,
+                    COUNT(*) FILTER (WHERE role='user' AND created_at >= NOW() - INTERVAL '30 days') AS month
+                FROM {SCHEMA}.users"""
+            )
+            ur = cur.fetchone()
+            users_growth = {
+                "total": int(ur[0]),
+                "day":   int(ur[1]),
+                "week":  int(ur[2]),
+                "month": int(ur[3]),
+            }
 
-            # Успешных сделок %
-            cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.deals WHERE status='completed'")
-            completed = int(cur.fetchone()[0])
-            success_rate = round(completed / total_deals * 100, 1) if total_deals > 0 else 100
+            cur.execute(f"SELECT status, COUNT(*) FROM {SCHEMA}.users WHERE role='user' GROUP BY status")
+            user_stats = {row[0]: int(row[1]) for row in cur.fetchall()}
 
-            # Зарегистрированных пользователей
-            cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.users WHERE role='user'")
-            registered = int(cur.fetchone()[0])
-
-            # Ожидающие выводы
-            cur.execute(f"SELECT COUNT(*), COALESCE(SUM(amount),0) FROM {SCHEMA}.withdrawals WHERE status='pending'")
-            r2 = cur.fetchone()
-            pending_withdrawals, pending_volume = int(r2[0]), float(r2[1])
+            # ── Выводы: ожидающие + суммы по периодам ────────────────────────
+            cur.execute(
+                f"""SELECT
+                    COUNT(*) FILTER (WHERE status IN ('pending','processing')) AS pending_count,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('pending','processing')), 0) AS pending_volume,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('pending','processing') AND created_at >= NOW() - INTERVAL '1 day'), 0) AS day,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('pending','processing') AND created_at >= NOW() - INTERVAL '7 days'), 0) AS week,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('pending','processing') AND created_at >= NOW() - INTERVAL '30 days'), 0) AS month
+                FROM {SCHEMA}.withdrawals"""
+            )
+            wr = cur.fetchone()
+            withdrawals_stats = {
+                "pendingCount":  int(wr[0]),
+                "pendingVolume": float(wr[1]),
+                "day":   float(wr[2]),
+                "week":  float(wr[3]),
+                "month": float(wr[4]),
+            }
 
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({
-                "totalDeals": total_deals,
-                "totalVolume": total_volume,
-                "commissionEarned": commission_earned,
-                "successRate": success_rate,
-                "registeredUsers": registered,
+                # Сделки
+                "totalDeals":   total_deals,
+                "totalVolume":  total_volume,
+                "openDeals":    open_deals,
+                "openVolume":   open_volume,
+                "successRate":  success_rate,
+                # Комиссия
+                "commissionEarned": commission["total"],
+                "commission":  commission,
+                # Пользователи
+                "registeredUsers": users_growth["total"],
+                "usersGrowth": users_growth,
                 "usersByStatus": user_stats,
-                "pendingWithdrawals": pending_withdrawals,
-                "pendingWithdrawalsVolume": pending_volume,
+                # Выводы
+                "pendingWithdrawals":       withdrawals_stats["pendingCount"],
+                "pendingWithdrawalsVolume": withdrawals_stats["pendingVolume"],
+                "withdrawals": withdrawals_stats,
             })}
 
         # ── POST /finance/admin/staff ─────────────────────────────────────────
