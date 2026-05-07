@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Cron without secret",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

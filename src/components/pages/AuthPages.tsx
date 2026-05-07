@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
+import { api, apiErrorMessage } from "@/api/client";
 import {
   INITIAL_REQUISITES,
   INITIAL_WITHDRAWALS,
@@ -287,9 +288,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   const [tab, setTab] = useState<CabinetTab>("overview");
 
   // ── Withdrawals state ──
-  const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>(
-    INITIAL_WITHDRAWALS.filter((w) => w.userId === user?.id)
-  );
+  const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
   const [activeRequisites] = useState(INITIAL_REQUISITES.filter((r) => r.active));
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [wAmount, setWAmount] = useState("");
@@ -303,6 +302,20 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   const [depSuccess, setDepSuccess] = useState(false);
   const [depError, setDepError] = useState("");
 
+  // Загружаем выводы из API при открытии вкладки
+  useEffect(() => {
+    if (!user || tab !== "withdrawals") return;
+    api.finance.myWithdrawals()
+      .then(({ withdrawals: list }) => setWithdrawals(list.map((w) => ({
+        id: w.id, userId: user.id, username: user.username,
+        amount: w.amount, currency: w.currency, commission: w.commission,
+        toReceive: w.toReceive, requisiteType: w.requisiteType,
+        requisiteDetails: w.requisiteDetails, status: w.status as WithdrawRequest["status"],
+        date: w.date,
+      }))))
+      .catch(() => {});
+  }, [user, tab]);
+
   if (!user) {
     return <LoginPage onRegister={() => setActive("register")} onFrozen={() => {}} />;
   }
@@ -315,44 +328,41 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   const commissionAmount = Math.round(wAmountNum * (PLATFORM_COMMISSION / 100));
   const toReceive = Math.max(0, wAmountNum - commissionAmount);
 
-  const submitWithdrawal = () => {
+  const submitWithdrawal = async () => {
     setWError("");
-    if (!wAmount || !wReqId) {
-      setWError("Заполните все поля");
-      return;
-    }
+    if (!wAmount || !wReqId) { setWError("Заполните все поля"); return; }
     const amount = parseFloat(wAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setWError("Введите корректную сумму");
-      return;
-    }
-    if (amount > balanceRUB) {
-      setWError("Недостаточно средств на балансе");
-      return;
-    }
+    if (isNaN(amount) || amount <= 0) { setWError("Введите корректную сумму"); return; }
+    if (amount > balanceRUB) { setWError("Недостаточно средств на балансе"); return; }
     const req = activeRequisites.find((r) => r.id === wReqId);
-    if (!req) {
-      setWError("Выберите реквизит");
-      return;
+    if (!req) { setWError("Выберите реквизит"); return; }
+    try {
+      const res = await api.finance.withdraw({
+        amount,
+        currency: "RUB",
+        requisite_type: req.name,
+        requisite_details: req.details,
+        commission: PLATFORM_COMMISSION,
+      });
+      const newWd: WithdrawRequest = {
+        id: res.id,
+        userId: user.id,
+        username: user.username,
+        amount,
+        currency: "RUB",
+        commission: PLATFORM_COMMISSION,
+        toReceive: res.to_receive,
+        requisiteType: req.name,
+        requisiteDetails: req.details,
+        status: "pending",
+        date: new Date().toLocaleDateString("ru-RU"),
+      };
+      setWithdrawals((prev) => [newWd, ...prev]);
+      setWAmount(""); setWReqId(""); setWError("");
+      setShowWithdrawForm(false);
+    } catch (e) {
+      setWError(apiErrorMessage(e));
     }
-    const newWd: WithdrawRequest = {
-      id: `WD-${String(Date.now()).slice(-5)}`,
-      userId: user.id,
-      username: user.username,
-      amount,
-      currency: "RUB",
-      commission: PLATFORM_COMMISSION,
-      toReceive: Math.round(amount * (1 - PLATFORM_COMMISSION / 100)),
-      requisiteType: req.name,
-      requisiteDetails: req.details,
-      status: "pending",
-      date: new Date().toLocaleDateString("ru-RU"),
-    };
-    setWithdrawals((prev) => [newWd, ...prev]);
-    setWAmount("");
-    setWReqId("");
-    setWError("");
-    setShowWithdrawForm(false);
   };
 
   const submitDeposit = () => {

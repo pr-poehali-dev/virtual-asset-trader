@@ -6,6 +6,7 @@ const URLS = {
   deals:    "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
   finance:  "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
   verify:   "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
+  cron:     "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -24,6 +25,37 @@ export function clearToken() {
 
 // ── Базовый запрос ────────────────────────────────────────────────────────────
 
+// Тип ошибки API — для нормальной обработки во фронтенде
+export type ApiError = { status: number; error?: string; message?: string };
+
+export function isApiError(e: unknown): e is ApiError {
+  return typeof e === "object" && e !== null && "status" in e;
+}
+
+export function apiErrorMessage(e: unknown): string {
+  if (!isApiError(e)) return "Неизвестная ошибка";
+  const err = e as ApiError;
+  const map: Record<string, string> = {
+    unauthorized: "Необходима авторизация",
+    forbidden: "Нет доступа",
+    not_found: "Не найдено",
+    exists: "Уже существует",
+    no_balance: "Недостаточно средств",
+    wrong: "Неверный логин или пароль",
+    blocked: "Аккаунт заблокирован",
+    frozen: "Аккаунт заморожен",
+    self_buy: "Нельзя купить собственный товар",
+    missing_fields: "Заполните все поля",
+    invalid_data: "Некорректные данные",
+    already_pending: "Заявка уже подана",
+    already_verified: "Аккаунт уже верифицирован",
+    not_buyer: "Отзыв доступен только после покупки",
+    owner_protected: "Действие недоступно для владельца",
+    wrong_status: "Неверный статус сделки",
+  };
+  return map[err.error ?? ""] || err.message || `Ошибка ${err.status}`;
+}
+
 async function req<T = unknown>(
   base: keyof typeof URLS,
   path: string,
@@ -35,14 +67,25 @@ async function req<T = unknown>(
   if (token) headers["X-Session-Token"] = token;
 
   const url = URLS[base] + path;
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw { status: 0, error: "network_error", message: "Нет соединения с сервером" } as ApiError;
+  }
 
-  const data = await res.json();
-  if (!res.ok) throw { status: res.status, ...data };
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw { status: res.status, error: "parse_error", message: "Ошибка обработки ответа" } as ApiError;
+  }
+
+  if (!res.ok) throw { status: res.status, ...(data as object) };
   return data as T;
 }
 
@@ -157,6 +200,19 @@ export const api = {
 
     reject: (id: string, reason: string) =>
       req("verify", "/reject", "POST", { id, reason }),
+  },
+
+  // ── Расширенные admin-методы ─────────────────────────────────────────────
+
+  adminExtra: {
+    stats: () =>
+      req<ApiAdminStats>("finance", "/admin/stats"),
+
+    staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
+      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }),
+
+    arbiter: (deal_id: string, arbiter_id: string) =>
+      req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
   },
 };
 
@@ -286,4 +342,15 @@ export type ApiVerification = {
   status: "pending" | "approved" | "rejected";
   rejectReason?: string;
   date: string;
+};
+
+export type ApiAdminStats = {
+  totalDeals: number;
+  totalVolume: number;
+  commissionEarned: number;
+  successRate: number;
+  registeredUsers: number;
+  usersByStatus: Record<string, number>;
+  pendingWithdrawals: number;
+  pendingWithdrawalsVolume: number;
 };

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ADMIN_PASSWORD } from "@/components/data/constants";
+import { useAuth } from "@/context/AuthContext";
+import { api, apiErrorMessage } from "@/api/client";
 import { AdminStatsTab, AdminUsersTab } from "@/components/pages/admin/AdminStatsUsers";
 import { AdminDealsTab, AdminRequisitesTab } from "@/components/pages/admin/AdminDealsRequisites";
 import {
@@ -12,19 +13,53 @@ import {
 } from "@/components/pages/admin/AdminFinanceStaff";
 import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerifications";
 
+const ADMIN_SESSION_KEY = "gs_admin_session";
+
 // ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
+// Использует обычный логин через auth API — токен сохраняется в sessionStorage
+// Сессия живёт до закрытия вкладки (sessionStorage очищается автоматически)
 
 export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
+  const { login, user } = useAuth();
+  const [loginVal, setLoginVal] = useState("slumon4ik@gorant.shop");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (password === ADMIN_PASSWORD) {
+  // Восстанавливаем admin-сессию из sessionStorage при монтировании
+  useEffect(() => {
+    const saved = sessionStorage.getItem(ADMIN_SESSION_KEY);
+    if (saved === "1" && user?.role === "admin") {
       onSuccess();
-      setError(false);
-    } else {
-      setError(true);
-      setPassword("");
+    }
+  }, [user]);
+
+  const handleLogin = async () => {
+    if (!loginVal || !password) { setError("Заполните все поля"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const result = await login(loginVal, password);
+      if (result === "ok") {
+        // Проверяем что пользователь — администратор
+        const { user: me } = await api.auth.me();
+        if (me.role !== "admin" && me.role !== "staff") {
+          setError("Доступ разрешён только администраторам");
+          return;
+        }
+        sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+        onSuccess();
+      } else if (result === "blocked") {
+        setError("Аккаунт заблокирован");
+      } else if (result === "frozen") {
+        setError("Аккаунт заморожен");
+      } else {
+        setError("Неверный логин или пароль");
+      }
+    } catch (e) {
+      setError(apiErrorMessage(e));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -36,40 +71,37 @@ export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
             <div className="w-14 h-14 rounded-xl bg-red-400/10 border border-red-400/30 flex items-center justify-center mx-auto mb-4">
               <Icon name="ShieldAlert" size={28} className="text-red-400" />
             </div>
-            <h1 className="font-display font-bold text-xl text-foreground mb-1">
-              Панель администратора
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Доступ только для авторизованных администраторов
-            </p>
+            <h1 className="font-display font-bold text-xl text-foreground mb-1">Панель администратора</h1>
+            <p className="text-xs text-muted-foreground">Доступ только для авторизованных администраторов</p>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
-                Пароль администратора
-              </label>
+              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Email или логин</label>
+              <Input
+                placeholder="admin@gorant.shop"
+                value={loginVal}
+                onChange={(e) => { setLoginVal(e.target.value); setError(""); }}
+                className="bg-background border-border"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Пароль</label>
               <Input
                 type="password"
                 placeholder="Введите пароль..."
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError(false);
-                }}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 className={`bg-background border-border ${error ? "border-red-400/60" : ""}`}
               />
               {error && (
                 <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
-                  <Icon name="AlertCircle" size={12} />
-                  Неверный пароль
+                  <Icon name="AlertCircle" size={12} />{error}
                 </p>
               )}
             </div>
-            <Button
-              className="w-full bg-red-500 hover:bg-red-600 text-white font-bold"
-              onClick={handleLogin}
-            >
+            <Button className="w-full bg-red-500 hover:bg-red-600 text-white font-bold" onClick={handleLogin} disabled={loading}>
+              {loading ? <Icon name="Loader" size={16} className="animate-spin mr-2" /> : null}
               Войти в панель
             </Button>
           </div>

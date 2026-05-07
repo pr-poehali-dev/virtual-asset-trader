@@ -1,4 +1,5 @@
 {
+  "cron": "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
   "verify": "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
   "finance": "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
   "deals": "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",

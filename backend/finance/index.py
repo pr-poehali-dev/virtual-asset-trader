@@ -323,6 +323,105 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+        # ── GET /finance/admin/stats ──────────────────────────────────────────
+        if method == "GET" and path.endswith("/admin/stats"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+
+            # Всего сделок и объём
+            cur.execute(
+                f"""SELECT COUNT(*), COALESCE(SUM(amount),0)
+                    FROM {SCHEMA}.deals WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')"""
+            )
+            r = cur.fetchone()
+            total_deals, total_volume = int(r[0]), float(r[1])
+
+            # Комиссия платформы
+            cur.execute(
+                f"""SELECT COALESCE(SUM(amount * %s / 100), 0)
+                    FROM {SCHEMA}.deals WHERE status='completed'""",
+                (PLATFORM_COMMISSION,)
+            )
+            commission_earned = float(cur.fetchone()[0])
+
+            # Пользователи по статусу
+            cur.execute(
+                f"""SELECT status, COUNT(*) FROM {SCHEMA}.users
+                    WHERE role='user' GROUP BY status"""
+            )
+            user_stats = {row[0]: row[1] for row in cur.fetchall()}
+
+            # Успешных сделок %
+            cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.deals WHERE status='completed'")
+            completed = int(cur.fetchone()[0])
+            success_rate = round(completed / total_deals * 100, 1) if total_deals > 0 else 100
+
+            # Зарегистрированных пользователей
+            cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.users WHERE role='user'")
+            registered = int(cur.fetchone()[0])
+
+            # Ожидающие выводы
+            cur.execute(f"SELECT COUNT(*), COALESCE(SUM(amount),0) FROM {SCHEMA}.withdrawals WHERE status='pending'")
+            r2 = cur.fetchone()
+            pending_withdrawals, pending_volume = int(r2[0]), float(r2[1])
+
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "totalDeals": total_deals,
+                "totalVolume": total_volume,
+                "commissionEarned": commission_earned,
+                "successRate": success_rate,
+                "registeredUsers": registered,
+                "usersByStatus": user_stats,
+                "pendingWithdrawals": pending_withdrawals,
+                "pendingWithdrawalsVolume": pending_volume,
+            })}
+
+        # ── POST /finance/admin/staff ─────────────────────────────────────────
+        if method == "POST" and path.endswith("/admin/staff"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            target_id = body.get("user_id")
+            action    = body.get("action")  # add | remove | update
+            perms     = body.get("permissions") or []
+
+            cur.execute(f"SELECT is_owner FROM {SCHEMA}.users WHERE id=%s", (target_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            if row[0]:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "owner_protected"})}
+
+            if action == "add":
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET role='staff', staff_perms=%s WHERE id=%s",
+                    (perms, target_id)
+                )
+            elif action == "remove":
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET role='user', staff_perms='{{}}' WHERE id=%s",
+                    (target_id,)
+                )
+            elif action == "update":
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET staff_perms=%s WHERE id=%s",
+                    (perms, target_id)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── POST /finance/admin/arbiter ───────────────────────────────────────
+        if method == "POST" and path.endswith("/admin/arbiter"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            deal_id    = body.get("deal_id")
+            arbiter_id = body.get("arbiter_id")
+            cur.execute(
+                f"UPDATE {SCHEMA}.deals SET arbiter_id=%s WHERE id=%s AND status='dispute'",
+                (arbiter_id, deal_id)
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
     except Exception as e:
