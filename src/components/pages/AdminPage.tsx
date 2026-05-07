@@ -13,6 +13,7 @@ import {
 } from "@/components/pages/admin/AdminFinanceStaff";
 import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerifications";
 import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/admin/AdminPartnersRequisites";
+import { AdminDisputesTab, AdminSupportTab } from "@/components/pages/admin/AdminSupportDisputes";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -118,6 +119,8 @@ type AdminTab =
   | "stats"
   | "users"
   | "deals"
+  | "disputes"
+  | "support-chat"
   | "requisites"
   | "dep-requisites"
   | "withdrawals"
@@ -130,8 +133,10 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "stats", label: "Статистика", icon: "BarChart2" },
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
+  { id: "disputes", label: "Споры", icon: "AlertTriangle" },
+  { id: "support-chat", label: "Поддержка", icon: "Headphones" },
   { id: "requisites", label: "Реквизиты вывода", icon: "CreditCard" },
-  { id: "dep-requisites", label: "Реквизиты пополнения", icon: "ArrowDownCircle" },
+  { id: "dep-requisites", label: "Реквизиты пополн.", icon: "ArrowDownCircle" },
   { id: "withdrawals", label: "Выводы", icon: "Banknote" },
   { id: "deposits", label: "Пополнения", icon: "PlusCircle" },
   { id: "staff", label: "Сотрудники", icon: "UserCheck" },
@@ -186,6 +191,8 @@ export function AdminPage() {
       {tab === "stats" && <AdminStatsTab />}
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}
+      {tab === "disputes" && <AdminDisputesTab />}
+      {tab === "support-chat" && <AdminSupportTab />}
       {tab === "requisites" && <AdminRequisitesTab />}
       {tab === "dep-requisites" && <AdminDepositRequisitesTab />}
       {tab === "withdrawals" && <AdminWithdrawalsTab />}

@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Get disputes without auth",
+      "method": "GET",
+      "path": "/admin/disputes",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

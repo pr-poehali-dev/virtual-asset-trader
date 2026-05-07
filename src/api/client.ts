@@ -7,6 +7,7 @@ const URLS = {
   finance:  "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
   verify:   "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
   cron:     "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
+  support:  "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -266,6 +267,41 @@ export const api = {
     apply: (platforms: ApiPartnerPlatform[]) =>
       req<{ id: string }>("finance", "/partner/apply", "POST", { platforms }),
   },
+
+  // Поддержка
+  support: {
+    openTicket: (subject: string, message: string) =>
+      req<{ ticketId: string }>("support", "/ticket/open", "POST", { subject, message }),
+    getTicket: () =>
+      req<{ ticket: ApiSupportTicket | null }>("support", "/support/ticket"),
+    sendMessage: (ticket_id: string, text: string) =>
+      req("support", "/ticket/message", "POST", { ticket_id, text }),
+    closeTicket: (ticket_id: string) =>
+      req("support", "/ticket/close", "POST", { ticket_id }),
+
+    // Admin
+    getTickets: (status = "open") =>
+      req<{ tickets: ApiSupportTicketItem[] }>("support", `/admin/tickets?status=${status}`),
+    getTicketDetail: (id: string) =>
+      req<{ ticket: ApiSupportTicketDetail }>("support", `/admin/ticket/${id}`),
+    reply: (ticket_id: string, text: string) =>
+      req("support", "/admin/reply", "POST", { ticket_id, text }),
+    assign: (ticket_id: string, operator_id?: string) =>
+      req("support", "/admin/assign", "POST", { ticket_id, operator_id }),
+
+    getDisputes: () =>
+      req<{ disputes: ApiDispute[] }>("support", "/admin/disputes"),
+    getDisputeMessages: (deal_id: string) =>
+      req<{ messages: ApiDisputeMessage[] }>("support", `/admin/dispute/${deal_id}/messages`),
+    disputeMessage: (deal_id: string, text: string) =>
+      req("support", "/admin/dispute/message", "POST", { deal_id, text }),
+    resolveDispute: (deal_id: string, refund_buyer: boolean) =>
+      req("support", "/admin/dispute/resolve", "POST", { deal_id, refund_buyer }),
+    assignDispute: (deal_id: string, arbiter_id?: string) =>
+      req("support", "/admin/dispute/assign", "POST", { deal_id, arbiter_id }),
+    getOperators: () =>
+      req<{ operators: { id: string; username: string; role: string }[] }>("support", "/admin/operators"),
+  },
 };
 
 // ── ТИПЫ ──────────────────────────────────────────────────────────────────────
@@ -479,4 +515,65 @@ export type ApiPartnerStatus = {
     rejectReason?: string;
     date: string;
   } | null;
+};
+
+export type ApiSupportMessage = {
+  id: number;
+  fromUser: string;
+  fromUsername?: string;
+  role: "user" | "operator" | "system";
+  text: string;
+  time: string;
+};
+
+export type ApiSupportTicket = {
+  id: string;
+  subject: string;
+  status: "open" | "closed";
+  operatorName?: string;
+  messages: ApiSupportMessage[];
+};
+
+export type ApiSupportTicketItem = {
+  id: string;
+  userId: string;
+  username: string;
+  subject: string;
+  status: "open" | "closed";
+  operatorId?: string;
+  operatorName?: string;
+  updatedAt: string;
+  msgCount: number;
+};
+
+export type ApiSupportTicketDetail = ApiSupportTicket & {
+  userId: string;
+  username: string;
+  operatorId?: string;
+};
+
+export type ApiDispute = {
+  id: string;
+  product: string;
+  category: string;
+  amount: number;
+  status: string;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  sellerName: string;
+  arbiterId?: string;
+  arbiterName?: string;
+  date: string;
+  updatedAt: string;
+};
+
+export type ApiDisputeMessage = {
+  id: number;
+  fromUser: string;
+  fromUsername: string;
+  role: string;
+  text: string;
+  isSystem: boolean;
+  time: string;
 };
