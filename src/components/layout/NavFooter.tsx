@@ -9,18 +9,18 @@ import { CURRENCIES, LANGUAGES } from "@/components/data/constants";
 
 export function Nav({ active, setActive, isAdmin }: { active: string; setActive: (s: string) => void; isAdmin?: boolean }) {
   const { user, logout } = useAuth();
-  const { currency, setCurrency, lang, setLang } = useCurrency();
+  const { currency, setCurrency, lang, setLang, t } = useCurrency();
   const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const unreadCount = user?.notifications.filter((n) => !n.read).length ?? 0;
 
   const links = [
-    { id: "home", label: "Главная" },
-    { id: "catalog", label: "Каталог" },
-    { id: "deals", label: "Сделки" },
-    { id: "about", label: "О платформе" },
-    { id: "support", label: "Поддержка" },
+    { id: "home", label: t("home") },
+    { id: "catalog", label: t("catalog") },
+    { id: "deals", label: t("deals") },
+    { id: "about", label: t("about") },
+    { id: "support", label: t("support") },
   ];
 
   return (
@@ -28,7 +28,7 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
       {/* Security badge */}
       <div className="bg-emerald-400/5 border-b border-emerald-400/10 px-6 py-0.5 flex items-center justify-center gap-2">
         <Icon name="Lock" size={10} className="text-emerald-400" />
-        <span className="text-[10px] text-emerald-400/70 font-medium">Защищённое соединение · SSL/TLS шифрование · Gorant Shop</span>
+        <span className="text-[10px] text-emerald-400/70 font-medium">{t("protected")} · SSL/TLS · Gorant Shop</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-14">
@@ -51,7 +51,7 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
           {isAdmin && (
             <button onClick={() => setActive("admin")}
               className={`px-3 py-2 text-sm font-medium rounded transition-colors ${active === "admin" ? "text-red-400 bg-red-400/10" : "text-red-400/70 hover:text-red-400 hover:bg-red-400/10"}`}>
-              Админ
+              {t("admin")}
             </button>
           )}
         </div>
@@ -121,11 +121,11 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
           ) : (
             <Button variant="ghost" size="sm" onClick={() => setActive("login")}
               className="text-muted-foreground hover:text-foreground border border-transparent hover:border-border text-xs h-8">
-              <Icon name="User" size={13} className="mr-1" />Войти
+              <Icon name="User" size={13} className="mr-1" />{t("login")}
             </Button>
           )}
           <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold text-xs h-8" onClick={() => setActive("catalog")}>
-            Начать сделку
+            {t("start_deal")}
           </Button>
         </div>
       </div>
