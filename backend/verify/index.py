@@ -6,7 +6,7 @@ import json, os, secrets, base64
 import psycopg2
 import boto3
 
-SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "public")
+SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 
 CORS = {
     "Access-Control-Allow-Origin": "*",

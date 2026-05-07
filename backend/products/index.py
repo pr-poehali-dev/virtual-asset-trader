@@ -4,7 +4,7 @@
 import json, os
 import psycopg2
 
-SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "public")
+SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 BOOST_PRICE = 25
 PLATFORM_COMMISSION = 5
 

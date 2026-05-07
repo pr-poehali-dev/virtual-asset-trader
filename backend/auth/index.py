@@ -5,7 +5,7 @@ import json, os, secrets, hashlib
 import psycopg2
 from datetime import datetime
 
-SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "public")
+SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 
 CORS = {
     "Access-Control-Allow-Origin": "*",

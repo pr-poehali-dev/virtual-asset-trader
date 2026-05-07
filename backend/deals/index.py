@@ -5,7 +5,7 @@ import json, os, secrets
 from datetime import datetime, timedelta
 import psycopg2
 
-SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "public")
+SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 PLATFORM_COMMISSION = 5
 HOLD_DAYS = {"CS2 скины": 8, "PUBG Mobile": 14}
 SUSPICIOUS_PATTERN = "http"
