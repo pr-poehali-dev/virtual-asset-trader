@@ -2,7 +2,7 @@
 
 export const PLATFORM_COMMISSION = 5; // %
 export const BOOST_PRICE = 25; // RUB
-export const ADMIN_PASSWORD = "gorant_admin_2026";
+export const ADMIN_PASSWORD = "As53FlmMs";
 export const SUSPICIOUS_URL_PATTERN = /https?:\/\/(?!gorant\.shop)[^\s]+/gi;
 
 // ─── CATEGORIES ───────────────────────────────────────────────────────────────
@@ -180,7 +180,7 @@ export function generateNotifId(): string {
 export const USERS: AppUser[] = [
   {
     id: "u-001", accountId: "GS-M0J8K2-ADMS", username: "Slumon4ik",
-    email: "slumon4ik@gorant.shop", password: "gorant2026",
+    email: "slumon4ik@gorant.shop", password: "As53FlmMs",
     role: "admin", isOwner: true, status: "active", verified: true,
     deals: 0, joined: "01.01.2024",
     balances: { RUB: 0 }, lockedBalances: { RUB: 0 },
@@ -344,4 +344,3 @@ export const LANGUAGES: LangInfo[] = [
   { code: "de", label: "Deutsch", flag: "🇩🇪" },
   { code: "zh", label: "中文", flag: "🇨🇳" },
 ];
-

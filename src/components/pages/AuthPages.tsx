@@ -176,7 +176,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     }
     const result = register(username, email, password);
     if (result === "exists") {
-      setError("Email или имя пользователя уже используется");
+      setError("Этот никнейм или email уже занят — выберите другой");
       return;
     }
   };
