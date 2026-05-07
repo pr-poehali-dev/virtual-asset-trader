@@ -26,7 +26,7 @@ def get_user_by_token(cur, token):
         return None
     cur.execute(
         f"""SELECT u.id, u.username, u.balance_rub, u.role, u.is_owner,
-                   u.verified, u.status, u.locked_rub
+                   u.verified, u.status, u.locked_rub, u.perma_banned
             FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
             WHERE s.token=%s AND s.expires_at > NOW()""",
         (token,)
@@ -36,7 +36,44 @@ def get_user_by_token(cur, token):
         return None
     return {"id": row[0], "username": row[1], "balance_rub": float(row[2]),
             "role": row[3], "is_owner": row[4], "verified": row[5],
-            "status": row[6], "locked_rub": float(row[7])}
+            "status": row[6], "locked_rub": float(row[7]), "perma_banned": row[8]}
+
+SPAM_WINDOW_SEC = 15   # окно наблюдения
+SPAM_THRESHOLD  = 15   # кол-во действий за окно → заморозка
+
+def check_and_record_event(cur, user_id, event_type, ip=None):
+    """Записывает событие и возвращает True если обнаружен спам → нужна заморозка."""
+    cur.execute(
+        f"INSERT INTO {SCHEMA}.security_events (user_id, event_type, ip) VALUES (%s,%s,%s)",
+        (user_id, event_type, ip)
+    )
+    cur.execute(
+        f"""SELECT COUNT(*) FROM {SCHEMA}.security_events
+            WHERE user_id=%s AND created_at >= NOW() - INTERVAL '{SPAM_WINDOW_SEC} seconds'""",
+        (user_id,)
+    )
+    count = cur.fetchone()[0]
+    return count >= SPAM_THRESHOLD
+
+def freeze_user_auto(cur, user_id, reason):
+    """Автоматическая заморозка аккаунта + блокировка баланса."""
+    cur.execute(
+        f"""UPDATE {SCHEMA}.users
+            SET status='frozen',
+                freeze_reason=%s,
+                locked_rub = locked_rub + balance_rub,
+                balance_rub = 0
+            WHERE id=%s AND status='active'""",
+        (reason, user_id)
+    )
+    nid = secrets.token_hex(8)
+    cur.execute(
+        f"""INSERT INTO {SCHEMA}.notifications (id, user_id, type, title, text, shield)
+            VALUES (%s,%s,'system',%s,%s,TRUE)""",
+        (nid, user_id,
+         "Аккаунт заморожен автоматически",
+         f"Система безопасности обнаружила подозрительную активность. Ваш аккаунт заморожен, баланс заблокирован. Причина: {reason}. Обратитесь в поддержку.")
+    )
 
 def add_notification(cur, user_id, ntype, title, text, shield=False):
     nid = secrets.token_hex(8)
@@ -83,6 +120,8 @@ def handler(event: dict, context) -> dict:
             pid, seller_id, title, category, price = product
             price = float(price)
 
+            if user["status"] in ("frozen", "blocked") or user.get("perma_banned"):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "account_restricted"})}
             if user["id"] == seller_id:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "self_buy"})}
             if user["balance_rub"] < price:
@@ -136,6 +175,12 @@ def handler(event: dict, context) -> dict:
                 "Покупка совершена",
                 f"Вы купили «{title}» за ₽{price:,.0f}. Сделка ID: {deal_id}.")
 
+            # Anti-spam: фиксируем событие покупки
+            ip = (event.get("requestContext") or {}).get("identity", {}).get("sourceIp")
+            spam = check_and_record_event(cur, user["id"], "buy", ip)
+            if spam:
+                freeze_user_auto(cur, user["id"], "Подозрительная активность: слишком много покупок за короткое время")
+
             conn.commit()
             return {"statusCode": 200, "headers": CORS,
                     "body": json.dumps({"deal_id": deal_id, "status": status})}
@@ -179,6 +224,8 @@ def handler(event: dict, context) -> dict:
             user = get_user_by_token(cur, token)
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            if user["status"] in ("frozen", "blocked") or user.get("perma_banned"):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "account_restricted"})}
             deal_id = body.get("deal_id")
             cur.execute(
                 f"UPDATE {SCHEMA}.deals SET status='dispute', updated_at=NOW() WHERE id=%s AND (buyer_id=%s OR seller_id=%s)",
@@ -189,6 +236,11 @@ def handler(event: dict, context) -> dict:
                     VALUES (%s,%s,'buyer',%s,TRUE)""",
                 (deal_id, "system", f"Спор открыт пользователем {user['username']}. Ожидайте назначения арбитра.")
             )
+            # Anti-spam: открытие спора
+            ip = (event.get("requestContext") or {}).get("identity", {}).get("sourceIp")
+            spam = check_and_record_event(cur, user["id"], "dispute", ip)
+            if spam:
+                freeze_user_auto(cur, user["id"], "Подозрительная активность: массовое открытие споров")
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 

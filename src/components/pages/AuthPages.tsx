@@ -18,19 +18,24 @@ import {
 
 // ─── FROZEN PAGE ──────────────────────────────────────────────────────────────
 
-export function FrozenPage({ reason, onSupport }: { reason?: string; onSupport: () => void }) {
+export function FrozenPage({ reason, blocked, onSupport }: { reason?: string; blocked?: boolean; onSupport: () => void }) {
+  const color = blocked ? "red" : "amber";
   return (
     <div className="min-h-[70vh] flex items-center justify-center animate-fade-in px-4">
       <div className="text-center max-w-md w-full">
-        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mx-auto mb-6">
-          <Icon name="Snowflake" size={36} className="text-amber-400" />
+        <div className={`w-20 h-20 rounded-2xl bg-${color}-400/10 border border-${color}-400/30 flex items-center justify-center mx-auto mb-6`}>
+          <Icon name={blocked ? "Ban" : "Snowflake"} size={36} className={`text-${color}-400`} />
         </div>
-        <h1 className="font-display font-bold text-2xl text-foreground mb-3">Аккаунт заморожен</h1>
+        <h1 className="font-display font-bold text-2xl text-foreground mb-3">
+          {blocked ? "Аккаунт заблокирован" : "Аккаунт заморожен"}
+        </h1>
         <p className="text-muted-foreground mb-3 leading-relaxed">
-          Ваш аккаунт был заморожен администрацией платформы.
+          {blocked
+            ? "Ваш аккаунт был заблокирован. Доступ к большинству функций ограничен."
+            : "Ваш аккаунт был заморожен администрацией платформы."}
         </p>
         {reason && (
-          <div className="bg-amber-400/10 border border-amber-400/20 rounded-xl p-4 mb-6 text-sm text-amber-400">
+          <div className={`bg-${color}-400/10 border border-${color}-400/20 rounded-xl p-4 mb-6 text-sm text-${color}-400`}>
             <span className="font-semibold">Причина: </span>{reason}
           </div>
         )}
@@ -1394,6 +1399,10 @@ export function SellerProfilePage({
                     )}
                     {buySuccess[p.id] ? (
                       <div className="text-xs text-emerald-400 flex items-center gap-1 mt-1"><Icon name="CheckCircle" size={12} />Куплено! Сделка создана.</div>
+                    ) : me?.id === seller.id ? (
+                      <div className="text-xs text-muted-foreground bg-background border border-border rounded-lg px-3 py-1.5 flex items-center gap-1.5 mt-auto">
+                        <Icon name="Package" size={12} />Это ваш товар
+                      </div>
                     ) : (
                       <>
                         {buyError[p.id] && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={11} />{buyError[p.id]}</p>}

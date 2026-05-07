@@ -310,6 +310,10 @@ export const api = {
       req("support", "/admin/dispute/assign", "POST", { deal_id, arbiter_id }),
     getOperators: () =>
       req<{ operators: { id: string; username: string; role: string }[] }>("support", "/admin/operators"),
+    chatBan: (user_id: string) =>
+      req("support", "/admin/chat-ban", "POST", { user_id }),
+    permaBan: (user_id: string) =>
+      req("support", "/admin/perma-ban", "POST", { user_id }),
   },
 };
 
@@ -328,11 +332,17 @@ export type ApiUser = {
   status: "active" | "blocked" | "frozen";
   freezeReason?: string;
   blockReason?: string;
+  freeze_reason?: string;
+  block_reason?: string;
   verified: boolean;
   balance_rub: number;
   locked_rub: number;
   deals_count?: number;
   joined_at?: string;
+  perma_banned?: boolean;
+  permaBanned?: boolean;
+  chat_banned?: boolean;
+  chatBanned?: boolean;
 };
 
 export type ApiAdminUser = ApiUser & {

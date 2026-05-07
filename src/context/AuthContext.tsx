@@ -18,6 +18,10 @@ export type AppUser = ApiUser & {
   notifications: AppNotification[];
   staffPermissions?: StaffPermission[];
   isOwner?: boolean;
+  permaBanned?: boolean;
+  chatBanned?: boolean;
+  freezeReason?: string;
+  blockReason?: string;
 };
 
 export type AppProduct = ApiProduct & { sellerId: string; sellerName: string };
@@ -40,6 +44,10 @@ function apiUserToApp(u: ApiUser): AppUser {
     purchasedProductIds: [],
     notifications: [],
     staffPermissions: (u.staffPerms as StaffPermission[]) ?? [],
+    permaBanned: u.perma_banned ?? u.permaBanned ?? false,
+    chatBanned: u.chat_banned ?? u.chatBanned ?? false,
+    freezeReason: u.freezeReason ?? u.freeze_reason,
+    blockReason: u.blockReason ?? u.block_reason,
   };
 }
 

@@ -149,7 +149,8 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 f"""SELECT u.id,u.account_id,u.username,u.email,u.role,u.is_owner,u.staff_perms,
                            u.status,u.freeze_reason,u.block_reason,u.verified,
-                           u.balance_rub,u.locked_rub,u.deals_count,u.joined_at
+                           u.balance_rub,u.locked_rub,u.deals_count,u.joined_at,
+                           u.perma_banned,u.chat_banned
                     FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
                     WHERE s.token=%s AND s.expires_at > NOW()""",
                 (token,)
@@ -160,7 +161,8 @@ def handler(event: dict, context) -> dict:
 
             cols = ["id","account_id","username","email","role","is_owner","staff_perms",
                     "status","freeze_reason","block_reason","verified",
-                    "balance_rub","locked_rub","deals_count","joined_at"]
+                    "balance_rub","locked_rub","deals_count","joined_at",
+                    "perma_banned","chat_banned"]
             user = user_row_to_dict(row, cols)
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"user": user})}
 

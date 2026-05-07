@@ -24,7 +24,8 @@ def get_conn():
 def get_user(cur, token):
     if not token: return None
     cur.execute(
-        f"""SELECT u.id, u.username, u.role, u.is_owner, u.balance_rub, u.locked_rub
+        f"""SELECT u.id, u.username, u.role, u.is_owner, u.balance_rub, u.locked_rub,
+                   u.chat_banned, u.perma_banned, u.status
             FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
             WHERE s.token=%s AND s.expires_at > NOW()""",
         (token,)
@@ -32,7 +33,8 @@ def get_user(cur, token):
     row = cur.fetchone()
     if not row: return None
     return {"id": row[0], "username": row[1], "role": row[2],
-            "is_owner": row[3], "balance_rub": float(row[4]), "locked_rub": float(row[5])}
+            "is_owner": row[3], "balance_rub": float(row[4]), "locked_rub": float(row[5]),
+            "chat_banned": row[6], "perma_banned": row[7], "status": row[8]}
 
 def is_staff(user):
     return user and (user["role"] in ("admin", "staff") or user["is_owner"])
@@ -132,6 +134,9 @@ def handler(event: dict, context) -> dict:
         if method == "POST" and path.endswith("/ticket/message"):
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            # Проверяем chat_ban
+            if user.get("chat_banned"):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "chat_banned"})}
             ticket_id = body.get("ticket_id")
             text = (body.get("text") or "").strip()
             if not ticket_id or not text:
@@ -142,6 +147,20 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             if ticket[1] == "closed":
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "ticket_closed"})}
+            # Anti-spam: слишком много сообщений
+            cur.execute(
+                f"""SELECT COUNT(*) FROM {SCHEMA}.support_messages
+                    WHERE from_user=%s AND created_at >= NOW() - INTERVAL '15 seconds'""",
+                (user["id"],)
+            )
+            msg_count = cur.fetchone()[0]
+            if msg_count >= 15:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET status='frozen', freeze_reason=%s WHERE id=%s AND status='active'",
+                    ("Спам в чате поддержки: слишком много сообщений за короткое время", user["id"])
+                )
+                conn.commit()
+                return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "spam_detected", "frozen": True})}
             cur.execute(
                 f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'user',%s)",
                 (ticket_id, user["id"], text)
@@ -416,6 +435,49 @@ def handler(event: dict, context) -> dict:
             add_notification(cur, arbiter_id, "dispute",
                 "Назначен арбитром",
                 f"Вы назначены арбитром по сделке {deal_id}.", shield=True)
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /support/admin/chat-ban — навсегда закрыть доступ к чату
+        if method == "POST" and path.endswith("/admin/chat-ban"):
+            if not is_staff(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            target_id = body.get("user_id")
+            cur.execute(f"SELECT is_owner FROM {SCHEMA}.users WHERE id=%s", (target_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            if row[0]:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "owner_protected"})}
+            cur.execute(f"UPDATE {SCHEMA}.users SET chat_banned=TRUE WHERE id=%s", (target_id,))
+            # Закрываем все открытые тикеты
+            cur.execute(f"UPDATE {SCHEMA}.support_tickets SET status='closed' WHERE user_id=%s AND status='open'", (target_id,))
+            add_notification(cur, target_id, "system",
+                "Доступ к чату поддержки закрыт",
+                "Доступ к чату поддержки закрыт навсегда за нарушение правил платформы.")
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /support/admin/perma-ban — вечная блокировка аккаунта
+        if method == "POST" and path.endswith("/admin/perma-ban"):
+            if not is_staff(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            target_id = body.get("user_id")
+            cur.execute(f"SELECT is_owner FROM {SCHEMA}.users WHERE id=%s", (target_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            if row[0]:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "owner_protected"})}
+            cur.execute(
+                f"""UPDATE {SCHEMA}.users
+                    SET perma_banned=TRUE, status='blocked', chat_banned=TRUE,
+                        block_reason='Перманентная блокировка: нарушение правил'
+                    WHERE id=%s""",
+                (target_id,)
+            )
+            # Аннулируем все сессии
+            cur.execute(f"UPDATE {SCHEMA}.sessions SET expires_at=NOW() WHERE user_id=%s", (target_id,))
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 

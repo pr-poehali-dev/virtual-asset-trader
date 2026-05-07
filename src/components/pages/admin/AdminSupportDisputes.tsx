@@ -433,16 +433,40 @@ export function AdminSupportTab() {
         {/* Активный чат */}
         {selected ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <span className="font-display font-semibold text-sm text-foreground">{selected.username}</span>
                 <span className="text-xs text-muted-foreground ml-2">#{selected.id}</span>
               </div>
-              {selected.status === "open" && (
-                <button onClick={closeTicket} className="text-xs px-2.5 py-1 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20 font-semibold">
-                  Закрыть тикет
+              <div className="flex gap-2 flex-wrap">
+                {selected.status === "open" && (
+                  <button onClick={closeTicket} className="text-xs px-2.5 py-1 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20 font-semibold">
+                    Закрыть тикет
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Заблокировать чат навсегда для ${selected.username}?`)) return;
+                    await api.support.chatBan(selected.userId);
+                    setSelected(null); loadTickets();
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 font-bold flex items-center gap-1"
+                  title="Заблокировать чат навсегда"
+                >
+                  <Icon name="MessageSquareX" size={12} />Бан чата
                 </button>
-              )}
+                <button
+                  onClick={async () => {
+                    if (!confirm(`⚠️ ПЕРМА-БАН для ${selected.username}? Это действие необратимо!`)) return;
+                    await api.support.permaBan(selected.userId);
+                    setSelected(null); loadTickets();
+                  }}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-red-600/20 text-red-600 border border-red-600/30 hover:bg-red-600/30 font-bold flex items-center gap-1"
+                  title="Перманентная блокировка аккаунта"
+                >
+                  <Icon name="Ban" size={12} />Перма-бан
+                </button>
+              </div>
             </div>
             <ChatWindow
               messages={(selected.messages || []).map((m) => ({
