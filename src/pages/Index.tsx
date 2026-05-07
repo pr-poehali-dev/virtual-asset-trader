@@ -35,8 +35,13 @@ function AppContent() {
   }
 
   const handleSetActive = (p: string) => {
-    if (p === "admin" && !isAdmin) {
-      setPage("admin-login");
+    if (p === "admin") {
+      if (isAdmin || user?.role === "admin" || user?.role === "staff" || user?.isOwner) {
+        setIsAdmin(true);
+        setPage("admin");
+      } else {
+        setPage("admin-login");
+      }
     } else {
       setPage(p);
     }

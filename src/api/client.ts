@@ -122,6 +122,12 @@ export const api = {
     boost: (product_id: number) =>
       req("products", "/products/boost", "POST", { product_id }),
 
+    delete: (product_id: number) =>
+      req("products", "/products/delete", "POST", { product_id }),
+
+    my: () =>
+      req<{ products: ApiProduct[] }>("products", "/products/my"),
+
     seller: (id: string) =>
       req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
         "products", `/products/seller/${id}`

@@ -389,6 +389,8 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
     setDepSuccess(true);
   };
 
+  const isAdminUser = user.role === "admin" || user.role === "staff" || user.isOwner;
+
   const TABS: { key: CabinetTab; label: string }[] = [
     { key: "overview", label: "Обзор" },
     { key: "notifications", label: "Уведомления" },
@@ -426,15 +428,27 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
             <p className="text-xs text-muted-foreground">На платформе с {user.joined}</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-border text-muted-foreground hover:text-red-400 hover:border-red-400/30"
-          onClick={logout}
-        >
-          <Icon name="LogOut" size={14} className="mr-1.5" />
-          Выйти
-        </Button>
+        <div className="flex items-center gap-2">
+          {isAdminUser && (
+            <Button
+              size="sm"
+              className="bg-red-500/10 text-red-400 border border-red-400/30 hover:bg-red-500/20 font-semibold"
+              onClick={() => setActive("admin")}
+            >
+              <Icon name="ShieldAlert" size={14} className="mr-1.5" />
+              Админпанель
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-border text-muted-foreground hover:text-red-400 hover:border-red-400/30"
+            onClick={logout}
+          >
+            <Icon name="LogOut" size={14} className="mr-1.5" />
+            Выйти
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -591,13 +605,12 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                   Посмотреть, как вас видят другие покупатели
                 </div>
               </div>
-              <Icon
-                name="ExternalLink"
-                size={16}
-                className="text-muted-foreground group-hover:text-gold transition-colors"
-              />
+              <Icon name="ExternalLink" size={16} className="text-muted-foreground group-hover:text-gold transition-colors" />
             </div>
           </button>
+
+          {/* Мои товары */}
+          <MyProductsList />
         </div>
       )}
 
@@ -971,6 +984,72 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   );
 }
 
+// ─── MY PRODUCTS LIST (внутри профиля) ───────────────────────────────────────
+
+function MyProductsList() {
+  const { user } = useAuth();
+  const { format } = useCurrency();
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = () => {
+    if (!user) return;
+    setLoading(true);
+    api.products.my()
+      .then(({ products: list }) => setProducts(list))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await api.products.delete(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch { /* ignore */ }
+    setDeletingId(null);
+  };
+
+  if (loading) return null;
+  if (products.length === 0) return null;
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display font-semibold text-sm text-foreground">Мои товары</h2>
+        <span className="text-xs text-muted-foreground">{products.length} активных</span>
+      </div>
+      <div className="space-y-2">
+        {products.map((p) => (
+          <div key={p.id} className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl">
+            <div className="flex-1 min-w-0">
+              <div className="font-display font-semibold text-sm text-foreground truncate">{p.title}</div>
+              <div className="text-xs text-muted-foreground">{p.category}</div>
+            </div>
+            <div className="font-display font-bold text-sm text-gold shrink-0">{format(p.price)}</div>
+            {p.boosted && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30 shrink-0">ТОП</span>
+            )}
+            <button
+              onClick={() => handleDelete(p.id)}
+              disabled={deletingId === p.id}
+              className="w-7 h-7 rounded-lg bg-red-400/10 border border-red-400/20 flex items-center justify-center text-red-400 hover:bg-red-400/20 transition-colors shrink-0 disabled:opacity-40"
+              title="Удалить товар"
+            >
+              {deletingId === p.id
+                ? <Icon name="Loader" size={13} className="animate-spin" />
+                : <Icon name="Trash2" size={13} />}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── SELLER PROFILE (public) ──────────────────────────────────────────────────
 
 export function SellerProfilePage({
@@ -980,91 +1059,81 @@ export function SellerProfilePage({
   sellerId: string;
   setActive: (s: string) => void;
 }) {
-  const { users, user: me, addReview, buyProduct } = useAuth();
+  const { user: me, buyProduct } = useAuth();
   const { format } = useCurrency();
 
-  const seller = users.find((u) => u.id === sellerId);
-
+  const [data, setData] = useState<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number } | null>(null);
+  const [loadError, setLoadError] = useState("");
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewError, setReviewError] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState(false);
-
   const [buyError, setBuyError] = useState<Record<number, string>>({});
   const [buySuccess, setBuySuccess] = useState<Record<number, boolean>>({});
 
-  if (!seller) {
+  useEffect(() => {
+    api.products.seller(sellerId)
+      .then(setData)
+      .catch(() => setLoadError("Не удалось загрузить профиль продавца"));
+  }, [sellerId]);
+
+  if (loadError) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-20 text-center text-muted-foreground">
         <Icon name="UserX" size={40} className="mx-auto mb-4 opacity-30" />
-        <p>Продавец не найден</p>
+        <p>{loadError}</p>
+        <button onClick={() => setActive("catalog")} className="mt-4 text-gold text-sm hover:underline">← Назад в каталог</button>
       </div>
     );
   }
 
-  const avgRating =
-    seller.reviews.length
-      ? (seller.reviews.reduce((s, r) => s + r.rating, 0) / seller.reviews.length).toFixed(1)
-      : null;
+  if (!data) {
+    return (
+      <div className="max-w-4xl mx-auto px-6 py-20 flex items-center justify-center">
+        <Icon name="Loader" size={28} className="text-gold animate-spin" />
+      </div>
+    );
+  }
 
-  // Masked account ID: show first 8 chars, rest as *
-  const maskedAccountId =
-    seller.accountId.length > 8
-      ? seller.accountId.slice(0, 8) + "*".repeat(seller.accountId.length - 8)
-      : seller.accountId;
-
-  const handleReview = () => {
-    setReviewError("");
-    if (!me) {
-      setReviewError("Войдите в аккаунт, чтобы оставить отзыв");
-      return;
-    }
-    if (!reviewText.trim()) {
-      setReviewError("Напишите текст отзыва");
-      return;
-    }
-    const result = addReview(seller.id, {
-      fromUserId: me.id,
-      fromUser: me.username,
-      rating: reviewRating,
-      text: reviewText.trim(),
-      date: new Date().toLocaleDateString("ru-RU"),
-    });
-    if (result === "not_buyer") {
-      setReviewError("Отзыв можно оставить только после покупки у этого продавца");
-      return;
-    }
-    setReviewText("");
-    setReviewSuccess(true);
-  };
-
-  const handleBuy = (product: (typeof seller.products)[0]) => {
-    if (!me) {
-      setBuyError((prev) => ({ ...prev, [product.id]: "Войдите в аккаунт" }));
-      return;
-    }
-    const result = buyProduct(product, seller);
-    if (result === "ok") {
-      setBuySuccess((prev) => ({ ...prev, [product.id]: true }));
-      setBuyError((prev) => ({ ...prev, [product.id]: "" }));
-    } else if (result === "no_balance") {
-      setBuyError((prev) => ({ ...prev, [product.id]: "Недостаточно средств на балансе" }));
-    } else if (result === "self") {
-      setBuyError((prev) => ({ ...prev, [product.id]: "Нельзя купить собственный товар" }));
-    }
-  };
+  const { seller, products, reviews, avgRating } = data;
+  const avgStr = avgRating > 0 ? avgRating.toFixed(1) : null;
+  const maskedAccountId = seller.accountId.length > 8
+    ? seller.accountId.slice(0, 8) + "*".repeat(seller.accountId.length - 8)
+    : seller.accountId;
 
   const hasHold = (category: string) => !!HOLD_CATEGORIES[category];
   const holdDays = (category: string) => HOLD_CATEGORIES[category];
 
+  const handleReview = async () => {
+    setReviewError("");
+    if (!me) { setReviewError("Войдите в аккаунт, чтобы оставить отзыв"); return; }
+    if (!reviewText.trim()) { setReviewError("Напишите текст отзыва"); return; }
+    try {
+      await api.finance.review(seller.id, reviewRating, reviewText.trim());
+      setReviewText("");
+      setReviewSuccess(true);
+    } catch {
+      setReviewError("Отзыв можно оставить только после покупки у этого продавца");
+    }
+  };
+
+  const handleBuy = async (p: ApiProduct) => {
+    if (!me) { setBuyError((prev) => ({ ...prev, [p.id]: "Войдите в аккаунт" })); return; }
+    const result = await buyProduct(p as unknown as import("@/context/AuthContext").AppProduct, me);
+    if (result === "ok") {
+      setBuySuccess((prev) => ({ ...prev, [p.id]: true }));
+      setBuyError((prev) => ({ ...prev, [p.id]: "" }));
+    } else if (result === "no_balance") {
+      setBuyError((prev) => ({ ...prev, [p.id]: "Недостаточно средств на балансе" }));
+    } else if (result === "self") {
+      setBuyError((prev) => ({ ...prev, [p.id]: "Нельзя купить собственный товар" }));
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      <button
-        onClick={() => setActive("catalog")}
-        className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors"
-      >
-        <Icon name="ArrowLeft" size={14} />
-        Назад в каталог
+      <button onClick={() => setActive("catalog")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors">
+        <Icon name="ArrowLeft" size={14} />Назад в каталог
       </button>
 
       {/* Seller header */}
@@ -1078,104 +1147,53 @@ export function SellerProfilePage({
               <h1 className="font-display font-bold text-2xl text-foreground">{seller.username}</h1>
               {seller.verified ? (
                 <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full">
-                  <Icon name="ShieldCheck" size={11} />
-                  Верифицирован
+                  <Icon name="ShieldCheck" size={11} />Верифицирован
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-muted-foreground text-xs bg-muted/10 border border-border px-2 py-0.5 rounded-full">
-                  <Icon name="Shield" size={11} />
-                  Не верифицирован
+                  <Icon name="Shield" size={11} />Не верифицирован
                 </span>
               )}
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-              {avgRating && (
-                <span className="flex items-center gap-1">
-                  <Icon name="Star" size={13} className="text-gold" />
-                  {avgRating}
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Icon name="MessageSquare" size={13} />
-                {seller.reviews.length} отзывов
-              </span>
-              <span className="flex items-center gap-1">
-                <Icon name="ShoppingBag" size={13} />
-                {seller.deals} сделок
-              </span>
-              <span className="flex items-center gap-1">
-                <Icon name="Calendar" size={13} />с {seller.joined}
-              </span>
+              {avgStr && <span className="flex items-center gap-1"><Icon name="Star" size={13} className="text-gold" />{avgStr}</span>}
+              <span className="flex items-center gap-1"><Icon name="MessageSquare" size={13} />{reviews.length} отзывов</span>
+              <span className="flex items-center gap-1"><Icon name="ShoppingBag" size={13} />{seller.deals} сделок</span>
+              <span className="flex items-center gap-1"><Icon name="Calendar" size={13} />с {seller.joined}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">
-              ID: {maskedAccountId}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">ID: {maskedAccountId}</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: products + reviews */}
         <div className="lg:col-span-2 space-y-6">
           {/* Products */}
           <div>
-            <h2 className="font-display font-semibold text-base text-foreground mb-4">
-              Товары продавца
-            </h2>
-            {seller.products.length === 0 ? (
+            <h2 className="font-display font-semibold text-base text-foreground mb-4">Товары продавца</h2>
+            {products.length === 0 ? (
               <div className="bg-surface border border-border rounded-xl p-8 text-center text-muted-foreground">
-                <Icon name="Package" size={32} className="mx-auto mb-3 opacity-20" />
-                <p className="text-sm">Нет активных товаров</p>
+                <Icon name="Package" size={32} className="mx-auto mb-3 opacity-20" /><p className="text-sm">Нет активных товаров</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {seller.products.map((p) => (
-                  <div
-                    key={p.id}
-                    className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2 relative"
-                  >
-                    {p.boosted && (
-                      <div className="absolute top-3 right-3">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">
-                          ТОП
-                        </span>
-                      </div>
-                    )}
+                {products.map((p) => (
+                  <div key={p.id} className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2 relative">
+                    {p.boosted && <div className="absolute top-3 right-3"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/30">ТОП</span></div>}
                     <p className="text-xs text-muted-foreground">{p.category}</p>
-                    <h3 className="font-display font-semibold text-sm text-foreground pr-8">
-                      {p.title}
-                    </h3>
-                    <div className="font-display font-bold text-lg text-gold">
-                      {format(p.price)}
-                    </div>
-
+                    <h3 className="font-display font-semibold text-sm text-foreground pr-8">{p.title}</h3>
+                    <div className="font-display font-bold text-lg text-gold">{format(p.price)}</div>
                     {hasHold(p.category) && (
                       <div className="text-xs text-amber-400 flex items-center gap-1 bg-amber-400/10 border border-amber-400/20 rounded-lg px-2 py-1">
-                        <Icon name="Clock" size={11} />
-                        Холд {holdDays(p.category)} дней после покупки
+                        <Icon name="Clock" size={11} />Холд {holdDays(p.category)} дней после покупки
                       </div>
                     )}
-
                     {buySuccess[p.id] ? (
-                      <div className="text-xs text-emerald-400 flex items-center gap-1 mt-1">
-                        <Icon name="CheckCircle" size={12} />
-                        Куплено! Сделка создана.
-                      </div>
+                      <div className="text-xs text-emerald-400 flex items-center gap-1 mt-1"><Icon name="CheckCircle" size={12} />Куплено! Сделка создана.</div>
                     ) : (
                       <>
-                        {buyError[p.id] && (
-                          <p className="text-xs text-red-400 flex items-center gap-1">
-                            <Icon name="AlertCircle" size={11} />
-                            {buyError[p.id]}
-                          </p>
-                        )}
-                        <Button
-                          size="sm"
-                          className="bg-gold text-background hover:bg-gold/90 font-semibold mt-auto"
-                          onClick={() => handleBuy(p)}
-                        >
-                          Купить
-                        </Button>
+                        {buyError[p.id] && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={11} />{buyError[p.id]}</p>}
+                        <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-semibold mt-auto" onClick={() => handleBuy(p)}>Купить</Button>
                       </>
                     )}
                   </div>
@@ -1184,31 +1202,20 @@ export function SellerProfilePage({
             )}
           </div>
 
-          {/* Reviews list */}
+          {/* Reviews */}
           <div>
             <h2 className="font-display font-semibold text-base text-foreground mb-4">Отзывы</h2>
-            {seller.reviews.length === 0 ? (
-              <div className="bg-surface border border-border rounded-xl p-6 text-center text-muted-foreground text-sm">
-                Отзывов пока нет
-              </div>
+            {reviews.length === 0 ? (
+              <div className="bg-surface border border-border rounded-xl p-6 text-center text-muted-foreground text-sm">Отзывов пока нет</div>
             ) : (
               <div className="space-y-3">
-                {seller.reviews.map((r) => (
+                {reviews.map((r) => (
                   <div key={r.id} className="bg-surface border border-border rounded-xl p-4">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                        {r.fromUser[0].toUpperCase()}
-                      </div>
+                      <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">{r.fromUser[0].toUpperCase()}</div>
                       <span className="font-semibold text-sm text-foreground">{r.fromUser}</span>
                       <div className="flex items-center gap-0.5 ml-auto">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Icon
-                            key={s}
-                            name="Star"
-                            size={11}
-                            className={s <= r.rating ? "text-gold" : "text-border"}
-                          />
-                        ))}
+                        {[1, 2, 3, 4, 5].map((s) => <Icon key={s} name="Star" size={11} className={s <= r.rating ? "text-gold" : "text-border"} />)}
                       </div>
                       <span className="text-xs text-muted-foreground">{r.date}</span>
                     </div>
@@ -1222,77 +1229,38 @@ export function SellerProfilePage({
           {/* Review form */}
           {me && me.id !== seller.id && (
             <div className="bg-surface border border-border rounded-xl p-5">
-              <h3 className="font-display font-semibold text-sm text-foreground mb-3">
-                Оставить отзыв
-              </h3>
-
+              <h3 className="font-display font-semibold text-sm text-foreground mb-3">Оставить отзыв</h3>
               {reviewSuccess ? (
-                <div className="text-xs text-emerald-400 flex items-center gap-1">
-                  <Icon name="CheckCircle" size={13} />
-                  Отзыв успешно добавлен!
-                </div>
+                <div className="text-xs text-emerald-400 flex items-center gap-1"><Icon name="CheckCircle" size={13} />Отзыв успешно добавлен!</div>
               ) : (
                 <>
                   <div className="flex items-center gap-2 mb-3">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <button key={s} onClick={() => setReviewRating(s)}>
-                        <Icon
-                          name="Star"
-                          size={20}
-                          className={s <= reviewRating ? "text-gold" : "text-border"}
-                        />
+                        <Icon name="Star" size={20} className={s <= reviewRating ? "text-gold" : "text-border"} />
                       </button>
                     ))}
                   </div>
-                  <Input
-                    placeholder="Напишите отзыв..."
-                    value={reviewText}
-                    onChange={(e) => {
-                      setReviewText(e.target.value);
-                      setReviewError("");
-                    }}
-                    className="bg-background border-border text-sm mb-3"
-                  />
-                  {reviewError && (
-                    <p className="text-xs text-amber-400 flex items-center gap-1 mb-3">
-                      <Icon name="AlertTriangle" size={12} />
-                      {reviewError}
-                    </p>
-                  )}
-                  <Button
-                    size="sm"
-                    className="bg-gold text-background hover:bg-gold/90 font-semibold"
-                    onClick={handleReview}
-                  >
-                    Отправить отзыв
-                  </Button>
+                  <Input placeholder="Напишите отзыв..." value={reviewText} onChange={(e) => { setReviewText(e.target.value); setReviewError(""); }} className="bg-background border-border text-sm mb-3" />
+                  {reviewError && <p className="text-xs text-amber-400 flex items-center gap-1 mb-3"><Icon name="AlertTriangle" size={12} />{reviewError}</p>}
+                  <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-semibold" onClick={handleReview}>Отправить отзыв</Button>
                 </>
               )}
             </div>
           )}
-
           {!me && (
             <div className="bg-surface border border-border rounded-xl p-4 text-sm text-muted-foreground flex items-center gap-2">
-              <Icon name="Info" size={14} className="text-gold shrink-0" />
-              Войдите в аккаунт, чтобы оставить отзыв или купить товар.
+              <Icon name="Info" size={14} className="text-gold shrink-0" />Войдите в аккаунт, чтобы оставить отзыв или купить товар.
             </div>
           )}
         </div>
 
-        {/* Right: stats sidebar */}
+        {/* Sidebar */}
         <div>
           <div className="bg-surface border border-border rounded-xl p-5 sticky top-24">
-            <h3 className="font-display font-semibold text-sm text-foreground mb-4">
-              Статистика продавца
-            </h3>
+            <h3 className="font-display font-semibold text-sm text-foreground mb-4">Статистика продавца</h3>
             <div className="space-y-3">
-              {[
-                ["Рейтинг", avgRating ?? "—"],
-                ["Всего отзывов", String(seller.reviews.length)],
-                ["Завершено сделок", String(seller.deals)],
-                ["Товаров в продаже", String(seller.products.length)],
-                ["На платформе с", seller.joined],
-              ].map(([k, v]) => (
+              {([["Рейтинг", avgStr ?? "—"], ["Всего отзывов", String(reviews.length)], ["Завершено сделок", String(seller.deals)], ["Товаров в продаже", String(products.length)], ["На платформе с", seller.joined]] as [string,string][]).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{k}</span>
                   <span className="text-foreground font-semibold">{v}</span>
@@ -1302,15 +1270,9 @@ export function SellerProfilePage({
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Верификация</span>
                   {seller.verified ? (
-                    <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
-                      <Icon name="ShieldCheck" size={11} />
-                      Верифицирован
-                    </span>
+                    <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1"><Icon name="ShieldCheck" size={11} />Верифицирован</span>
                   ) : (
-                    <span className="text-muted-foreground text-xs flex items-center gap-1">
-                      <Icon name="Shield" size={11} />
-                      Не верифицирован
-                    </span>
+                    <span className="text-muted-foreground text-xs flex items-center gap-1"><Icon name="Shield" size={11} />Не верифицирован</span>
                   )}
                 </div>
               </div>

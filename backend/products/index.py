@@ -188,6 +188,42 @@ def handler(event: dict, context) -> dict:
                     "body": json.dumps({"seller": seller, "products": products,
                                         "reviews": reviews, "avgRating": avg})}
 
+        # ── DELETE /products/{id} ─────────────────────────────────────────────
+        if method == "POST" and path.endswith("/products/delete"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+
+            product_id = body.get("product_id")
+            cur.execute(f"SELECT seller_id FROM {SCHEMA}.products WHERE id=%s AND active=TRUE", (product_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+
+            is_admin = user.get("role") in ("admin", "staff")
+            if row[0] != user["id"] and not is_admin:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+
+            cur.execute(f"UPDATE {SCHEMA}.products SET active=FALSE WHERE id=%s", (product_id,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── GET /products/my ──────────────────────────────────────────────────
+        if method == "GET" and path.endswith("/products/my"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            cur.execute(
+                f"""SELECT p.id, p.title, p.category, p.price, p.boosted, p.boost_until, p.created_at
+                    FROM {SCHEMA}.products p WHERE p.seller_id=%s AND p.active=TRUE
+                    ORDER BY p.created_at DESC""",
+                (user["id"],)
+            )
+            products = [{"id": r[0], "title": r[1], "category": r[2], "price": float(r[3]),
+                         "boosted": r[4], "boostUntil": r[5].isoformat() if r[5] else None,
+                         "createdAt": r[6].isoformat()} for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"products": products})}
+
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
     except Exception as e:
