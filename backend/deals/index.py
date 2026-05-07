@@ -274,6 +274,54 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+        # ── POST /deals/confirm ───────────────────────────────────────────────
+        # Покупатель подтверждает получение товара → средства идут продавцу
+        if method == "POST" and path.endswith("/confirm"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+
+            deal_id = body.get("deal_id")
+            cur.execute(
+                f"SELECT buyer_id, seller_id, amount, status FROM {SCHEMA}.deals WHERE id=%s",
+                (deal_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            buyer_id, seller_id, amount, status = row
+            amount = float(amount)
+
+            # Только покупатель может подтвердить, и только из статусов escrow/hold_*
+            if user["id"] != buyer_id:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            if status not in ("escrow", "hold_cs2", "hold_pubg"):
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
+
+            seller_receives = round(amount * (1 - PLATFORM_COMMISSION / 100), 2)
+
+            cur.execute(f"UPDATE {SCHEMA}.deals SET status='completed', updated_at=NOW() WHERE id=%s", (deal_id,))
+            # Переводим со locked на реальный баланс продавцу
+            cur.execute(
+                f"UPDATE {SCHEMA}.users SET balance_rub=balance_rub+%s, locked_rub=GREATEST(0,locked_rub-%s) WHERE id=%s",
+                (seller_receives, seller_receives, seller_id)
+            )
+            cur.execute(
+                f"UPDATE {SCHEMA}.users SET deals_count=deals_count+1 WHERE id=%s OR id=%s",
+                (buyer_id, seller_id)
+            )
+
+            add_notification(cur, seller_id, "deal_sold",
+                "Сделка завершена!",
+                f"Покупатель подтвердил получение по сделке {deal_id}. ₽{seller_receives:,.0f} зачислены на баланс.",
+                shield=True)
+            add_notification(cur, buyer_id, "deal_bought",
+                "Сделка завершена",
+                f"Сделка {deal_id} успешно завершена.")
+
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "seller_receives": seller_receives})}
+
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
     except Exception as e:

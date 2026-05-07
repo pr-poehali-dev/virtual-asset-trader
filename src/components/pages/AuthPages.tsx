@@ -542,6 +542,31 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
             </div>
           )}
 
+          {/* Верификация — кнопка если не верифицирован */}
+          {!user.verified && (
+            <button
+              onClick={() => setActive("verify")}
+              className="w-full text-left bg-emerald-400/5 border border-emerald-400/20 rounded-xl p-5 hover:border-emerald-400/40 transition-colors group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-400/10 flex items-center justify-center flex-shrink-0">
+                    <Icon name="ShieldCheck" size={18} className="text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="font-display font-semibold text-sm text-foreground mb-0.5">
+                      Верифицировать аккаунт
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Мгновенный вывод средств и значок доверия
+                    </div>
+                  </div>
+                </div>
+                <Icon name="ChevronRight" size={16} className="text-muted-foreground group-hover:text-emerald-400 transition-colors" />
+              </div>
+            </button>
+          )}
+
           {/* Link to seller profile */}
           <button
             onClick={() => setActive(`seller-${user.id}`)}

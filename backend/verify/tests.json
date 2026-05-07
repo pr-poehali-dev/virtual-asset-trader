@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Get status without auth",
+      "method": "GET",
+      "path": "/status",
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

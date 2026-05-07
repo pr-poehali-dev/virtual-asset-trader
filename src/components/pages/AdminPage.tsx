@@ -10,6 +10,7 @@ import {
   AdminDepositsTab,
   AdminStaffTab,
 } from "@/components/pages/admin/AdminFinanceStaff";
+import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerifications";
 
 // ─── ADMIN LOGIN ──────────────────────────────────────────────────────────────
 
@@ -87,7 +88,8 @@ type AdminTab =
   | "requisites"
   | "withdrawals"
   | "deposits"
-  | "staff";
+  | "staff"
+  | "verifications";
 
 const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "stats", label: "Статистика", icon: "BarChart2" },
@@ -97,6 +99,7 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "withdrawals", label: "Выводы", icon: "Banknote" },
   { id: "deposits", label: "Пополнения", icon: "PlusCircle" },
   { id: "staff", label: "Сотрудники", icon: "UserCheck" },
+  { id: "verifications", label: "Верификации", icon: "ShieldCheck" },
 ];
 
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
@@ -150,6 +153,7 @@ export function AdminPage() {
       {tab === "withdrawals" && <AdminWithdrawalsTab />}
       {tab === "deposits" && <AdminDepositsTab />}
       {tab === "staff" && <AdminStaffTab />}
+      {tab === "verifications" && <AdminVerificationsTab />}
     </div>
   );
 }

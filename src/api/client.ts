@@ -5,6 +5,7 @@ const URLS = {
   products: "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
   deals:    "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
   finance:  "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
+  verify:   "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -140,6 +141,23 @@ export const api = {
     updateWithdrawalStatus: (id: string, status: string) =>
       req("finance", "/withdrawal-status", "POST", { id, status }),
   },
+
+  verify: {
+    submit: (data: { full_name: string; doc_type: string; doc_number: string; doc_photo?: string; selfie?: string }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{ id?: string; status: string | null; reject_reason?: string; date?: string; verified?: boolean }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) =>
+      req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  },
 };
 
 // ── ТИПЫ ──────────────────────────────────────────────────────────────────────
@@ -253,5 +271,19 @@ export type ApiReview = {
   fromUser: string;
   rating: number;
   text: string;
+  date: string;
+};
+
+export type ApiVerification = {
+  id: string;
+  userId: string;
+  username: string;
+  fullName: string;
+  docType: string;
+  docNumber: string;
+  docPhoto?: string;
+  selfie?: string;
+  status: "pending" | "approved" | "rejected";
+  rejectReason?: string;
   date: string;
 };

@@ -3,6 +3,7 @@ import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
 import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
+import { VerifyPage } from "@/components/pages/VerifyPage";
 import { AdminPage, AdminLogin } from "@/components/pages/AdminPage";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
@@ -61,6 +62,7 @@ function AppContent() {
       case "catalog": return <CatalogPage setActive={handleSetActive} />;
       case "add-product": return <AddProductPage setActive={handleSetActive} />;
       case "cabinet": return <CabinetPage setActive={handleSetActive} />;
+      case "verify": return <VerifyPage setActive={handleSetActive} />;
       case "deals": return <DealsPage />;
       case "escrow": return <EscrowPage />;
       case "support": return <SupportPage />;
