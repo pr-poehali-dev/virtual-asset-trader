@@ -191,7 +191,7 @@ export function SupportPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
         {[
           { icon: "MessageCircle", title: "Онлайн-чат", desc: "Ответ за 2 минуты в рабочее время", action: "Написать ниже" },
-          { icon: "Mail", title: "Электронная почта", desc: "support@gorant.shop · ответ до 24 часов", action: "Написать" },
+          { icon: "Mail", title: "Электронная почта", desc: "gorant.shop-support@yandex.ru · ответ до 24 часов", action: "Написать" },
         ].map((c) => (
           <div key={c.title} className="bg-surface border border-border rounded-xl p-6 flex flex-col hover-scale">
             <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">

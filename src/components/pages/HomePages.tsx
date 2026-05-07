@@ -2,13 +2,23 @@ import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CATEGORIES, SITE_STATS, LIVE_DEALS } from "@/components/data/constants";
+import {
+  CATEGORIES,
+  SITE_STATS,
+  LIVE_DEALS,
+  HOLD_CATEGORIES,
+  PLATFORM_COMMISSION,
+  BOOST_PRICE,
+  SUSPICIOUS_URL_PATTERN,
+} from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import type { Product } from "@/components/data/constants";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
 function LiveFeed() {
+  const { format } = useCurrency();
   const [visible, setVisible] = useState(LIVE_DEALS.slice(0, 5));
   const [tick, setTick] = useState(0);
 
@@ -32,21 +42,34 @@ function LiveFeed() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center gap-3 mb-8">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <h2 className="font-display font-bold text-xl text-foreground">Последние закрытые сделки</h2>
-          <span className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full font-medium">Live</span>
+          <h2 className="font-display font-bold text-xl text-foreground">
+            Последние закрытые сделки
+          </h2>
+          <span className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full font-medium">
+            Live
+          </span>
         </div>
         <div className="space-y-2">
           {visible.map((d, i) => (
-            <div key={d.id} className={`flex items-center gap-4 p-4 rounded-xl border bg-surface transition-all duration-500 ${i === 0 ? "border-emerald-400/30 bg-emerald-400/5" : "border-border"}`}>
+            <div
+              key={d.id}
+              className={`flex items-center gap-4 p-4 rounded-xl border bg-surface transition-all duration-500 ${
+                i === 0 ? "border-emerald-400/30 bg-emerald-400/5" : "border-border"
+              }`}
+            >
               <div className="w-9 h-9 rounded-lg bg-emerald-400/10 flex items-center justify-center flex-shrink-0">
                 <Icon name="CheckCircle" size={16} className="text-emerald-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="font-display font-semibold text-sm text-foreground">{d.product}</span>
-                <span className="text-xs text-muted-foreground ml-2">{d.buyer} ← {d.seller}</span>
+                <span className="font-display font-semibold text-sm text-foreground">
+                  {d.product}
+                </span>
+                <span className="text-xs text-muted-foreground ml-2">
+                  {d.buyer} ← {d.seller}
+                </span>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="font-display font-bold text-sm text-gold">₽ {d.amount.toLocaleString("ru-RU")}</div>
+                <div className="font-display font-bold text-sm text-gold">{format(d.amount)}</div>
                 <div className="text-[10px] text-muted-foreground">{d.timeAgo}</div>
               </div>
             </div>
@@ -61,40 +84,68 @@ function LiveFeed() {
 
 export function HomePage({ setActive }: { setActive: (s: string) => void }) {
   const { users } = useAuth();
-  const registeredCount = users.filter((u) => u.role === "user").length;
-  const totalVolumeStr = SITE_STATS.totalVolume >= 1000000
-    ? `₽ ${(SITE_STATS.totalVolume / 1000000).toFixed(1)} млн`
-    : `₽ ${SITE_STATS.totalVolume.toLocaleString("ru-RU")}`;
+  const { format } = useCurrency();
+  const registeredCount = users.length;
+
+  const DISPLAY_CATEGORIES = [
+    { icon: "Gamepad2", label: "Игровые аккаунты" },
+    { icon: "Monitor", label: "Программное обеспечение" },
+    { icon: "Gift", label: "Подарочные карты" },
+    { icon: "Sword", label: "CS2 скины" },
+    { icon: "Crosshair", label: "PUBG Mobile" },
+    { icon: "Star", label: "Прочее" },
+    { icon: "Plus", label: "Добавить товар", action: "add-product" },
+  ];
 
   return (
     <div className="animate-fade-in">
-      <section className="relative min-h-screen flex items-center pt-16 overflow-hidden grid-pattern">
+      {/* Hero */}
+      <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/80" />
         <div className="absolute top-1/3 right-0 w-[600px] h-[600px] rounded-full bg-gold/5 blur-[120px] pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center py-20">
           <div className="animate-slide-up">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gold/30 bg-gold/10 mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
-              <span className="text-xs text-gold font-medium tracking-widest uppercase">Безопасные сделки</span>
+              <span className="text-xs text-gold font-medium tracking-widest uppercase">
+                Безопасные сделки
+              </span>
             </div>
             <h1 className="font-display text-5xl lg:text-6xl font-extrabold leading-tight text-foreground mb-6">
-              Эскроу для<br /><span className="text-gold">виртуальных</span><br />ценностей
+              Эскроу для
+              <br />
+              <span className="text-gold">виртуальных</span>
+              <br />
+              ценностей
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed mb-10 max-w-lg">
               Мы удерживаем средства до тех пор, пока обе стороны не подтвердят выполнение сделки.
+              Комиссия платформы — {PLATFORM_COMMISSION}%.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" className="bg-gold text-background hover:bg-gold/90 font-bold px-8" onClick={() => setActive("catalog")}>
-                Смотреть каталог<Icon name="ArrowRight" size={16} className="ml-2" />
+              <Button
+                size="lg"
+                className="bg-gold text-background hover:bg-gold/90 font-bold px-8"
+                onClick={() => setActive("catalog")}
+              >
+                Смотреть каталог
+                <Icon name="ArrowRight" size={16} className="ml-2" />
               </Button>
-              <Button size="lg" variant="outline" className="border-border hover:border-gold/50 font-semibold" onClick={() => setActive("escrow")}>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-border hover:border-gold/50 font-semibold"
+                onClick={() => setActive("escrow")}
+              >
                 Как работает эскроу
               </Button>
             </div>
+
+            {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-12 pt-10 border-t border-border">
               {[
                 [String(SITE_STATS.totalDeals), "сделок закрыто"],
-                [totalVolumeStr, "продано"],
+                [format(SITE_STATS.totalVolume), "продано"],
                 [`${SITE_STATS.successRate}%`, "успешных"],
                 [String(registeredCount), "пользователей"],
               ].map(([val, label]) => (
@@ -105,10 +156,15 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
               ))}
             </div>
           </div>
+
+          {/* Hero image */}
           <div className="relative hidden lg:block">
             <div className="relative rounded-xl overflow-hidden border border-border shadow-2xl">
-              <img src="https://cdn.poehali.dev/projects/6d96cf49-c0b6-45ab-ab7b-3c1367bdc4ef/files/bce0a5a2-1308-44c6-9ead-cae738702db0.jpg"
-                alt="Gorant Shop" className="w-full object-cover" />
+              <img
+                src="https://cdn.poehali.dev/projects/6d96cf49-c0b6-45ab-ab7b-3c1367bdc4ef/files/bce0a5a2-1308-44c6-9ead-cae738702db0.jpg"
+                alt="Gorant Shop"
+                className="w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
             </div>
             <div className="absolute -bottom-6 -left-6 bg-surface border border-border rounded-xl p-4 shadow-xl">
@@ -118,7 +174,7 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
                 </div>
                 <div>
                   <div className="text-sm font-display font-semibold">Сделка подтверждена</div>
-                  <div className="text-xs text-muted-foreground">CS2 скин · ₽ 3 800</div>
+                  <div className="text-xs text-muted-foreground">CS2 скин · {format(3800)}</div>
                 </div>
               </div>
             </div>
@@ -126,28 +182,61 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
         </div>
       </section>
 
+      {/* Live feed */}
       <LiveFeed />
 
+      {/* How it works */}
       <section className="py-24 border-t border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="font-display font-bold text-3xl text-foreground mb-4">Как работает платформа</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Четыре простых шага — от открытия сделки до получения ценности</p>
+            <h2 className="font-display font-bold text-3xl text-foreground mb-4">
+              Как работает платформа
+            </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Четыре простых шага — от открытия сделки до получения ценности
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
             <div className="absolute top-10 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-border to-transparent hidden md:block" />
             {[
-              { step: "01", icon: "CreditCard", title: "Покупатель оплачивает", desc: "Деньги поступают на счёт эскроу, не продавцу" },
-              { step: "02", icon: "Lock", title: "Средства удержаны", desc: "Gorant Shop блокирует сумму до завершения сделки" },
-              { step: "03", icon: "ArrowRightLeft", title: "Передача товара", desc: "Продавец передаёт виртуальную ценность покупателю" },
-              { step: "04", icon: "CheckCircle", title: "Оба подтверждают", desc: "После подтверждения деньги переводятся продавцу" },
+              {
+                step: "01",
+                icon: "CreditCard",
+                title: "Покупатель оплачивает",
+                desc: "Деньги поступают на счёт эскроу, не продавцу",
+              },
+              {
+                step: "02",
+                icon: "Lock",
+                title: "Средства удержаны",
+                desc: "Gorant Shop блокирует сумму до завершения сделки",
+              },
+              {
+                step: "03",
+                icon: "ArrowRightLeft",
+                title: "Передача товара",
+                desc: "Продавец передаёт виртуальную ценность покупателю",
+              },
+              {
+                step: "04",
+                icon: "CheckCircle",
+                title: "Оба подтверждают",
+                desc: "После подтверждения деньги переводятся продавцу",
+              },
             ].map((s) => (
-              <div key={s.step} className="relative bg-surface border border-border rounded-xl p-6 hover-scale">
-                <span className="absolute top-4 right-4 text-4xl font-display font-black text-border">{s.step}</span>
+              <div
+                key={s.step}
+                className="relative bg-surface border border-border rounded-xl p-6 hover:border-gold/30 transition-colors"
+              >
+                <span className="absolute top-4 right-4 text-4xl font-display font-black text-border">
+                  {s.step}
+                </span>
                 <div className="w-12 h-12 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center mb-4">
                   <Icon name={s.icon} size={22} className="text-gold" />
                 </div>
-                <h3 className="font-display font-semibold text-sm text-foreground mb-2">{s.title}</h3>
+                <h3 className="font-display font-semibold text-sm text-foreground mb-2">
+                  {s.title}
+                </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">{s.desc}</p>
               </div>
             ))}
@@ -155,40 +244,48 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
         </div>
       </section>
 
+      {/* Categories */}
       <section className="py-20 bg-surface border-y border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-end justify-between mb-12">
             <div>
-              <h2 className="font-display font-bold text-3xl text-foreground mb-2">Популярные категории</h2>
+              <h2 className="font-display font-bold text-3xl text-foreground mb-2">
+                Популярные категории
+              </h2>
               <p className="text-muted-foreground text-sm">Добавляйте объявления в каталог</p>
             </div>
-            <Button variant="ghost" className="text-gold hover:text-gold/80 font-semibold" onClick={() => setActive("catalog")}>
+            <Button
+              variant="ghost"
+              className="text-gold hover:text-gold/80 font-semibold"
+              onClick={() => setActive("catalog")}
+            >
               Весь каталог <Icon name="ArrowRight" size={14} className="ml-1" />
             </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-            {[
-              { icon: "Gamepad2", label: "Игровые аккаунты", page: "catalog" },
-              { icon: "Monitor", label: "Программы", page: "catalog" },
-              { icon: "Gift", label: "Подарочные карты", page: "catalog" },
-              { icon: "Palette", label: "Цифровое искусство", page: "catalog" },
-              { icon: "Globe", label: "Домены", page: "catalog" },
-              { icon: "Sword", label: "CS2 скины", page: "catalog" },
-              { icon: "Star", label: "Прочее", page: "catalog" },
-              { icon: "Plus", label: "Добавить товар", page: "add-product" },
-            ].map((c) => (
-              <button key={c.label} onClick={() => setActive(c.page)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background border border-border hover:border-gold/40 hover:bg-gold/5 transition-all group">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {DISPLAY_CATEGORIES.map((c) => (
+              <button
+                key={c.label}
+                onClick={() => setActive(c.action ?? "catalog")}
+                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-background border border-border hover:border-gold/40 hover:bg-gold/5 transition-all group"
+              >
                 <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-gold/10 transition-colors">
-                  <Icon name={c.icon} size={18} className="text-muted-foreground group-hover:text-gold transition-colors" />
+                  <Icon
+                    name={c.icon}
+                    size={18}
+                    className="text-muted-foreground group-hover:text-gold transition-colors"
+                  />
                 </div>
-                <div className="text-[10px] font-display font-semibold text-foreground text-center leading-tight">{c.label}</div>
+                <div className="text-[10px] font-display font-semibold text-foreground text-center leading-tight">
+                  {c.label}
+                </div>
               </button>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Trust block */}
       <section className="py-24">
         <div className="max-w-7xl mx-auto px-6">
           <div className="bg-surface border border-gold/20 rounded-2xl p-12 relative overflow-hidden">
@@ -198,24 +295,36 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
                 <div className="w-14 h-14 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mb-6">
                   <Icon name="ShieldCheck" size={28} className="text-gold" />
                 </div>
-                <h2 className="font-display font-bold text-3xl text-foreground mb-4">Гарантийная защита каждой сделки</h2>
+                <h2 className="font-display font-bold text-3xl text-foreground mb-4">
+                  Гарантийная защита каждой сделки
+                </h2>
                 <p className="text-muted-foreground leading-relaxed mb-8">
-                  Система эскроу гарантирует: продавец получит деньги только после подтверждения передачи товара.
+                  Система эскроу гарантирует: продавец получит деньги только после подтверждения
+                  передачи товара. Комиссия — {PLATFORM_COMMISSION}%, поднятие в ТОП — ₽{BOOST_PRICE}.
                 </p>
-                <Button className="bg-gold text-background hover:bg-gold/90 font-semibold" onClick={() => setActive("escrow")}>
+                <Button
+                  className="bg-gold text-background hover:bg-gold/90 font-semibold"
+                  onClick={() => setActive("escrow")}
+                >
                   Подробнее о гарантиях
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { icon: "Lock", title: "Удержание средств", desc: "Деньги заморожены до взаимного подтверждения" },
+                  {
+                    icon: "Lock",
+                    title: "Удержание средств",
+                    desc: "Деньги заморожены до взаимного подтверждения",
+                  },
                   { icon: "Scale", title: "Разрешение споров", desc: "Независимая служба медиации" },
                   { icon: "Eye", title: "Прозрачность", desc: "Полная история статусов сделки" },
                   { icon: "Headphones", title: "Поддержка 24/7", desc: "Команда экспертов готова помочь" },
                 ].map((f) => (
                   <div key={f.title} className="bg-background rounded-xl p-5 border border-border">
                     <Icon name={f.icon} size={20} className="text-gold mb-3" />
-                    <div className="font-display font-semibold text-sm text-foreground mb-1">{f.title}</div>
+                    <div className="font-display font-semibold text-sm text-foreground mb-1">
+                      {f.title}
+                    </div>
                     <div className="text-xs text-muted-foreground leading-relaxed">{f.desc}</div>
                   </div>
                 ))}
@@ -237,145 +346,457 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
   const [price, setPrice] = useState("");
   const [desc, setDesc] = useState("");
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   if (!user) {
     return (
       <div className="max-w-lg mx-auto px-6 py-20 text-center animate-fade-in">
         <Icon name="LogIn" size={40} className="mx-auto mb-4 text-muted-foreground opacity-30" />
         <p className="text-muted-foreground mb-4">Войдите, чтобы разместить объявление</p>
-        <Button className="bg-gold text-background hover:bg-gold/90 font-semibold" onClick={() => setActive("login")}>Войти</Button>
+        <Button
+          className="bg-gold text-background hover:bg-gold/90 font-semibold"
+          onClick={() => setActive("login")}
+        >
+          Войти
+        </Button>
       </div>
     );
   }
 
+  const holdDays = HOLD_CATEGORIES[category];
+
   const handleSubmit = () => {
-    if (!title || !price) return;
+    setError("");
+    if (!title.trim()) {
+      setError("Введите название товара");
+      return;
+    }
+    const priceNum = parseFloat(price);
+    if (!price || isNaN(priceNum) || priceNum <= 0) {
+      setError("Введите корректную цену");
+      return;
+    }
     const p: Product = {
       id: Date.now(),
-      title,
+      title: title.trim(),
       category,
-      price: parseInt(price),
+      price: Math.round(priceNum),
       rating: 0,
       reviews: 0,
       sellerId: user.id,
       sellerName: user.username,
       badge: null,
-      verified: false,
+      verified: user.verified,
     };
     addProduct(p);
     setSuccess(true);
-    setTitle(""); setPrice(""); setDesc("");
+    setTitle("");
+    setPrice("");
+    setDesc("");
   };
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 animate-fade-in">
-      <button onClick={() => setActive("catalog")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors">
-        <Icon name="ArrowLeft" size={14} />Назад
+      <button
+        onClick={() => setActive("catalog")}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 transition-colors"
+      >
+        <Icon name="ArrowLeft" size={14} />
+        Назад
       </button>
-      <h1 className="font-display font-bold text-2xl text-foreground mb-8">Разместить объявление</h1>
+      <h1 className="font-display font-bold text-2xl text-foreground mb-8">
+        Разместить объявление
+      </h1>
 
       {success && (
         <div className="bg-emerald-400/10 border border-emerald-400/20 rounded-xl p-4 mb-6 flex items-center gap-3">
           <Icon name="CheckCircle" size={18} className="text-emerald-400" />
-          <span className="text-sm text-emerald-400 font-semibold">Объявление успешно опубликовано!</span>
+          <div>
+            <span className="text-sm text-emerald-400 font-semibold block">
+              Объявление успешно опубликовано!
+            </span>
+            <span className="text-xs text-emerald-400/70">
+              Товар появился на странице продавца и в каталоге.
+            </span>
+          </div>
         </div>
       )}
 
       <div className="bg-surface border border-border rounded-2xl p-6 space-y-5">
         <div>
-          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Название товара *</label>
-          <Input placeholder="Например: Steam аккаунт — 200 игр" value={title}
-            onChange={(e) => { setTitle(e.target.value); setSuccess(false); }}
-            className="bg-background border-border text-sm" />
+          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+            Название товара *
+          </label>
+          <Input
+            placeholder="Например: Steam аккаунт — 200 игр"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setSuccess(false);
+              setError("");
+            }}
+            className="bg-background border-border text-sm"
+          />
         </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Категория</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}
-              className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground">
-              {CATEGORIES.slice(1).map((c) => <option key={c}>{c}</option>)}
+            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+              Категория
+            </label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setSuccess(false);
+              }}
+              className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
+            >
+              {CATEGORIES.slice(1).map((c) => (
+                <option key={c}>{c}</option>
+              ))}
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Цена (₽) *</label>
-            <Input placeholder="5000" value={price} onChange={(e) => { setPrice(e.target.value); setSuccess(false); }}
-              type="number" className="bg-background border-border text-sm" />
+            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+              Цена (₽) *
+            </label>
+            <Input
+              placeholder="5000"
+              value={price}
+              onChange={(e) => {
+                setPrice(e.target.value);
+                setSuccess(false);
+                setError("");
+              }}
+              type="number"
+              min="1"
+              className="bg-background border-border text-sm"
+            />
           </div>
         </div>
+
         <div>
-          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Описание</label>
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Подробное описание товара..."
-            className="w-full h-24 px-3 py-2 rounded-md bg-background border border-border text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-gold/50" />
+          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+            Описание
+          </label>
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Подробное описание товара..."
+            className="w-full h-24 px-3 py-2 rounded-md bg-background border border-border text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-gold/50"
+          />
         </div>
+
+        {/* Hold warnings */}
         {category === "CS2 скины" && (
           <div className="bg-purple-400/10 border border-purple-400/20 rounded-xl p-4 flex items-start gap-3">
-            <Icon name="Info" size={16} className="text-purple-400 mt-0.5 flex-shrink-0" />
+            <Icon name="Clock" size={16} className="text-purple-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-purple-400">
-              <span className="font-bold">Важно: CS2 скины.</span> После подтверждения передачи скина обеими сторонами средства будут удержаны на 8 дней перед выплатой продавцу.
+              <span className="font-bold">Холд 8 дней: </span>
+              После подтверждения передачи скина обеими сторонами средства будут удержаны на 8 дней
+              перед выплатой продавцу.
             </p>
           </div>
         )}
-        <Button className="w-full bg-gold text-background hover:bg-gold/90 font-bold" onClick={handleSubmit}>
-          <Icon name="Upload" size={15} className="mr-2" />Опубликовать объявление
+        {category === "PUBG Mobile" && (
+          <div className="bg-orange-400/10 border border-orange-400/20 rounded-xl p-4 flex items-start gap-3">
+            <Icon name="Clock" size={16} className="text-orange-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-orange-400">
+              <span className="font-bold">Холд 14 дней: </span>
+              Для товаров PUBG Mobile применяется период удержания 14 дней после подтверждения
+              обеими сторонами.
+            </p>
+          </div>
+        )}
+
+        {/* Commission info */}
+        {price && parseFloat(price) > 0 && (
+          <div className="bg-background border border-border rounded-lg p-3 text-xs space-y-1">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Цена товара</span>
+              <span>₽ {parseFloat(price).toLocaleString("ru-RU")}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Комиссия платформы ({PLATFORM_COMMISSION}%)</span>
+              <span className="text-red-400">
+                - ₽{" "}
+                {Math.round(parseFloat(price) * (PLATFORM_COMMISSION / 100)).toLocaleString("ru-RU")}
+              </span>
+            </div>
+            {holdDays && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Холд после продажи</span>
+                <span className="text-amber-400">{holdDays} дней</span>
+              </div>
+            )}
+            <div className="flex justify-between font-semibold text-foreground border-t border-border pt-1 mt-1">
+              <span>Вы получите</span>
+              <span className="text-gold">
+                ₽{" "}
+                {Math.round(
+                  parseFloat(price) * (1 - PLATFORM_COMMISSION / 100)
+                ).toLocaleString("ru-RU")}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p className="text-xs text-red-400 flex items-center gap-1">
+            <Icon name="AlertCircle" size={12} />
+            {error}
+          </p>
+        )}
+
+        <Button
+          className="w-full bg-gold text-background hover:bg-gold/90 font-bold"
+          onClick={handleSubmit}
+        >
+          <Icon name="Upload" size={15} className="mr-2" />
+          Опубликовать объявление
         </Button>
       </div>
     </div>
   );
 }
 
-// ─── CATALOG ─────────────────────────────────────────────────────────────────
+// ─── CATALOG PAGE ─────────────────────────────────────────────────────────────
+
+type BuyResult = "ok" | "no_balance" | "self" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
-  const { users } = useAuth();
+  const { users, user: me, buyProduct, boostProduct } = useAuth();
+  const { format } = useCurrency();
+
   const [category, setCategory] = useState("Все");
   const [search, setSearch] = useState("");
   const [priceMax, setPriceMax] = useState("");
 
-  const allProducts = users.flatMap((u) => u.products);
+  // AI bot state
+  const [botWarning, setBotWarning] = useState(false);
+  const [botExpanded, setBotExpanded] = useState(true);
+
+  // Buy feedback per product id
+  const [buyResult, setBuyResult] = useState<Record<number, BuyResult>>({});
+  const [boostResult, setBoostResult] = useState<Record<number, string>>({});
+
+  // Collect all products from all users, boosted first then by id desc
+  const allProducts = users
+    .flatMap((u) => u.products)
+    .sort((a, b) => {
+      if (a.boosted && !b.boosted) return -1;
+      if (!a.boosted && b.boosted) return 1;
+      return b.id - a.id;
+    });
+
   const filtered = allProducts
     .filter((p) => category === "Все" || p.category === category)
     .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()))
-    .filter((p) => !priceMax || p.price <= parseInt(priceMax));
+    .filter((p) => !priceMax || p.price <= parseFloat(priceMax));
+
+  // Top categories by product count (exclude "Все")
+  const categoryCounts = CATEGORIES.slice(1).map((cat) => ({
+    cat,
+    count: allProducts.filter((p) => p.category === cat).length,
+  }));
+  const topCategories = [...categoryCounts].sort((a, b) => b.count - a.count).slice(0, 4);
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    // Reset pattern lastIndex since it's a global regex
+    SUSPICIOUS_URL_PATTERN.lastIndex = 0;
+    setBotWarning(SUSPICIOUS_URL_PATTERN.test(val));
+  };
+
+  const handleBuy = (product: Product) => {
+    if (!me) {
+      setActive("login");
+      return;
+    }
+    const seller = users.find((u) => u.id === product.sellerId);
+    if (!seller) return;
+    const result = buyProduct(product, seller);
+    setBuyResult((prev) => ({ ...prev, [product.id]: result }));
+    setTimeout(() => {
+      setBuyResult((prev) => ({ ...prev, [product.id]: null }));
+    }, 4000);
+  };
+
+  const handleBoost = (productId: number) => {
+    const result = boostProduct(productId);
+    setBoostResult((prev) => ({ ...prev, [productId]: result }));
+    setTimeout(() => {
+      setBoostResult((prev) => ({ ...prev, [productId]: "" }));
+    }, 3000);
+  };
+
+  const getCategoryIcon = (cat: string) => {
+    const map: Record<string, string> = {
+      "Игровые аккаунты": "Gamepad2",
+      "Программное обеспечение": "Monitor",
+      "Подарочные карты": "Gift",
+      "CS2 скины": "Sword",
+      "PUBG Mobile": "Crosshair",
+      "Прочее": "Star",
+    };
+    return map[cat] ?? "Package";
+  };
+
+  const getBuyLabel = (result: BuyResult): { text: string; color: string } | null => {
+    if (!result) return null;
+    if (result === "ok") return { text: "Куплено! Сделка создана.", color: "text-emerald-400" };
+    if (result === "no_balance") return { text: "Недостаточно средств", color: "text-red-400" };
+    if (result === "self") return { text: "Нельзя купить свой товар", color: "text-amber-400" };
+    return null;
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div>
           <h1 className="font-display font-bold text-3xl text-foreground mb-1">Каталог</h1>
           <p className="text-muted-foreground text-sm">
-            {allProducts.length === 0 ? "Пока нет объявлений — станьте первым продавцом!" : `${allProducts.length} объявлений`}
+            {allProducts.length === 0
+              ? "Пока нет объявлений — станьте первым продавцом!"
+              : `${allProducts.length} объявлений`}
           </p>
         </div>
-        <Button className="bg-gold text-background hover:bg-gold/90 font-bold" onClick={() => setActive("add-product")}>
-          <Icon name="Plus" size={15} className="mr-1.5" />Разместить
+        <Button
+          className="bg-gold text-background hover:bg-gold/90 font-bold"
+          onClick={() => setActive("add-product")}
+        >
+          <Icon name="Plus" size={15} className="mr-1.5" />
+          Разместить
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-6 p-4 bg-surface border border-border rounded-xl">
-        <div className="relative flex-1 min-w-[200px]">
-          <Icon name="Search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Поиск по названию..." value={search} onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-background border-border text-sm h-9" />
-        </div>
-        <Input placeholder="Цена до ₽" value={priceMax} onChange={(e) => setPriceMax(e.target.value)}
-          type="number" className="w-36 bg-background border-border text-sm h-9" />
+      {/* AI Bot */}
+      <div className="mb-6 bg-surface border border-gold/20 rounded-2xl overflow-hidden">
+        <button
+          className="w-full flex items-center gap-3 px-5 py-4 hover:bg-gold/5 transition-colors"
+          onClick={() => setBotExpanded((v) => !v)}
+        >
+          <div className="w-9 h-9 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0">
+            <Icon name="ShieldCheck" size={18} className="text-gold" />
+          </div>
+          <div className="flex-1 text-left">
+            <span className="font-display font-bold text-sm text-foreground">Gorant AI</span>
+            <span className="text-xs text-muted-foreground ml-2">Умный помощник каталога</span>
+          </div>
+          <Icon
+            name={botExpanded ? "ChevronUp" : "ChevronDown"}
+            size={16}
+            className="text-muted-foreground"
+          />
+        </button>
+
+        {botExpanded && (
+          <div className="px-5 pb-5 space-y-4">
+            {/* Bot greeting */}
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0 mt-0.5">
+                <Icon name="Bot" size={13} className="text-gold" />
+              </div>
+              <div className="bg-background border border-border rounded-xl rounded-tl-sm px-4 py-3 text-sm text-foreground max-w-lg">
+                Привет! Я Gorant AI. Помогу найти нужный товар. Вот самые популярные категории
+                прямо сейчас:
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {topCategories.map(({ cat, count }) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategory(cat)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gold/10 border border-gold/20 text-xs text-gold font-semibold hover:bg-gold/20 transition-colors"
+                    >
+                      <Icon name={getCategoryIcon(cat)} size={11} />
+                      {cat}
+                      <span className="text-[10px] opacity-70">({count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {botWarning && (
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-red-400/10 border border-red-400/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon name="ShieldAlert" size={13} className="text-red-400" />
+                </div>
+                <div className="bg-red-400/10 border border-red-400/20 rounded-xl rounded-tl-sm px-4 py-3 text-sm text-red-400 max-w-lg">
+                  <span className="font-semibold">Внимание!</span> Обнаружена внешняя ссылка в
+                  поисковом запросе. Gorant Shop не несёт ответственности за переход по сторонним
+                  сайтам. Не переходите по подозрительным ссылкам.
+                </div>
+              </div>
+            )}
+
+            {!botWarning && search && (
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon name="Bot" size={13} className="text-gold" />
+                </div>
+                <div className="bg-background border border-border rounded-xl rounded-tl-sm px-4 py-3 text-sm text-foreground max-w-lg">
+                  Ищу «<span className="text-gold font-semibold">{search}</span>»... Найдено{" "}
+                  <span className="font-semibold">{filtered.length}</span> товаров.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-6 p-4 bg-surface border border-border rounded-xl">
+        <div className="relative flex-1 min-w-[200px]">
+          <Icon
+            name="Search"
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            placeholder="Поиск по названию..."
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-9 bg-background border-border text-sm h-9"
+          />
+        </div>
+        <Input
+          placeholder="Цена до ₽"
+          value={priceMax}
+          onChange={(e) => setPriceMax(e.target.value)}
+          type="number"
+          className="w-36 bg-background border-border text-sm h-9"
+        />
+      </div>
+
+      {/* Category buttons */}
       <div className="flex flex-wrap gap-2 mb-8">
         {CATEGORIES.map((c) => (
-          <button key={c} onClick={() => setCategory(c)}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${category === c ? "bg-gold text-background border-gold" : "bg-surface border-border text-muted-foreground hover:border-gold/40 hover:text-foreground"}`}>
+          <button
+            key={c}
+            onClick={() => setCategory(c)}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              category === c
+                ? "bg-gold text-background border-gold"
+                : "bg-surface border-border text-muted-foreground hover:border-gold/40 hover:text-foreground"
+            }`}
+          >
             {c}
           </button>
         ))}
       </div>
 
+      {/* Products grid */}
       {filtered.length === 0 ? (
         <div className="text-center py-24 text-muted-foreground">
           <Icon name="PackageOpen" size={48} className="mx-auto mb-4 opacity-20" />
           <p className="font-display font-semibold text-foreground mb-2">Товаров пока нет</p>
           <p className="text-sm mb-6">Здесь появятся объявления после их добавления продавцами</p>
-          <Button className="bg-gold text-background hover:bg-gold/90 font-semibold" onClick={() => setActive("add-product")}>
+          <Button
+            className="bg-gold text-background hover:bg-gold/90 font-semibold"
+            onClick={() => setActive("add-product")}
+          >
             Разместить объявление
           </Button>
         </div>
@@ -383,27 +804,178 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {filtered.map((p) => {
             const seller = users.find((u) => u.id === p.sellerId);
-            const isCS2 = p.category === "CS2 скины";
+            const isMyProduct = me?.id === p.sellerId;
+            const pHoldDays = HOLD_CATEGORIES[p.category];
+            const sellerReceives = Math.round(p.price * (1 - PLATFORM_COMMISSION / 100));
+            const result = buyResult[p.id];
+            const buyFeedback = getBuyLabel(result);
+            const bResult = boostResult[p.id];
+
             return (
-              <div key={p.id} className="bg-surface border border-border rounded-xl overflow-hidden hover-scale group cursor-pointer">
-                <div className="h-40 bg-gradient-to-br from-secondary to-background flex items-center justify-center relative">
-                  <Icon name={isCS2 ? "Sword" : "Package"} size={40} className="text-border group-hover:text-gold/40 transition-colors" />
-                  {p.badge && <span className="absolute top-3 left-3 text-xs font-display font-bold px-2 py-0.5 rounded bg-gold text-background">{p.badge}</span>}
-                  {isCS2 && <span className="absolute top-3 right-3 text-[10px] bg-purple-400/20 text-purple-400 border border-purple-400/30 px-1.5 py-0.5 rounded font-semibold">CS2</span>}
+              <div
+                key={p.id}
+                className={`bg-surface border rounded-xl overflow-hidden flex flex-col relative transition-all ${
+                  p.boosted
+                    ? "border-gold/40 shadow-[0_0_20px_rgba(212,175,55,0.1)]"
+                    : "border-border hover:border-gold/20"
+                }`}
+              >
+                {/* TOP badge */}
+                {p.boosted && (
+                  <div className="absolute top-3 left-3 z-10">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gold text-background border border-gold/60">
+                      ТОП
+                    </span>
+                  </div>
+                )}
+
+                {/* Thumbnail */}
+                <div className="h-36 bg-gradient-to-br from-secondary to-background flex items-center justify-center relative">
+                  <Icon
+                    name={
+                      p.category === "CS2 скины"
+                        ? "Sword"
+                        : p.category === "PUBG Mobile"
+                        ? "Crosshair"
+                        : p.category === "Игровые аккаунты"
+                        ? "Gamepad2"
+                        : p.category === "Подарочные карты"
+                        ? "Gift"
+                        : p.category === "Программное обеспечение"
+                        ? "Monitor"
+                        : "Package"
+                    }
+                    size={40}
+                    className="text-border"
+                  />
+                  {p.badge && (
+                    <span className="absolute top-3 right-3 text-xs font-display font-bold px-2 py-0.5 rounded bg-gold text-background">
+                      {p.badge}
+                    </span>
+                  )}
                 </div>
-                <div className="p-4">
-                  <p className="text-xs text-muted-foreground mb-1">{p.category}</p>
-                  <h3 className="font-display font-semibold text-sm text-foreground mb-2 leading-tight line-clamp-2">{p.title}</h3>
+
+                <div className="p-4 flex flex-col flex-1 gap-2">
+                  <p className="text-xs text-muted-foreground">{p.category}</p>
+                  <h3 className="font-display font-semibold text-sm text-foreground leading-tight line-clamp-2">
+                    {p.title}
+                  </h3>
+
+                  {/* Seller link */}
                   {seller && (
-                    <button onClick={() => setActive(`seller-${seller.id}`)} className="text-xs text-muted-foreground hover:text-gold transition-colors mb-2 block">
+                    <button
+                      onClick={() => setActive(`seller-${seller.id}`)}
+                      className="text-xs text-muted-foreground hover:text-gold transition-colors text-left"
+                    >
                       @{seller.username}
+                      {seller.verified && (
+                        <Icon
+                          name="ShieldCheck"
+                          size={10}
+                          className="inline ml-1 text-emerald-400"
+                        />
+                      )}
                     </button>
                   )}
-                  <div className="flex items-center justify-between">
-                    <span className="font-display font-bold text-lg text-foreground">₽ {p.price.toLocaleString("ru-RU")}</span>
-                    <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold text-xs h-7 px-3">Купить</Button>
+
+                  {/* Price */}
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-display font-bold text-lg text-foreground">
+                      {format(p.price)}
+                    </span>
                   </div>
-                  {isCS2 && <p className="text-[10px] text-purple-400 mt-2 flex items-center gap-1"><Icon name="Clock" size={9} />Холд 8 дней</p>}
+
+                  {/* Seller receives info (for own product) */}
+                  {isMyProduct && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Продавец получит:{" "}
+                      <span className="text-gold font-semibold">
+                        ₽ {sellerReceives.toLocaleString("ru-RU")}
+                      </span>
+                    </p>
+                  )}
+
+                  {/* Hold tags */}
+                  {p.category === "CS2 скины" && (
+                    <span className="text-[10px] text-purple-400 flex items-center gap-1 bg-purple-400/10 border border-purple-400/20 rounded-md px-2 py-0.5 w-fit">
+                      <Icon name="Clock" size={9} />
+                      Холд 8 дней
+                    </span>
+                  )}
+                  {p.category === "PUBG Mobile" && (
+                    <span className="text-[10px] text-orange-400 flex items-center gap-1 bg-orange-400/10 border border-orange-400/20 rounded-md px-2 py-0.5 w-fit">
+                      <Icon name="Clock" size={9} />
+                      Холд 14 дней
+                    </span>
+                  )}
+
+                  <div className="mt-auto pt-2 space-y-2">
+                    {/* Buy feedback */}
+                    {buyFeedback && (
+                      <p className={`text-xs flex items-center gap-1 ${buyFeedback.color}`}>
+                        <Icon
+                          name={result === "ok" ? "CheckCircle" : "AlertCircle"}
+                          size={11}
+                        />
+                        {buyFeedback.text}
+                      </p>
+                    )}
+
+                    {/* Buy / boost buttons */}
+                    {isMyProduct ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground text-center">Ваш товар</p>
+                        {!p.boosted && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-gold/30 text-gold hover:bg-gold/10 text-xs h-7"
+                              onClick={() => handleBoost(p.id)}
+                            >
+                              <Icon name="TrendingUp" size={11} className="mr-1" />
+                              Поднять в топ за ₽{BOOST_PRICE}
+                            </Button>
+                            {bResult === "no_balance" && (
+                              <p className="text-[10px] text-red-400 flex items-center gap-1">
+                                <Icon name="AlertCircle" size={10} />
+                                Недостаточно средств
+                              </p>
+                            )}
+                            {bResult === "ok" && (
+                              <p className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                <Icon name="CheckCircle" size={10} />
+                                Товар поднят в ТОП!
+                              </p>
+                            )}
+                          </>
+                        )}
+                        {p.boosted && (
+                          <p className="text-[10px] text-gold flex items-center gap-1 justify-center">
+                            <Icon name="Star" size={10} />В топе
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="w-full bg-gold text-background hover:bg-gold/90 font-bold text-xs h-8"
+                        onClick={() => handleBuy(p)}
+                      >
+                        {pHoldDays ? (
+                          <>
+                            <Icon name="ShoppingCart" size={12} className="mr-1" />
+                            Купить (холд {pHoldDays}д)
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="ShoppingCart" size={12} className="mr-1" />
+                            Купить
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

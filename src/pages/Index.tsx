@@ -5,6 +5,7 @@ import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/page
 import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
 import { AdminPage, AdminLogin } from "@/components/pages/AdminPage";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { CurrencyProvider } from "@/context/CurrencyContext";
 
 function AppContent() {
   const [page, setPage] = useState("home");
@@ -56,7 +57,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background">
       <Nav active={page} setActive={handleSetActive} isAdmin={isAdmin} />
-      <main className="pt-16">
+      <main className="pt-20">
         {renderPage()}
       </main>
       <Footer setActive={handleSetActive} />
@@ -66,8 +67,10 @@ function AppContent() {
 
 export default function Index() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <CurrencyProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </CurrencyProvider>
   );
 }
