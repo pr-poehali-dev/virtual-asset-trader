@@ -8,6 +8,27 @@ import { AdminPage, AdminLogin } from "@/components/pages/AdminPage";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
 import Icon from "@/components/ui/icon";
+import { api } from "@/api/client";
+
+// ─── MAINTENANCE PAGE ─────────────────────────────────────────────────────────
+
+function MaintenancePage() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-6">
+      <div className="text-center max-w-lg">
+        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mx-auto mb-6">
+          <Icon name="Wrench" size={36} className="text-amber-400" />
+        </div>
+        <h1 className="font-display font-bold text-2xl text-foreground mb-4">
+          Проводятся технические проверки
+        </h1>
+        <p className="text-muted-foreground leading-relaxed">
+          Скоро сайт вернётся к обычной работе.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ─── PERMA-BAN PAGE ──────────────────────────────────────────────────────────
 
@@ -56,7 +77,19 @@ function AppContent() {
   const [page, setPage] = useState("home");
   const [isAdmin, setIsAdmin] = useState(false);
   const [frozenReason, setFrozenReason] = useState<string | undefined>();
+  const [maintenance, setMaintenance] = useState(false);
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    const checkMaintenance = () => {
+      api.finance.maintenance()
+        .then(({ maintenance: m }) => setMaintenance(m))
+        .catch(() => {});
+    };
+    checkMaintenance();
+    const t = setInterval(checkMaintenance, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (user && (page === "login" || page === "register")) {
@@ -80,6 +113,12 @@ function AppContent() {
   // ── Perma-ban: полная изоляция ────────────────────────────────────────────
   if (user?.perma_banned || user?.permaBanned) {
     return <PermaBannedPage />;
+  }
+
+  // ── Maintenance: только для не-администраторов ─────────────────────────────
+  const isStaff = user?.role === "admin" || user?.role === "staff" || user?.isOwner;
+  if (maintenance && !isStaff) {
+    return <MaintenancePage />;
   }
 
   const handleSetActive = (p: string) => {

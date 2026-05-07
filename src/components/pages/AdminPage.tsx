@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { api, apiErrorMessage } from "@/api/client";
+void Button; void Input; void useAuth; void apiErrorMessage;
 import { AdminStatsTab, AdminUsersTab } from "@/components/pages/admin/AdminStatsUsers";
 import { AdminDealsTab, AdminRequisitesTab } from "@/components/pages/admin/AdminDealsRequisites";
 import {
@@ -148,15 +149,30 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
 
 export function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("stats");
+  const [maintenance, setMaintenance] = useState(false);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+
+  useEffect(() => {
+    api.finance.maintenance().then(({ maintenance: m }) => setMaintenance(m)).catch(() => {});
+  }, []);
+
+  const toggleMaintenance = async () => {
+    setMaintenanceLoading(true);
+    try {
+      const { maintenance: m } = await api.finance.setMaintenance(!maintenance);
+      setMaintenance(m);
+    } catch {/* ignore */}
+    setMaintenanceLoading(false);
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 rounded-xl bg-red-400/10 border border-red-400/30 flex items-center justify-center">
+      <div className="flex items-start gap-4 mb-8 flex-wrap">
+        <div className="w-12 h-12 rounded-xl bg-red-400/10 border border-red-400/30 flex items-center justify-center shrink-0">
           <Icon name="ShieldAlert" size={24} className="text-red-400" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="font-display font-bold text-2xl text-foreground">
             Панель администратора
           </h1>
@@ -167,6 +183,20 @@ export function AdminPage() {
             </span>
           </div>
         </div>
+        {/* Кнопка тех. обслуживания */}
+        <button
+          onClick={toggleMaintenance}
+          disabled={maintenanceLoading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-sm transition-all ${
+            maintenance
+              ? "bg-amber-400/20 text-amber-400 border-amber-400/40 hover:bg-amber-400/30"
+              : "bg-background text-muted-foreground border-border hover:border-amber-400/40 hover:text-amber-400"
+          }`}
+        >
+          <Icon name={maintenanceLoading ? "Loader" : "Wrench"} size={16} className={maintenanceLoading ? "animate-spin" : ""} />
+          {maintenance ? "Отключить тех. обслуживание" : "Тех. обслуживание"}
+          {maintenance && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
+        </button>
       </div>
 
       {/* Tabs */}

@@ -64,6 +64,26 @@ def handler(event: dict, context) -> dict:
         cur = conn.cursor()
         user = get_user_by_token(cur, token)
 
+        # ── GET /finance/maintenance — статус тех. обслуживания (публичный) ────
+        if method == "GET" and path.endswith("/maintenance"):
+            cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='maintenance_mode'")
+            row = cur.fetchone()
+            is_on = row and row[0] == "true"
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"maintenance": is_on})}
+
+        # ── POST /finance/admin/maintenance — включить/выключить ─────────────
+        if method == "POST" and path.endswith("/admin/maintenance"):
+            user = get_user_by_token(cur, token)
+            if not user or not (user["role"] in ("admin",) or user.get("is_owner")):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            enabled = body.get("enabled", False)
+            cur.execute(
+                f"UPDATE {SCHEMA}.platform_settings SET value=%s, updated_at=NOW() WHERE key='maintenance_mode'",
+                ("true" if enabled else "false",)
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "maintenance": enabled})}
+
         # ── GET /finance/notifications ────────────────────────────────────────
         if method == "GET" and path.endswith("/notifications"):
             if not user:

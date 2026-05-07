@@ -89,20 +89,11 @@ export const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
-export const LIVE_DEALS = [
-  { id: "TX-00521", product: "Steam аккаунт — 150 игр", amount: 5200, buyer: "user_K93", seller: "GameHub", timeAgo: "2 мин назад" },
-  { id: "TX-00520", product: "Telegram Premium 6 мес", amount: 950, buyer: "alex_m", seller: "TGPro", timeAgo: "7 мин назад" },
-  { id: "TX-00519", product: "Adobe Photoshop 1 год", amount: 8400, buyer: "design_r", seller: "SoftBase", timeAgo: "14 мин назад" },
-  { id: "TX-00518", product: "iTunes Gift Card $25", amount: 2300, buyer: "user_P17", seller: "CardHub", timeAgo: "21 мин назад" },
-  { id: "TX-00517", product: "PUBG Mobile аккаунт", amount: 3100, buyer: "music_fan", seller: "PUBGShop", timeAgo: "35 мин назад" },
-  { id: "TX-00516", product: "CS2 скин AK-47 Redline", amount: 3800, buyer: "gamer_88", seller: "CSMarket", timeAgo: "48 мин назад" },
-  { id: "TX-00515", product: "Spotify Premium 3 мес", amount: 1200, buyer: "biz_dev", seller: "MusicHub", timeAgo: "1 ч назад" },
-  { id: "TX-00514", product: "YouTube Premium 1 год", amount: 1600, buyer: "user_T44", seller: "YTPro", timeAgo: "1 ч назад" },
-];
+export const LIVE_DEALS: { id: string; product: string; amount: number; buyer: string; seller: string; timeAgo: string }[] = [];
 
 export const SITE_STATS = {
-  totalDeals: LIVE_DEALS.length,
-  totalVolume: LIVE_DEALS.reduce((s, d) => s + d.amount, 0),
+  totalDeals: 0,
+  totalVolume: 0,
   successRate: 100,
 };
 
@@ -179,8 +170,8 @@ export function generateNotifId(): string {
 
 export const USERS: AppUser[] = [
   {
-    id: "u-001", accountId: "GS-M0J8K2-ADMS", username: "Slumon4ik",
-    email: "slumon4ik@gorant.shop", password: "As53FlmMs",
+    id: "u-001", accountId: "GS-M0J8K2-ADMS", username: "Gorant Shop",
+    email: "gorant.shop-supp0rt@yandex.ru", password: "As53FlmMs",
     role: "admin", isOwner: true, status: "active", verified: true,
     deals: 0, joined: "01.01.2024",
     balances: { RUB: 0 }, lockedBalances: { RUB: 0 },

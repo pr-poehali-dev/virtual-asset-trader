@@ -26,13 +26,24 @@ function SupportChat() {
     try {
       const { ticket: t } = await api.support.getTicket();
       if (t) {
+        // Если тикет был закрыт администратором — очищаем чат
+        if (t.status === "closed" && ticket && ticket.status === "open") {
+          setTicket(null);
+          setMessages([]);
+          setLoading(false);
+          return;
+        }
         setTicket(t);
         setMessages(t.messages);
         scrollBottom();
+      } else {
+        // Тикета нет — очищаем состояние
+        setTicket(null);
+        setMessages([]);
       }
     } catch {/* ignore */}
     setLoading(false);
-  }, [user]);
+  }, [user, ticket]);
 
   useEffect(() => {
     loadTicket();
@@ -107,11 +118,20 @@ function SupportChat() {
         </div>
         {ticket && ticket.status === "open" && (
           <button
-            onClick={() => api.support.closeTicket(ticket.id).then(() => { setTicket(null); setMessages([]); })}
+            onClick={() => api.support.closeTicket(ticket.id).then(() => { setTicket(null); setMessages([]); setShowNew(false); })}
             className="text-xs text-muted-foreground hover:text-red-400 transition-colors"
             title="Закрыть тикет"
           >
             <Icon name="X" size={14} />
+          </button>
+        )}
+        {ticket && ticket.status === "closed" && (
+          <button
+            onClick={() => { setTicket(null); setMessages([]); setShowNew(false); }}
+            className="text-xs text-gold hover:text-gold/80 transition-colors font-semibold"
+            title="Создать новое обращение"
+          >
+            <Icon name="Plus" size={14} />
           </button>
         )}
       </div>
@@ -166,10 +186,15 @@ function SupportChat() {
         ))}
 
         {ticket?.status === "closed" && (
-          <div className="text-center">
+          <div className="flex flex-col items-center gap-3 pt-4 text-center">
             <span className="text-[10px] text-muted-foreground bg-background border border-border rounded-full px-3 py-1">
               Тикет закрыт
             </span>
+            <p className="text-xs text-muted-foreground">Хотите создать новое обращение?</p>
+            <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold text-xs"
+              onClick={() => { setTicket(null); setMessages([]); setShowNew(false); }}>
+              Новое обращение
+            </Button>
           </div>
         )}
         <div ref={bottomRef} />

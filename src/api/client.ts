@@ -135,6 +135,13 @@ export const api = {
       ),
   },
 
+  emailVerify: {
+    send: (email: string) =>
+      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
+  },
+
   deals: {
     buy: (product_id: number) =>
       req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
@@ -158,6 +165,12 @@ export const api = {
 
     markRead: (id: string) =>
       req("finance", "/notifications/read", "POST", { id }),
+
+    maintenance: () =>
+      req<{ maintenance: boolean }>("finance", "/maintenance"),
+
+    setMaintenance: (enabled: boolean) =>
+      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
 
     deposit: (amount: number, currency: string) =>
       req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),

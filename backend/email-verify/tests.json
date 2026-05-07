@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Send code with invalid email",
+      "method": "POST",
+      "path": "/send",
+      "body": {"email": "notanemail"},
+      "expectedStatus": 400,
+      "expectedBody": {"error": "invalid_email"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

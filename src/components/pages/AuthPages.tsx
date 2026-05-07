@@ -163,30 +163,70 @@ export function LoginPage({
 
 export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   const { register } = useAuth();
+  const [step, setStep] = useState<"form" | "verify">("form");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
-  const handleRegister = () => {
-    if (!username || !email || !password || !password2) {
-      setError("Заполните все поля");
-      return;
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setInterval(() => setResendTimer((p) => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendTimer]);
+
+  const handleSendCode = async () => {
+    setError("");
+    if (!username.trim() || !email.trim() || !password || !password2) {
+      setError("Заполните все поля"); return;
     }
-    if (password !== password2) {
-      setError("Пароли не совпадают");
-      return;
+    if (password !== password2) { setError("Пароли не совпадают"); return; }
+    if (password.length < 6) { setError("Пароль не менее 6 символов"); return; }
+    if (!email.includes("@")) { setError("Введите корректный email"); return; }
+    setSending(true);
+    try {
+      await api.emailVerify.send(email.trim().toLowerCase());
+      setStep("verify");
+      setResendTimer(60);
+    } catch (e) {
+      const ae = e as { error?: string };
+      if (ae?.error === "email_taken") setError("Этот email уже зарегистрирован");
+      else if (ae?.error === "too_soon") setError("Подождите перед повторной отправкой");
+      else if (ae?.error === "send_failed") setError("Не удалось отправить письмо. Проверьте email.");
+      else setError("Ошибка отправки. Попробуйте снова.");
     }
-    if (password.length < 6) {
-      setError("Пароль должен быть не менее 6 символов");
-      return;
+    setSending(false);
+  };
+
+  const handleVerify = async () => {
+    setError("");
+    if (!code.trim()) { setError("Введите код из письма"); return; }
+    setRegistering(true);
+    try {
+      const { verified } = await api.emailVerify.check(email.trim().toLowerCase(), code.trim());
+      if (!verified) { setError("Неверный код"); setRegistering(false); return; }
+      const result = register(username, email, password);
+      if (result === "exists") { setError("Никнейм или email уже занят"); }
+    } catch {
+      setError("Неверный или просроченный код");
     }
-    const result = register(username, email, password);
-    if (result === "exists") {
-      setError("Этот никнейм или email уже занят — выберите другой");
-      return;
-    }
+    setRegistering(false);
+  };
+
+  const handleResend = async () => {
+    if (resendTimer > 0) return;
+    setSending(true);
+    try {
+      await api.emailVerify.send(email.trim().toLowerCase());
+      setResendTimer(60);
+      setError("");
+    } catch { setError("Ошибка повторной отправки"); }
+    setSending(false);
   };
 
   return (
@@ -195,89 +235,86 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
         <div className="bg-surface border border-border rounded-2xl p-8">
           <div className="text-center mb-7">
             <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-4">
-              <Icon name="UserPlus" size={22} className="text-gold" />
+              <Icon name={step === "verify" ? "Mail" : "UserPlus"} size={22} className="text-gold" />
             </div>
-            <h1 className="font-display font-bold text-xl text-foreground mb-1">Регистрация</h1>
-            <p className="text-xs text-muted-foreground">Создайте аккаунт Gorant Shop</p>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
-                Имя пользователя
-              </label>
-              <Input
-                placeholder="username"
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  setError("");
-                }}
-                className="bg-background border-border text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Email</label>
-              <Input
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setError("");
-                }}
-                className="bg-background border-border text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Пароль</label>
-              <Input
-                type="password"
-                placeholder="мин. 6 символов"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError("");
-                }}
-                className="bg-background border-border text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
-                Повторите пароль
-              </label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password2}
-                onChange={(e) => {
-                  setPassword2(e.target.value);
-                  setError("");
-                }}
-                onKeyDown={(e) => e.key === "Enter" && handleRegister()}
-                className="bg-background border-border text-sm"
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs text-red-400 flex items-center gap-1">
-                <Icon name="AlertCircle" size={12} />
-                {error}
-              </p>
-            )}
-
-            <Button
-              className="w-full bg-gold text-background hover:bg-gold/90 font-bold"
-              onClick={handleRegister}
-            >
-              Создать аккаунт
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              Уже есть аккаунт?{" "}
-              <button onClick={onLogin} className="text-gold hover:underline font-semibold">
-                Войти
-              </button>
+            <h1 className="font-display font-bold text-xl text-foreground mb-1">
+              {step === "verify" ? "Подтверждение email" : "Регистрация"}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {step === "verify" ? `Код отправлен на ${email}` : "Создайте аккаунт Gorant Shop"}
             </p>
           </div>
+
+          {step === "form" ? (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Имя пользователя</label>
+                <Input placeholder="username" value={username}
+                  onChange={(e) => { setUsername(e.target.value); setError(""); }}
+                  className="bg-background border-border text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Email</label>
+                <Input placeholder="your@email.com" value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                  className="bg-background border-border text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Пароль</label>
+                <Input type="password" placeholder="мин. 6 символов" value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                  className="bg-background border-border text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Повторите пароль</label>
+                <Input type="password" placeholder="••••••••" value={password2}
+                  onChange={(e) => { setPassword2(e.target.value); setError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
+                  className="bg-background border-border text-sm" />
+              </div>
+              {error && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={12} />{error}</p>}
+              <Button className="w-full bg-gold text-background hover:bg-gold/90 font-bold" onClick={handleSendCode} disabled={sending}>
+                {sending ? <Icon name="Loader" size={15} className="animate-spin mr-2" /> : null}
+                {sending ? "Отправляем код..." : "Получить код подтверждения"}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Уже есть аккаунт?{" "}
+                <button onClick={onLogin} className="text-gold hover:underline font-semibold">Войти</button>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-gold/5 border border-gold/20 rounded-xl p-4 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Письмо с кодом отправлено на</p>
+                <p className="font-semibold text-sm text-foreground">{email}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Код из письма</label>
+                <Input
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  className="bg-background border-border text-sm text-center font-mono text-lg tracking-widest"
+                  maxLength={6}
+                />
+              </div>
+              {error && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={12} />{error}</p>}
+              <Button className="w-full bg-gold text-background hover:bg-gold/90 font-bold" onClick={handleVerify} disabled={registering || code.length < 6}>
+                {registering ? <Icon name="Loader" size={15} className="animate-spin mr-2" /> : <Icon name="CheckCircle" size={15} className="mr-2" />}
+                Подтвердить и создать аккаунт
+              </Button>
+              <div className="flex items-center justify-between text-xs">
+                <button onClick={() => { setStep("form"); setCode(""); setError(""); }} className="text-muted-foreground hover:text-foreground">
+                  ← Назад
+                </button>
+                <button onClick={handleResend} disabled={resendTimer > 0 || sending}
+                  className={`font-semibold ${resendTimer > 0 ? "text-muted-foreground" : "text-gold hover:underline"}`}>
+                  {resendTimer > 0 ? `Повторно через ${resendTimer}с` : "Отправить снова"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

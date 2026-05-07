@@ -1,20 +1,47 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STEPS, STATUS_MAP } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
 
+const TERMINAL = ["completed", "refunded"];
+
 export function DealsPage() {
   const { deals, user, openDispute, sendDisputeMessage, refreshDeals } = useAuth();
-  const userDeals = user ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id) : deals;
+  const [showClosed, setShowClosed] = useState(false);
   const [selected, setSelected] = useState<typeof deals[0] | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionDone, setActionDone] = useState<string | null>(null);
   const [disputeInput, setDisputeInput] = useState("");
   const [showDisputeChat, setShowDisputeChat] = useState(false);
+  const [prevStatuses, setPrevStatuses] = useState<Record<string, string>>({});
+
+  const userDeals = user ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id) : deals;
+  const activeDeals = userDeals.filter((d) => !TERMINAL.includes(d.status));
+  const closedDeals = userDeals.filter((d) => TERMINAL.includes(d.status));
+  const visibleDeals = showClosed ? closedDeals : activeDeals;
 
   const selectedFresh = selected ? (deals.find((d) => d.id === selected.id) ?? selected) : null;
+
+  // Авто-обновление: следим за изменением статусов
+  useEffect(() => {
+    const interval = setInterval(() => { refreshDeals(); }, 15000);
+    return () => clearInterval(interval);
+  }, [refreshDeals]);
+
+  // Если выбранная сделка перешла в terminal — убираем выделение
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = deals.find((d) => d.id === selected.id);
+    if (!fresh) return;
+    const prev = prevStatuses[selected.id];
+    if (prev && prev !== fresh.status && TERMINAL.includes(fresh.status)) {
+      setActionDone("Сделка закрыта!");
+      setTimeout(() => { setActionDone(null); setSelected(null); }, 3000);
+    }
+    setPrevStatuses((p) => ({ ...p, [selected.id]: fresh.status }));
+  }, [deals]);
 
   const handleConfirm = async (dealId: string) => {
     setActionLoading(true);
@@ -54,26 +81,44 @@ export function DealsPage() {
     await refreshDeals();
   };
 
-  const TERMINAL = ["completed", "refunded"];
-
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
         <h1 className="font-display font-bold text-3xl text-foreground">История сделок</h1>
-        <Button variant="outline" size="sm" className="border-border text-xs" onClick={refreshDeals}>
-          <Icon name="RefreshCw" size={13} className="mr-1.5" />Обновить
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className={`border-border text-xs ${showClosed ? "text-muted-foreground" : "text-gold border-gold/30"}`}
+            onClick={() => { setShowClosed(false); setSelected(null); }}
+          >
+            <Icon name="Clock" size={12} className="mr-1.5" />
+            Активные ({activeDeals.length})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={`border-border text-xs ${showClosed ? "text-gold border-gold/30" : "text-muted-foreground"}`}
+            onClick={() => { setShowClosed(true); setSelected(null); }}
+          >
+            <Icon name="CheckCircle" size={12} className="mr-1.5" />
+            Закрытые ({closedDeals.length})
+          </Button>
+          <Button variant="outline" size="sm" className="border-border text-xs" onClick={refreshDeals}>
+            <Icon name="RefreshCw" size={13} className="mr-1.5" />Обновить
+          </Button>
+        </div>
       </div>
       <p className="text-muted-foreground text-sm mb-8">Текущий статус и история всех транзакций</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-3">
-          {userDeals.length === 0 ? (
+          {visibleDeals.length === 0 ? (
             <div className="bg-surface border border-border rounded-xl p-10 text-center text-muted-foreground">
               <Icon name="Inbox" size={32} className="mx-auto mb-3 opacity-20" />
-              <p className="text-sm">Сделок пока нет</p>
+              <p className="text-sm">{showClosed ? "Нет закрытых сделок" : "Активных сделок нет"}</p>
             </div>
-          ) : userDeals.map((d) => {
+          ) : visibleDeals.map((d) => {
             const s = STATUS_MAP[d.status] ?? { label: d.status, color: "text-muted-foreground bg-secondary border-border" };
             const isBuyer = user?.id === d.buyerId;
             return (
@@ -140,7 +185,6 @@ export function DealsPage() {
                 ))}
               </div>
 
-              {/* Уведомление об успехе/ошибке */}
               {actionDone && (
                 <div className={`text-xs rounded-lg px-3 py-2 flex items-center gap-2 ${actionDone.includes("Ошибка") ? "bg-red-400/10 text-red-400" : "bg-emerald-400/10 text-emerald-400"}`}>
                   <Icon name={actionDone.includes("Ошибка") ? "AlertCircle" : "CheckCircle"} size={13} />
@@ -148,7 +192,6 @@ export function DealsPage() {
                 </div>
               )}
 
-              {/* Действия покупателя */}
               {user?.id === selectedFresh.buyerId && selectedFresh.status === "escrow" && (
                 <Button
                   className="w-full bg-gold text-background hover:bg-gold/90 font-semibold text-sm"
@@ -160,7 +203,6 @@ export function DealsPage() {
                 </Button>
               )}
 
-              {/* Холд-статусы — только информация */}
               {["hold_cs2", "hold_pubg"].includes(selectedFresh.status) && (
                 <div className="bg-purple-400/10 border border-purple-400/20 rounded-lg p-3 text-xs text-purple-400 flex items-start gap-2">
                   <Icon name="Lock" size={13} className="mt-0.5 flex-shrink-0" />
@@ -168,75 +210,60 @@ export function DealsPage() {
                 </div>
               )}
 
-              {/* Спор */}
-              {!TERMINAL.includes(selectedFresh.status) && selectedFresh.status !== "dispute" && (
+              {selectedFresh.status === "completed" && (
+                <div className="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-3 text-xs text-emerald-400 flex items-center gap-2">
+                  <Icon name="CheckCircle" size={13} />Сделка успешно завершена
+                </div>
+              )}
+              {selectedFresh.status === "refunded" && (
+                <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-3 text-xs text-blue-400 flex items-center gap-2">
+                  <Icon name="RotateCcw" size={13} />Средства возвращены покупателю
+                </div>
+              )}
+
+              {selectedFresh.status === "escrow" && user?.id === selectedFresh.buyerId && (
                 <Button
                   variant="outline"
-                  className="w-full border-border text-muted-foreground hover:text-foreground font-semibold text-sm"
+                  size="sm"
+                  className="w-full border-red-400/30 text-red-400 hover:bg-red-400/10 text-xs"
                   disabled={actionLoading}
                   onClick={() => handleDispute(selectedFresh.id)}
                 >
-                  <Icon name="AlertTriangle" size={14} className="mr-2 text-amber-400" />
+                  <Icon name="AlertTriangle" size={12} className="mr-1.5" />
                   Открыть спор
                 </Button>
               )}
 
-              {/* Чат спора */}
-              {selectedFresh.status === "dispute" && (
+              {selectedFresh.status === "dispute" && showDisputeChat && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
-                    <Icon name="MessageSquare" size={13} />
-                    Чат арбитража
-                    <button onClick={() => setShowDisputeChat((p) => !p)} className="ml-auto text-muted-foreground hover:text-foreground">
-                      <Icon name={showDisputeChat ? "ChevronUp" : "ChevronDown"} size={13} />
-                    </button>
+                  <p className="text-xs text-muted-foreground font-semibold">Чат по спору</p>
+                  <div className="bg-background border border-border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                    {(selectedFresh.disputeMessages ?? []).map((m, i) => (
+                      <div key={i} className="text-xs">
+                        <span className="font-semibold text-foreground">{m.from}: </span>
+                        <span className="text-muted-foreground">{m.text}</span>
+                      </div>
+                    ))}
                   </div>
-                  {showDisputeChat && (
-                    <>
-                      <div className="bg-background border border-border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                        {(selectedFresh.disputeMessages ?? []).length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-4">Сообщений пока нет</p>
-                        )}
-                        {(selectedFresh.disputeMessages ?? []).map((msg, i) => (
-                          <div key={i} className={`text-xs rounded-lg px-3 py-2 max-w-[90%] ${
-                            msg.isSystem ? "bg-secondary text-muted-foreground mx-auto text-center" :
-                            msg.role === "arbiter" ? "bg-blue-400/10 text-blue-400 border border-blue-400/20" :
-                            msg.from === user?.username ? "bg-gold/10 text-foreground ml-auto" :
-                            "bg-secondary text-foreground"
-                          }`}>
-                            {!msg.isSystem && <span className="font-semibold block mb-0.5">{msg.from} <span className="text-[10px] opacity-60">({msg.role})</span></span>}
-                            {msg.text}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Написать в спор..."
-                          value={disputeInput}
-                          onChange={(e) => setDisputeInput(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleSendMessage(selectedFresh.id)}
-                          className="bg-background border-border text-xs h-8 flex-1"
-                        />
-                        <Button size="sm" className="bg-gold text-background hover:bg-gold/90 h-8 px-3" onClick={() => handleSendMessage(selectedFresh.id)}>
-                          <Icon name="Send" size={13} />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {TERMINAL.includes(selectedFresh.status) && (
-                <div className="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-3 text-xs text-emerald-400 flex items-center gap-2">
-                  <Icon name="CheckCircle" size={13} />
-                  {selectedFresh.status === "refunded" ? "Средства возвращены покупателю." : "Сделка успешно завершена."}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Сообщение..."
+                      value={disputeInput}
+                      onChange={(e) => setDisputeInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSendMessage(selectedFresh.id)}
+                      className="bg-background border-border text-xs h-8"
+                    />
+                    <Button size="sm" className="bg-gold text-background hover:bg-gold/90 h-8 px-3" onClick={() => handleSendMessage(selectedFresh.id)}>
+                      <Icon name="Send" size={13} />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="bg-surface border border-border rounded-xl p-6 text-center">
-              <Icon name="MousePointerClick" size={32} className="text-border mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Выберите сделку для просмотра деталей</p>
+            <div className="bg-surface border border-border rounded-xl p-8 text-center text-muted-foreground">
+              <Icon name="MousePointerClick" size={28} className="mx-auto mb-3 opacity-20" />
+              <p className="text-sm">Выберите сделку для просмотра деталей</p>
             </div>
           )}
         </div>
