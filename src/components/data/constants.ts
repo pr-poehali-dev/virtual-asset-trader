@@ -345,11 +345,3 @@ export const LANGUAGES: LangInfo[] = [
   { code: "zh", label: "中文", flag: "🇨🇳" },
 ];
 
-// ─── MISC ─────────────────────────────────────────────────────────────────────
-
-export const PLATFORM_COMMISSION = 5; // %
-export const BOOST_PRICE = 25; // RUB
-export const ADMIN_PASSWORD = "gorant2026";
-
-// URL-паттерн для определения подозрительных ссылок
-export const SUSPICIOUS_URL_PATTERN = /https?:\/\/(?!gorant\.shop)[^\s]+/gi;
