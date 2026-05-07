@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Get deals without auth",
+      "method": "GET",
+      "path": "/deals",
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

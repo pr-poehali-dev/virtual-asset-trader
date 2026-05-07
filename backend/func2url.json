@@ -1,0 +1,6 @@
+{
+  "finance": "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
+  "deals": "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
+  "auth": "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
+  "products": "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd"
+}

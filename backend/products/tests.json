@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "List products",
+      "method": "GET",
+      "path": "/products",
+      "expectedStatus": 200,
+      "expectedBody": {"products": []},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -13,7 +13,8 @@ import {
 } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
-import type { Product } from "@/components/data/constants";
+import type { AppProduct } from "@/context/AuthContext";
+import { api } from "@/api/client";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
@@ -566,12 +567,14 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 type BuyResult = "ok" | "no_balance" | "self" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
-  const { users, user: me, buyProduct, boostProduct } = useAuth();
+  const { user: me, buyProduct, boostProduct } = useAuth();
   const { format } = useCurrency();
 
   const [category, setCategory] = useState("Все");
   const [search, setSearch] = useState("");
   const [priceMax, setPriceMax] = useState("");
+  const [allProducts, setAllProducts] = useState<AppProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // AI bot state
   const [botWarning, setBotWarning] = useState(false);
@@ -581,14 +584,14 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const [buyResult, setBuyResult] = useState<Record<number, BuyResult>>({});
   const [boostResult, setBoostResult] = useState<Record<number, string>>({});
 
-  // Collect all products from all users, boosted first then by id desc
-  const allProducts = users
-    .flatMap((u) => u.products)
-    .sort((a, b) => {
-      if (a.boosted && !b.boosted) return -1;
-      if (!a.boosted && b.boosted) return 1;
-      return b.id - a.id;
-    });
+  // Загружаем товары из API
+  useEffect(() => {
+    setLoadingProducts(true);
+    api.products.list()
+      .then(({ products }) => setAllProducts(products as AppProduct[]))
+      .catch(() => setAllProducts([]))
+      .finally(() => setLoadingProducts(false));
+  }, []);
 
   const filtered = allProducts
     .filter((p) => category === "Все" || p.category === category)
@@ -604,31 +607,36 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
-    // Reset pattern lastIndex since it's a global regex
     SUSPICIOUS_URL_PATTERN.lastIndex = 0;
     setBotWarning(SUSPICIOUS_URL_PATTERN.test(val));
   };
 
-  const handleBuy = (product: Product) => {
+  const handleBuy = async (product: AppProduct) => {
     if (!me) {
       setActive("login");
       return;
     }
-    const seller = users.find((u) => u.id === product.sellerId);
-    if (!seller) return;
-    const result = buyProduct(product, seller);
+    const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
+    const result = await buyProduct(product, fakeSellerUser);
     setBuyResult((prev) => ({ ...prev, [product.id]: result }));
     setTimeout(() => {
       setBuyResult((prev) => ({ ...prev, [product.id]: null }));
     }, 4000);
+    if (result === "ok") {
+      // Обновляем список товаров
+      api.products.list().then(({ products }) => setAllProducts(products as AppProduct[])).catch(() => {});
+    }
   };
 
-  const handleBoost = (productId: number) => {
-    const result = boostProduct(productId);
+  const handleBoost = async (productId: number) => {
+    const result = await boostProduct(productId);
     setBoostResult((prev) => ({ ...prev, [productId]: result }));
     setTimeout(() => {
       setBoostResult((prev) => ({ ...prev, [productId]: "" }));
     }, 3000);
+    if (result === "ok") {
+      api.products.list().then(({ products }) => setAllProducts(products as AppProduct[])).catch(() => {});
+    }
   };
 
   const getCategoryIcon = (cat: string) => {
@@ -788,7 +796,14 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
       </div>
 
       {/* Products grid */}
-      {filtered.length === 0 ? (
+      {loadingProducts ? (
+        <div className="text-center py-24 text-muted-foreground">
+          <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <Icon name="Package" size={18} className="text-gold" />
+          </div>
+          <p className="text-sm">Загрузка товаров...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-24 text-muted-foreground">
           <Icon name="PackageOpen" size={48} className="mx-auto mb-4 opacity-20" />
           <p className="font-display font-semibold text-foreground mb-2">Товаров пока нет</p>
@@ -803,7 +818,6 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {filtered.map((p) => {
-            const seller = users.find((u) => u.id === p.sellerId);
             const isMyProduct = me?.id === p.sellerId;
             const pHoldDays = HOLD_CATEGORIES[p.category];
             const sellerReceives = Math.round(p.price * (1 - PLATFORM_COMMISSION / 100));
@@ -862,19 +876,12 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
                   </h3>
 
                   {/* Seller link */}
-                  {seller && (
+                  {p.sellerId && (
                     <button
-                      onClick={() => setActive(`seller-${seller.id}`)}
+                      onClick={() => setActive(`seller-${p.sellerId}`)}
                       className="text-xs text-muted-foreground hover:text-gold transition-colors text-left"
                     >
-                      @{seller.username}
-                      {seller.verified && (
-                        <Icon
-                          name="ShieldCheck"
-                          size={10}
-                          className="inline ml-1 text-emerald-400"
-                        />
-                      )}
+                      @{p.sellerName}
                     </button>
                   )}
 

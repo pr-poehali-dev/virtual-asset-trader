@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
@@ -11,7 +11,27 @@ function AppContent() {
   const [page, setPage] = useState("home");
   const [isAdmin, setIsAdmin] = useState(false);
   const [frozenReason, setFrozenReason] = useState<string | undefined>();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // После входа — перенаправить с login/register на главную
+  useEffect(() => {
+    if (user && (page === "login" || page === "register")) {
+      setPage("home");
+    }
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-gold/20 border border-gold/40 flex items-center justify-center animate-pulse">
+            <span className="text-gold font-bold text-lg">G</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSetActive = (p: string) => {
     if (p === "admin" && !isAdmin) {

@@ -1,0 +1,31 @@
+{
+  "tests": [
+    {
+      "name": "Register new user",
+      "method": "POST",
+      "path": "/register",
+      "body": {"username": "testuser99", "email": "testuser99@test.com", "password": "pass1234"},
+      "expectedStatus": 200,
+      "expectedBody": {"token": "string"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login with wrong password",
+      "method": "POST",
+      "path": "/login",
+      "body": {"login": "testuser99@test.com", "password": "wrongpass"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "wrong"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login admin",
+      "method": "POST",
+      "path": "/login",
+      "body": {"login": "slumon4ik@gorant.shop", "password": "As53FlmMs"},
+      "expectedStatus": 200,
+      "expectedBody": {"token": "string"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
