@@ -2,12 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DEALS, STEPS, STATUS_MAP } from "@/components/data/constants";
+import { STEPS, STATUS_MAP } from "@/components/data/constants";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── DEALS ────────────────────────────────────────────────────────────────────
 
 export function DealsPage() {
-  const [selected, setSelected] = useState<typeof DEALS[0] | null>(null);
+  const { deals, user } = useAuth();
+  const userDeals = user ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id) : deals;
+  const [selected, setSelected] = useState<typeof deals[0] | null>(null);
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
@@ -16,13 +19,13 @@ export function DealsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-3">
-          {DEALS.length === 0 ? (
+          {userDeals.length === 0 ? (
             <div className="bg-surface border border-border rounded-xl p-10 text-center text-muted-foreground">
               <Icon name="Inbox" size={32} className="mx-auto mb-3 opacity-20" />
               <p className="text-sm">Сделок пока нет</p>
             </div>
-          ) : DEALS.map((d) => {
-            const s = STATUS_MAP[d.status];
+          ) : userDeals.map((d) => {
+            const s = STATUS_MAP[d.status] ?? { label: d.status, color: "text-muted-foreground bg-secondary border-border" };
             return (
               <div key={d.id} onClick={() => setSelected(d)}
                 className={`bg-surface border rounded-xl p-5 cursor-pointer transition-all hover-scale ${selected?.id === d.id ? "border-gold/50 bg-gold/5" : "border-border hover:border-border/80"}`}>
@@ -47,7 +50,7 @@ export function DealsPage() {
                   {STEPS.map((step) => <span key={step.label} className="text-[9px] text-muted-foreground text-center w-1/4">{step.label}</span>)}
                 </div>
                 <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Продавец: <span className="text-foreground">{d.seller}</span></span>
+                  <span className="text-xs text-muted-foreground">Продавец: <span className="text-foreground">{d.sellerName}</span></span>
                   <span className="font-display font-bold text-base text-gold">₽ {d.amount.toLocaleString("ru-RU")}</span>
                 </div>
               </div>
@@ -59,7 +62,7 @@ export function DealsPage() {
             <div className="bg-surface border border-gold/20 rounded-xl p-6 sticky top-24">
               <h3 className="font-display font-semibold text-base text-foreground mb-4">Детали сделки</h3>
               <div className="space-y-3 text-sm">
-                {[["ID сделки", selected.id], ["Товар", selected.product], ["Продавец", selected.seller], ["Покупатель", selected.buyer], ["Дата", selected.date], ["Сумма", `₽ ${selected.amount.toLocaleString("ru-RU")}`]].map(([k, v]) => (
+                {[["ID сделки", selected.id], ["Товар", selected.product], ["Продавец", selected.sellerName], ["Покупатель", selected.buyerName], ["Дата", selected.date], ["Сумма", `₽ ${selected.amount.toLocaleString("ru-RU")}`]].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-2">
                     <span className="text-muted-foreground">{k}</span>
                     <span className="text-foreground font-medium">{v}</span>
