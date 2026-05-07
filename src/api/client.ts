@@ -66,10 +66,12 @@ async function req<T = unknown>(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["X-Session-Token"] = token;
 
-  const url = URLS[base] + path;
+  // Платформа не маршрутизирует подпути — передаём путь как query-параметр
+  const [pathOnly, qs2] = path.split("?");
+  const finalUrl = URLS[base] + "?_path=" + encodeURIComponent(pathOnly) + (qs2 ? "&" + qs2 : "");
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(finalUrl, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,

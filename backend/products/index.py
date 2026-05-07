@@ -39,8 +39,9 @@ def handler(event: dict, context) -> dict:
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
     method = event.get("httpMethod", "GET")
-    path   = event.get("path", "/")
-    params = event.get("queryStringParameters") or {}
+    _qs = event.get("queryStringParameters") or {}
+    path = _qs.get("_path") or event.get("path") or "/"
+    params = _qs
     body   = {}
     if event.get("body"):
         try:
