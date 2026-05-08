@@ -807,7 +807,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
         {CATEGORIES.map((c) => (
           <button
             key={c}
-            onClick={() => setCategory(c)}
+            onClick={(e) => { e.preventDefault(); setCategory(c); }}
             className={`px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap ${
               category === c
                 ? "bg-gold text-background border-gold"
