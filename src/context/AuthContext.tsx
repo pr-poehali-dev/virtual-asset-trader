@@ -61,7 +61,8 @@ type AuthContextType = {
   loading: boolean;
 
   login: (loginStr: string, password: string) => Promise<"ok" | "blocked" | "frozen" | "wrong">;
-  loginWithOAuth: (provider: "google" | "vk", code: string, redirect_uri: string) => Promise<"ok" | "blocked" | "error">;
+  loginWithOAuth: (provider: "google", code: string, redirect_uri: string) => Promise<"ok" | "blocked" | "error">;
+  loginWithVK: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) => Promise<"ok" | "blocked" | "error">;
   register: (username: string, email: string, password: string) => Promise<"ok" | "exists" | "error">;
   logout: () => Promise<void>;
 
@@ -144,9 +145,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithOAuth = async (provider: "google" | "vk", code: string, redirect_uri: string): Promise<"ok" | "blocked" | "error"> => {
+  const loginWithOAuth = async (provider: "google", code: string, redirect_uri: string): Promise<"ok" | "blocked" | "error"> => {
     try {
-      const { token, user: u } = await api.oauth[provider](code, redirect_uri);
+      const { token, user: u } = await api.oauth.google(code, redirect_uri);
+      setToken(token);
+      const appUser = apiUserToApp(u);
+      setUser(appUser);
+      await loadUserData(u.id);
+      return "ok";
+    } catch (e: unknown) {
+      const err = e as { error?: string };
+      if (err?.error === "blocked") return "blocked";
+      return "error";
+    }
+  };
+
+  const loginWithVK = async (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }): Promise<"ok" | "blocked" | "error"> => {
+    try {
+      const { token, user: u } = await api.oauth.vk(data);
       setToken(token);
       const appUser = apiUserToApp(u);
       setUser(appUser);
@@ -334,7 +350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, users, deals, deposits, loading,
-      login, loginWithOAuth, register, logout, updateUsers,
+      login, loginWithOAuth, loginWithVK, register, logout, updateUsers,
       addProduct, buyProduct, boostProduct, addReview,
       openDispute, sendDisputeMessage, resolveDispute, assignArbiter,
       addNotification, markNotifRead,

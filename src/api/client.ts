@@ -334,8 +334,8 @@ export const api = {
   oauth: {
     google: (code: string, redirect_uri: string) =>
       req<{ token: string; user: ApiUser }>("oauth", "/google", "POST", { code, redirect_uri }),
-    vk: (code: string, redirect_uri: string) =>
-      req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", { code, redirect_uri }),
+    vk: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) =>
+      req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", data),
   },
 };
 

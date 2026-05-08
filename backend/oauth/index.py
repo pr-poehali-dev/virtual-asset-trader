@@ -207,41 +207,34 @@ def handler(event: dict, context) -> dict:
         finally:
             conn.close()
 
-    # ── POST /oauth/vk ────────────────────────────────────────────────────────
+    # ── POST /oauth/vk  (VKID SDK — access_token передаётся с фронтенда) ────────
     if path.endswith("/vk"):
-        code         = body.get("code", "")
-        redirect_uri = body.get("redirect_uri", "")
-        if not code:
-            return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_code"})}
+        # VKID SDK передаёт access_token + user_id + email напрямую
+        access_token = body.get("access_token", "")
+        vk_user_id   = str(body.get("user_id", ""))
+        email        = body.get("email", "")
+        first_name   = body.get("first_name", "")
+        last_name    = body.get("last_name", "")
+        name         = f"{first_name} {last_name}".strip()
 
-        try:
-            token_data = http_get(
-                f"https://oauth.vk.com/access_token"
-                f"?client_id={VK_CLIENT_ID}"
-                f"&client_secret={VK_CLIENT_SECRET}"
-                f"&redirect_uri={urllib.parse.quote(redirect_uri)}"
-                f"&code={code}"
-            )
-        except Exception as e:
-            return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": "vk_token_failed", "detail": str(e)})}
+        if not vk_user_id:
+            return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_user_id"})}
 
-        access_token = token_data.get("access_token")
-        vk_user_id   = str(token_data.get("user_id", ""))
-        email        = token_data.get("email", "")
-
-        if not access_token or not vk_user_id:
-            return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": "no_access_token"})}
-
-        try:
-            profile_resp = http_get(
-                f"https://api.vk.com/method/users.get"
-                f"?user_ids={vk_user_id}&fields=first_name,last_name"
-                f"&access_token={access_token}&v=5.131"
-            )
-            profile = profile_resp.get("response", [{}])[0]
-            name    = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
-        except Exception:
-            name = ""
+        # Верифицируем токен через VK API
+        if access_token:
+            try:
+                verify = http_get(
+                    f"https://api.vk.com/method/users.get"
+                    f"?user_ids={vk_user_id}&fields=first_name,last_name"
+                    f"&access_token={access_token}&v=5.131"
+                )
+                vk_profile = verify.get("response", [{}])[0]
+                if str(vk_profile.get("id", "")) != vk_user_id:
+                    return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "token_mismatch"})}
+                if not name:
+                    name = f"{vk_profile.get('first_name','')} {vk_profile.get('last_name','')}".strip()
+            except Exception as e:
+                return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": "vk_verify_failed", "detail": str(e)})}
 
         conn = get_conn()
         try:
