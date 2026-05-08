@@ -18,15 +18,13 @@ function SupportChat() {
   const [showNew, setShowNew] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const scrollBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  const msgCountRef = useRef<number>(0);
 
   const loadTicket = useCallback(async () => {
     if (!user) return;
     try {
       const { ticket: t } = await api.support.getTicket();
       if (t) {
-        // Если тикет был закрыт администратором — очищаем чат
         if (t.status === "closed" && ticket && ticket.status === "open") {
           setTicket(null);
           setMessages([]);
@@ -34,12 +32,19 @@ function SupportChat() {
           return;
         }
         setTicket(t);
-        setMessages(t.messages);
-        scrollBottom();
+        setMessages((prev) => {
+          const newMsgs = t.messages;
+          // Скроллим только если добавились новые сообщения
+          if (newMsgs.length > msgCountRef.current) {
+            msgCountRef.current = newMsgs.length;
+            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+          }
+          return newMsgs;
+        });
       } else {
-        // Тикета нет — очищаем состояние
         setTicket(null);
         setMessages([]);
+        msgCountRef.current = 0;
       }
     } catch {/* ignore */}
     setLoading(false);
@@ -47,12 +52,9 @@ function SupportChat() {
 
   useEffect(() => {
     loadTicket();
-    // Полинг каждые 5 секунд для получения ответов оператора
     pollRef.current = setInterval(loadTicket, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [loadTicket]);
-
-  useEffect(() => { scrollBottom(); }, [messages]);
 
   const openTicket = async () => {
     if (!input.trim() && !subject.trim()) return;
@@ -82,7 +84,12 @@ function SupportChat() {
       text,
       time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
     };
-    setMessages((prev) => [...prev, optimistic]);
+    setMessages((prev) => {
+      const updated = [...prev, optimistic];
+      msgCountRef.current = updated.length;
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      return updated;
+    });
     try {
       await api.support.sendMessage(ticket.id, text);
     } catch {/* ignore */}
