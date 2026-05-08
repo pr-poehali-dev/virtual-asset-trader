@@ -1,13 +1,14 @@
 // ── URL бэкенд-функций ────────────────────────────────────────────────────────
 
 const URLS = {
-  auth:     "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
-  products: "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
-  deals:    "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
-  finance:  "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
-  verify:   "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
-  cron:     "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
-  support:  "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
+  auth:           "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
+  products:       "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
+  deals:          "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
+  finance:        "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
+  verify:         "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
+  cron:           "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
+  support:        "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
+  "email-verify": "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
