@@ -61,6 +61,7 @@ type AuthContextType = {
   loading: boolean;
 
   login: (loginStr: string, password: string) => Promise<"ok" | "blocked" | "frozen" | "wrong">;
+  loginWithOAuth: (provider: "google" | "vk", code: string, redirect_uri: string) => Promise<"ok" | "blocked" | "error">;
   register: (username: string, email: string, password: string) => Promise<"ok" | "exists" | "error">;
   logout: () => Promise<void>;
 
@@ -140,6 +141,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (err?.error === "blocked") return "blocked";
       if (err?.error === "frozen") return "frozen";
       return "wrong";
+    }
+  };
+
+  const loginWithOAuth = async (provider: "google" | "vk", code: string, redirect_uri: string): Promise<"ok" | "blocked" | "error"> => {
+    try {
+      const { token, user: u } = await api.oauth[provider](code, redirect_uri);
+      setToken(token);
+      const appUser = apiUserToApp(u);
+      setUser(appUser);
+      await loadUserData(u.id);
+      return "ok";
+    } catch (e: unknown) {
+      const err = e as { error?: string };
+      if (err?.error === "blocked") return "blocked";
+      return "error";
     }
   };
 
@@ -318,7 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, users, deals, deposits, loading,
-      login, register, logout, updateUsers,
+      login, loginWithOAuth, register, logout, updateUsers,
       addProduct, buyProduct, boostProduct, addReview,
       openDispute, sendDisputeMessage, resolveDispute, assignArbiter,
       addNotification, markNotifRead,

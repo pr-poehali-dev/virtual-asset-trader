@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Missing code returns 400",
+      "method": "POST",
+      "path": "/google",
+      "body": {},
+      "expectedStatus": 400,
+      "expectedBody": {"error": "missing_code"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

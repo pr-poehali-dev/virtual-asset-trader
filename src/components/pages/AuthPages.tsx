@@ -56,6 +56,101 @@ export function FrozenPage({ reason, blocked, onSupport }: { reason?: string; bl
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+const VK_CLIENT_ID     = import.meta.env.VITE_VK_CLIENT_ID ?? "";
+const REDIRECT_BASE    = typeof window !== "undefined" ? window.location.origin : "https://gorant.shop";
+
+function OAuthButtons({ onError }: { onError: (msg: string) => void }) {
+  const { loginWithOAuth } = useAuth();
+
+  const handleGoogle = () => {
+    const redirectUri = `${REDIRECT_BASE}/auth/google/callback`;
+    const params = new URLSearchParams({
+      client_id:     GOOGLE_CLIENT_ID,
+      redirect_uri:  redirectUri,
+      response_type: "code",
+      scope:         "openid email profile",
+      prompt:        "select_account",
+    });
+    const popup = window.open(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
+      "google_oauth",
+      "width=500,height=600,scrollbars=yes"
+    );
+    const handler = async (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "oauth_callback" && e.data?.provider === "google") {
+        window.removeEventListener("message", handler);
+        popup?.close();
+        const result = await loginWithOAuth("google", e.data.code, redirectUri);
+        if (result === "blocked") onError("Аккаунт заблокирован");
+        if (result === "error")   onError("Ошибка входа через Google");
+      }
+    };
+    window.addEventListener("message", handler);
+  };
+
+  const handleVK = () => {
+    const redirectUri = `${REDIRECT_BASE}/auth/vk/callback`;
+    const params = new URLSearchParams({
+      client_id:     VK_CLIENT_ID,
+      redirect_uri:  redirectUri,
+      response_type: "code",
+      scope:         "email",
+      v:             "5.131",
+    });
+    const popup = window.open(
+      `https://oauth.vk.com/authorize?${params}`,
+      "vk_oauth",
+      "width=500,height=600,scrollbars=yes"
+    );
+    const handler = async (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "oauth_callback" && e.data?.provider === "vk") {
+        window.removeEventListener("message", handler);
+        popup?.close();
+        const result = await loginWithOAuth("vk", e.data.code, redirectUri);
+        if (result === "blocked") onError("Аккаунт заблокирован");
+        if (result === "error")   onError("Ошибка входа через ВКонтакте");
+      }
+    };
+    window.addEventListener("message", handler);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative flex items-center gap-3 my-1">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground">или войти через</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={handleGoogle}
+          className="flex items-center justify-center gap-2 h-10 rounded-lg border border-border bg-background hover:bg-surface transition-colors text-sm font-medium text-foreground"
+        >
+          <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
+            <path d="M43.6 20.5h-1.9V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.5 6.9 29.5 4.5 24 4.5 12.7 4.5 3.5 13.7 3.5 25S12.7 45.5 24 45.5 44.5 36.3 44.5 25c0-1.5-.2-3-.9-4.5z" fill="#FFC107"/>
+            <path d="M6.3 15.2l6.6 4.8C14.6 17 19 14 24 14c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.5 8.4 29.5 6 24 6 16.3 6 9.7 9.7 6.3 15.2z" fill="#FF3D00"/>
+            <path d="M24 46c5.4 0 10.2-2 13.9-5.3l-6.4-5.4C29.5 37.3 26.9 38 24 38c-5.3 0-9.7-3.3-11.3-8H6.1C9.4 38.7 16.2 46 24 46z" fill="#4CAF50"/>
+            <path d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.3 4.2-4.3 5.5l6.4 5.4C37.4 39.4 44.5 32.5 44.5 25c0-1.5-.2-3-.9-4.5z" fill="#1976D2"/>
+          </svg>
+          Google
+        </button>
+        <button
+          onClick={handleVK}
+          className="flex items-center justify-center gap-2 h-10 rounded-lg border border-border bg-[#0077ff] hover:bg-[#0066dd] transition-colors text-sm font-medium text-white"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.07 2H8.93C3.33 2 2 3.33 2 8.93v6.14C2 20.67 3.33 22 8.93 22h6.14C20.67 22 22 20.67 22 15.07V8.93C22 3.33 20.67 2 15.07 2zm3.08 13.5h-1.62c-.61 0-.8-.49-1.9-1.61-1.04-.98-1.5-.98-1.77 0-.37 1.11-.67 1.61-2.06 1.61-2.33 0-4.67-1.43-6.34-4.13C4.37 9.36 4 8.25 4 7.74c0-.25.07-.5.35-.5h1.62c.5 0 .68.24.87.8.85 2.51 2.27 4.72 2.86 4.72.22 0 .32-.1.32-.65V9.74c-.06-1.18-.7-1.28-.7-1.7 0-.22.18-.44.46-.44h2.55c.42 0 .57.22.57.7v3.78c0 .42.18.57.3.57.22 0 .4-.15.8-.57 1.24-1.39 2.13-3.52 2.13-3.52.12-.25.33-.48.82-.48h1.62c.49 0 .59.25.49.5-.21.96-2.21 3.79-2.21 3.79-.17.28-.23.4 0 .71.17.24.72.73 1.09 1.17.68.77 1.2 1.42 1.34 1.87.13.44-.1.67-.56.67z"/>
+          </svg>
+          ВКонтакте
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function LoginPage({
   onRegister,
   onFrozen,
@@ -146,6 +241,9 @@ export function LoginPage({
             >
               Войти
             </Button>
+
+            <OAuthButtons onError={setError} />
+
             <p className="text-center text-xs text-muted-foreground">
               Нет аккаунта?{" "}
               <button onClick={onRegister} className="text-gold hover:underline font-semibold">
@@ -277,6 +375,9 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                 {sending ? <Icon name="Loader" size={15} className="animate-spin mr-2" /> : null}
                 {sending ? "Отправляем код..." : "Получить код подтверждения"}
               </Button>
+
+              <OAuthButtons onError={setError} />
+
               <p className="text-center text-xs text-muted-foreground">
                 Уже есть аккаунт?{" "}
                 <button onClick={onLogin} className="text-gold hover:underline font-semibold">Войти</button>
