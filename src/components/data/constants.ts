@@ -1,5 +1,6 @@
 // ─── PLATFORM SETTINGS ────────────────────────────────────────────────────────
 
+export const SITE_URL = "https://gorant.shop";
 export const PLATFORM_COMMISSION = 5; // %
 export const BOOST_PRICE = 25; // RUB
 export const ADMIN_PASSWORD = "As53FlmMs";
