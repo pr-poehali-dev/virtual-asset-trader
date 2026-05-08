@@ -1,0 +1,27 @@
+{
+  "tests": [
+    {
+      "name": "Report error event",
+      "method": "POST",
+      "path": "/report",
+      "body": {
+        "event_type": "frontend_error",
+        "severity": "error",
+        "title": "Test error from monitoring",
+        "description": "Automated test event",
+        "url": "https://gorant.shop/catalog"
+      },
+      "expectedStatus": 200,
+      "expectedBody": { "ok": true },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "List events",
+      "method": "GET",
+      "path": "/list",
+      "expectedStatus": 200,
+      "expectedBody": { "events": [] },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

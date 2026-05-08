@@ -15,6 +15,7 @@ import {
 import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerifications";
 import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/admin/AdminPartnersRequisites";
 import { AdminDisputesTab, AdminSupportTab } from "@/components/pages/admin/AdminSupportDisputes";
+import { AdminMonitorTab } from "@/components/pages/admin/AdminMonitor";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -128,9 +129,11 @@ type AdminTab =
   | "deposits"
   | "staff"
   | "verifications"
-  | "partners";
+  | "partners"
+  | "monitor";
 
 const TABS: { id: AdminTab; label: string; icon: string }[] = [
+  { id: "monitor", label: "Мониторинг", icon: "Activity" },
   { id: "stats", label: "Статистика", icon: "BarChart2" },
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
@@ -148,7 +151,15 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
 
 export function AdminPage() {
-  const [tab, setTab] = useState<AdminTab>("stats");
+  const [tab, setTab] = useState<AdminTab>("monitor");
+  const [openErrors, setOpenErrors] = useState(0);
+
+  useEffect(() => {
+    const check = () => api.monitor.list(true).then((r) => setOpenErrors(r.open_count)).catch(() => {});
+    check();
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
+  }, []);
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
@@ -205,7 +216,7 @@ export function AdminPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors relative ${
               tab === t.id
                 ? "bg-red-500/20 text-red-400 border border-red-400/30"
                 : "text-muted-foreground hover:text-foreground"
@@ -213,11 +224,17 @@ export function AdminPage() {
           >
             <Icon name={t.icon} size={14} />
             {t.label}
+            {t.id === "monitor" && openErrors > 0 && (
+              <span className="ml-0.5 text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5 py-0.5 leading-none animate-pulse">
+                {openErrors}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
+      {tab === "monitor" && <AdminMonitorTab />}
       {tab === "stats" && <AdminStatsTab />}
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}

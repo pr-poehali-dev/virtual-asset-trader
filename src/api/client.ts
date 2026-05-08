@@ -10,6 +10,7 @@ const URLS = {
   support:        "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
   "email-verify": "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
   oauth:          "https://functions.poehali.dev/928e63f8-0ef7-404d-a5c3-c7f9f291321f",
+  monitor:        "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -90,7 +91,15 @@ async function req<T = unknown>(
     throw { status: res.status, error: "parse_error", message: "Ошибка обработки ответа" } as ApiError;
   }
 
-  if (!res.ok) throw { status: res.status, ...(data as object) };
+  if (!res.ok) {
+    if (base !== "monitor") {
+      // Асинхронно отправляем событие в мониторинг (не блокируем основной поток)
+      import("@/lib/errorMonitor").then(({ reportApiError }) => {
+        reportApiError(path, res.status);
+      }).catch(() => {});
+    }
+    throw { status: res.status, ...(data as object) };
+  }
   return data as T;
 }
 
@@ -337,9 +346,47 @@ export const api = {
     vk: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) =>
       req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", data),
   },
+
+  monitor: {
+    report: (data: {
+      event_type: string;
+      severity?: "info" | "warning" | "error" | "critical";
+      title: string;
+      description?: string;
+      url?: string;
+      user_id?: string;
+      status_code?: number;
+    }) => req<{ ok: boolean }>("monitor", "/report", "POST", data),
+
+    list: (active = true) =>
+      req<{ events: ApiMonitorEvent[]; open_count: number; critical_count: number }>(
+        "monitor", `/list?active=${active}`
+      ),
+
+    resolve: (id: number) =>
+      req<{ ok: boolean }>("monitor", "/resolve", "POST", { id }),
+
+    resolveAll: () =>
+      req<{ ok: boolean }>("monitor", "/resolve-all", "POST", {}),
+  },
 };
 
 // ── ТИПЫ ──────────────────────────────────────────────────────────────────────
+
+export type ApiMonitorEvent = {
+  id: number;
+  event_type: string;
+  severity: "info" | "warning" | "error" | "critical";
+  title: string;
+  description: string | null;
+  url: string | null;
+  user_id: string | null;
+  ip: string | null;
+  status_code: number | null;
+  resolved: boolean;
+  resolved_at: string | null;
+  created_at: string;
+};
 
 export type ApiUser = {
   id: string;

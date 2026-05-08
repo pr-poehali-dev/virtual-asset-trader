@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { api, getToken, setToken, clearToken, type ApiUser, type ApiProduct, type ApiDeal, type ApiNotification, type ApiWithdrawal, type ApiDeposit } from "@/api/client";
 import { HOLD_CATEGORIES, PLATFORM_COMMISSION } from "@/components/data/constants";
 import type { StaffPermission } from "@/components/data/constants";
+import { setMonitorUserId } from "@/lib/errorMonitor";
 
 // ── Локальные типы (совместимы с UI) ─────────────────────────────────────────
 
@@ -109,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api.auth.me()
       .then(({ user: u }) => {
         setUser(apiUserToApp(u));
+        setMonitorUserId(u.id);
         loadUserData(u.id);
       })
       .catch(() => { clearToken(); })
@@ -135,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(token);
       const appUser = apiUserToApp(u);
       setUser(appUser);
+      setMonitorUserId(u.id);
       await loadUserData(u.id);
       return "ok";
     } catch (e: unknown) {
