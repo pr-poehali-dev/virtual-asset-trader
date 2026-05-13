@@ -135,8 +135,9 @@ const api = {
   },
 };
 
-    create: (data: { title: string; category: string; price: number; description?: string }) =>
-      req<ApiProduct>("products", "/products", "POST", data),
+    create: (data: { title: string; category: string; price: number; description?: string }) => {
+  return req<ApiProduct>("products", "/products", "POST", data);
+},
 
     boost: (product_id: number) =>
       req("products", "/products/boost", "POST", { product_id }),
