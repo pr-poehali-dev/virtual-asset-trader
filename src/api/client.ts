@@ -105,21 +105,20 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-export const api = {
-  auth: {
-    register: (username: string, email: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
-
-    login: (login: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
-
-    me: () =>
-      req<{ user: ApiUser }>("auth", "/me"),
-
-    logout: () =>
-      req("auth", "/logout", "POST"),
-  },
-
+const api = {
+  emailVerify: {
+    send: (email: string) => 
+      fetch('ВАШ_URL_БЭКЕНДА/send', { // Проверьте, что /send в конце
+        method: 'POST',
+        body: json.stringify({ email }),
+      }).then(res => res.json()),
+    check: (email: string, code: string) => 
+      fetch('ВАШ_URL_БЭКЕНДА/check', { // Проверьте, что /check в конце
+        method: 'POST',
+        body: json.stringify({ email, code }),
+      }).then(res => res.json()),
+  }
+}
   products: {
     list: (params?: { category?: string; search?: string; price_max?: string }) => {
       const qs = params ? "?" + new URLSearchParams(
