@@ -1,16 +1,18 @@
 // ── URL бэкенд-функций ────────────────────────────────────────────────────────
 
 const URLS = {
-  auth:           "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
-  products:       "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
-  deals:          "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
-  finance:        "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
-  verify:         "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
-  cron:           "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
-  support:        "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
-  "email-verify": "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
-  oauth:          "https://functions.poehali.dev/928e63f8-0ef7-404d-a5c3-c7f9f291321f",
-  monitor:        "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
+  auth: "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
+  products:
+    "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
+  deals: "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
+  finance: "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
+  verify: "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
+  cron: "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
+  support: "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
+  "email-verify":
+    "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
+  oauth: "https://functions.poehali.dev/928e63f8-0ef7-404d-a5c3-c7f9f291321f",
+  monitor: "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -64,15 +66,21 @@ async function req<T = unknown>(
   base: keyof typeof URLS,
   path: string,
   method: "GET" | "POST" = "GET",
-  body?: unknown
+  body?: unknown,
 ): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["X-Session-Token"] = token;
 
   // Платформа не маршрутизирует подпути — передаём путь как query-параметр
   const [pathOnly, qs2] = path.split("?");
-  const finalUrl = URLS[base] + "?_path=" + encodeURIComponent(pathOnly) + (qs2 ? "&" + qs2 : "");
+  const finalUrl =
+    URLS[base] +
+    "?_path=" +
+    encodeURIComponent(pathOnly) +
+    (qs2 ? "&" + qs2 : "");
   let res: Response;
   try {
     res = await fetch(finalUrl, {
@@ -81,22 +89,32 @@ async function req<T = unknown>(
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw { status: 0, error: "network_error", message: "Нет соединения с сервером" } as ApiError;
+    throw {
+      status: 0,
+      error: "network_error",
+      message: "Нет соединения с сервером",
+    } as ApiError;
   }
 
   let data: unknown;
   try {
     data = await res.json();
   } catch {
-    throw { status: res.status, error: "parse_error", message: "Ошибка обработки ответа" } as ApiError;
+    throw {
+      status: res.status,
+      error: "parse_error",
+      message: "Ошибка обработки ответа",
+    } as ApiError;
   }
 
   if (!res.ok) {
     if (base !== "monitor") {
       // Асинхронно отправляем событие в мониторинг (не блокируем основной поток)
-      import("@/lib/errorMonitor").then(({ reportApiError }) => {
-        reportApiError(path, res.status);
-      }).catch(() => {});
+      import("@/lib/errorMonitor")
+        .then(({ reportApiError }) => {
+          reportApiError(path, res.status);
+        })
+        .catch(() => {});
     }
     throw { status: res.status, ...(data as object) };
   }
@@ -106,52 +124,57 @@ async function req<T = unknown>(
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
 const api = {
-  auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
-  },
-  emailVerify: {
-    send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
-    check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
-  },
   products: {
-    list: (params?: { // Используем более строгий тип для параметров, если он известен
+    list: (params?: {
       category?: string;
       search?: string;
       price_max?: string;
     }) => {
-      // Фильтруем только непустые, неnull и неundefined значения
-      const filteredParams = Object.entries(params || {}).filter(([, v]) => v !== null && v !== undefined && v !== '');
-      const qs = filteredParams.length > 0
-        ? "?" + new URLSearchParams(filteredParams).toString()
+      const qs = params
+        ? "?" +
+          new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([, v]) => v)),
+          ).toString()
         : "";
-      // Важно: в функции req, path "/products" передается как _path query-параметр.
-      // Если здесь также есть query-параметры (qs), они будут добавлены после _path.
-      // Убедитесь, что ваш сервер корректно обрабатывает такую структуру URL.
-      return req("products", "/products" + qs, "GET");
+      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
     },
-    create: (data: { title: string; category: string; price: number; description?: string }) => {
-      return req<ApiProduct>("products", "/products", "POST", data);
-    }, // <-- Запятая здесь, потому что boost следует дальше
-    boost: (product_id: number) => {
-      return req("products", "/products/boost", "POST", { product_id });
-    }, // <-- Запятая здесь, потому что delete следует дальше
-    delete: (id: number) => {
-      return req("products", `/products/${id}`, "DELETE");
-    }, // <-- Запятая здесь, потому что my следует дальше
-    my: () => {
-      return req<{ products: ApiProduct[] }>("products", "/products/my");
-    }, // <-- Запятая здесь, потому что seller следует дальше
-    seller: (id: string) => {
-      return req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
-        "products", `/products/seller/${id}`
-      );
-    }, // <-- Запятая здесь, потому что это последний метод в секции products
-  }, // <-- Запятая здесь, потому что deals следует дальше
+
+    create: (data: {
+      title: string;
+      category: string;
+      price: number;
+      description?: string;
+    }) => req<ApiProduct>("products", "/products", "POST", data),
+
+    boost: (product_id: number) =>
+      req("products", "/products/boost", "POST", { product_id }),
+
+    delete: (product_id: number) =>
+      req("products", "/products/delete", "POST", { product_id }),
+
+    my: () => req<{ products: ApiProduct[] }>("products", "/products/my"),
+
+    seller: (id: string) =>
+      req<{
+        seller: ApiSeller;
+        products: ApiProduct[];
+        reviews: ApiReview[];
+        avgRating: number;
+      }>("products", `/products/seller/${id}`),
+  },
+
+  emailVerify: {
+    // <-- Оставляем это объявление
+    send: (email: string) =>
+      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req<{ ok: boolean; verified: boolean }>(
+        "email-verify",
+        "/check",
+        "POST",
+        { email, code },
+      ),
+  },
 
   deals: {
     buy: (product_id: number) =>
@@ -182,7 +205,10 @@ const api = {
 
     setMaintenance: (enabled: boolean) =>
       req<{ ok: boolean; maintenance: boolean }>(
-        "finance", "/admin/maintenance", "POST", { enabled }
+        "finance",
+        "/admin/maintenance",
+        "POST",
+        { enabled },
       ),
 
     deposit: (amount: number, currency: string) =>
@@ -210,7 +236,10 @@ const api = {
       commission?: number;
     }) =>
       req<{ id: string; to_receive: number }>(
-        "finance", "/withdraw", "POST", data
+        "finance",
+        "/withdraw",
+        "POST",
+        data,
       ),
 
     myWithdrawals: () =>
@@ -268,130 +297,39 @@ const api = {
     reject: (id: string, reason: string) =>
       req("verify", "/reject", "POST", { id, reason }),
   },
-    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
-  const api = {
-  auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
-  }, // <-- Запятая нужна, если emailVerify следует дальше
-  emailVerify: {
-    send: (email: string) => { // <-- Начало блока
-      return req("email-verify", "/send", "POST", { email });
-    }, // <-- Конец блока, нужна запятая, если дальше идет check
-    check: (email: string, code: string) => { // <-- Начало блока
-      return req("email-verify", "/check", "POST", { email, code });
-    },
-
-  deals: {
-    buy: (product_id: number) =>
-      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
-
-    list: () =>
-      req<{ deals: ApiDeal[] }>("deals", "/deals"),
-
-    dispute: (deal_id: string) =>
-      req("deals", "/deals/dispute", "POST", { deal_id }),
-
-    message: (deal_id: string, text: string) =>
-      req("deals", "/deals/message", "POST", { deal_id, text }),
-
-    resolve: (deal_id: string, refund_buyer: boolean) =>
-      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  },
-
-  finance: {
-    notifications: () =>
-      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
-
-    markRead: (id: string) =>
-      req("finance", "/notifications/read", "POST", { id }),
-
-    maintenance: () =>
-      req<{ maintenance: boolean }>("finance", "/maintenance"),
-
-    setMaintenance: (enabled: boolean) =>
-      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
-
-    deposit: (amount: number, currency: string) =>
-      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
-
-    depositPaid: (dep_id: string) =>
-      req("finance", "/deposit/paid", "POST", { dep_id }),
-
-    depositCancel: (dep_id: string) =>
-      req("finance", "/deposit/cancel", "POST", { dep_id }),
-
-    depositActive: () =>
-      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
-
-    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
-      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
-
-    myWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
-
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }),
-
-    // Admin
-    adminUsers: () =>
-      req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
-
-    adminUserStatus: (user_id: string, status: string, reason?: string) =>
-      req("finance", "/user-status", "POST", { user_id, status, reason }),
-
-    adminDeposits: () =>
-      req<{ deposits: ApiDeposit[] }>("finance", "/deposits"),
-
-    confirmDeposit: (id: string) =>
-      req("finance", "/deposits/confirm", "POST", { id }),
-
-    rejectDeposit: (id: string) =>
-      req("finance", "/deposits/reject", "POST", { id }),
-
-    adminWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/admin/withdrawals"),
-
-    updateWithdrawalStatus: (id: string, status: string) =>
-      req("finance", "/withdrawal-status", "POST", { id, status }),
-  },
-
-  verify: {
-    submit: (data: { full_name: string; doc_type: string; doc_number: string; doc_photo?: string; selfie?: string }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
-
-    status: () =>
-      req<{ id?: string; status: string | null; reject_reason?: string; date?: string; verified?: boolean }>("verify", "/status"),
-
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
-
-    approve: (id: string) =>
-      req("verify", "/approve", "POST", { id }),
-
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  },
 
   // ── Расширенные admin-методы ─────────────────────────────────────────────
 
   adminExtra: {
-    stats: () =>
-      req<ApiAdminStats>("finance", "/admin/stats"),
+    stats: () => req<ApiAdminStats>("finance", "/admin/stats"),
 
-    staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
-      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }),
+    staff: (
+      user_id: string,
+      action: "add" | "remove" | "update",
+      permissions?: string[],
+    ) =>
+      req("finance", "/admin/staff", "POST", {
+        user_id,
+        action,
+        permissions: permissions ?? [],
+      }),
 
     arbiter: (deal_id: string, arbiter_id: string) =>
       req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
 
     // Реквизиты пополнения (пул платформы)
     getDepositRequisites: () =>
-      req<{ requisites: ApiDepositRequisite[] }>("finance", "/admin/deposit-requisites"),
-    addDepositRequisite: (data: { name: string; type: string; details: string; bank?: string; currency: string }) =>
-      req("finance", "/admin/deposit-requisites/add", "POST", data),
+      req<{ requisites: ApiDepositRequisite[] }>(
+        "finance",
+        "/admin/deposit-requisites",
+      ),
+    addDepositRequisite: (data: {
+      name: string;
+      type: string;
+      details: string;
+      bank?: string;
+      currency: string;
+    }) => req("finance", "/admin/deposit-requisites/add", "POST", data),
     toggleDepositRequisite: (id: string) =>
       req("finance", "/admin/deposit-requisites/toggle", "POST", { id }),
     deleteDepositRequisite: (id: string) =>
@@ -399,9 +337,17 @@ const api = {
 
     // Партнёры
     getPartnerApplications: () =>
-      req<{ applications: ApiPartnerApplication[] }>("finance", "/admin/partner-applications"),
+      req<{ applications: ApiPartnerApplication[] }>(
+        "finance",
+        "/admin/partner-applications",
+      ),
     approvePartner: (id: string) =>
-      req<{ ok: boolean; refCode: string }>("finance", "/admin/partner-approve", "POST", { id }),
+      req<{ ok: boolean; refCode: string }>(
+        "finance",
+        "/admin/partner-approve",
+        "POST",
+        { id },
+      ),
     rejectPartner: (id: string, reason: string) =>
       req("finance", "/admin/partner-reject", "POST", { id, reason }),
     getPartners: () =>
@@ -413,9 +359,24 @@ const api = {
   // Реквизиты вывода (личные)
   withdrawalRequisites: {
     list: () =>
-      req<{ requisites: ApiWithdrawalRequisite[] }>("finance", "/withdrawal-requisites"),
-    add: (data: { type: "sbp" | "card"; phone?: string; bank?: string; card_number?: string; card_holder?: string; label?: string }) =>
-      req<{ id: string }>("finance", "/withdrawal-requisites/add", "POST", data),
+      req<{ requisites: ApiWithdrawalRequisite[] }>(
+        "finance",
+        "/withdrawal-requisites",
+      ),
+    add: (data: {
+      type: "sbp" | "card";
+      phone?: string;
+      bank?: string;
+      card_number?: string;
+      card_holder?: string;
+      label?: string;
+    }) =>
+      req<{ id: string }>(
+        "finance",
+        "/withdrawal-requisites/add",
+        "POST",
+        data,
+      ),
     delete: (id: string) =>
       req("finance", "/withdrawal-requisites/delete", "POST", { id }),
   },
@@ -426,8 +387,7 @@ const api = {
 
   // Партнёрство
   partner: {
-    status: () =>
-      req<ApiPartnerStatus>("finance", "/partner/status"),
+    status: () => req<ApiPartnerStatus>("finance", "/partner/status"),
     apply: (platforms: ApiPartnerPlatform[]) =>
       req<{ id: string }>("finance", "/partner/apply", "POST", { platforms }),
   },
@@ -435,7 +395,10 @@ const api = {
   // Поддержка
   support: {
     openTicket: (subject: string, message: string) =>
-      req<{ ticketId: string }>("support", "/ticket/open", "POST", { subject, message }),
+      req<{ ticketId: string }>("support", "/ticket/open", "POST", {
+        subject,
+        message,
+      }),
     getTicket: () =>
       req<{ ticket: ApiSupportTicket | null }>("support", "/support/ticket"),
     sendMessage: (ticket_id: string, text: string) =>
@@ -445,7 +408,10 @@ const api = {
 
     // Admin
     getTickets: (status = "open") =>
-      req<{ tickets: ApiSupportTicketItem[] }>("support", `/admin/tickets?status=${status}`),
+      req<{ tickets: ApiSupportTicketItem[] }>(
+        "support",
+        `/admin/tickets?status=${status}`,
+      ),
     getTicketDetail: (id: string) =>
       req<{ ticket: ApiSupportTicketDetail }>("support", `/admin/ticket/${id}`),
     reply: (ticket_id: string, text: string) =>
@@ -456,15 +422,24 @@ const api = {
     getDisputes: () =>
       req<{ disputes: ApiDispute[] }>("support", "/admin/disputes"),
     getDisputeMessages: (deal_id: string) =>
-      req<{ messages: ApiDisputeMessage[] }>("support", `/admin/dispute/${deal_id}/messages`),
+      req<{ messages: ApiDisputeMessage[] }>(
+        "support",
+        `/admin/dispute/${deal_id}/messages`,
+      ),
     disputeMessage: (deal_id: string, text: string) =>
       req("support", "/admin/dispute/message", "POST", { deal_id, text }),
     resolveDispute: (deal_id: string, refund_buyer: boolean) =>
-      req("support", "/admin/dispute/resolve", "POST", { deal_id, refund_buyer }),
+      req("support", "/admin/dispute/resolve", "POST", {
+        deal_id,
+        refund_buyer,
+      }),
     assignDispute: (deal_id: string, arbiter_id?: string) =>
       req("support", "/admin/dispute/assign", "POST", { deal_id, arbiter_id }),
     getOperators: () =>
-      req<{ operators: { id: string; username: string; role: string }[] }>("support", "/admin/operators"),
+      req<{ operators: { id: string; username: string; role: string }[] }>(
+        "support",
+        "/admin/operators",
+      ),
     chatBan: (user_id: string) =>
       req("support", "/admin/chat-ban", "POST", { user_id }),
     permaBan: (user_id: string) =>
@@ -473,9 +448,17 @@ const api = {
 
   oauth: {
     google: (code: string, redirect_uri: string) =>
-      req<{ token: string; user: ApiUser }>("oauth", "/google", "POST", { code, redirect_uri }),
-    vk: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) =>
-      req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", data),
+      req<{ token: string; user: ApiUser }>("oauth", "/google", "POST", {
+        code,
+        redirect_uri,
+      }),
+    vk: (data: {
+      access_token: string;
+      user_id: string;
+      email?: string;
+      first_name?: string;
+      last_name?: string;
+    }) => req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", data),
   },
 
   monitor: {
@@ -490,9 +473,11 @@ const api = {
     }) => req<{ ok: boolean }>("monitor", "/report", "POST", data),
 
     list: (active = true) =>
-      req<{ events: ApiMonitorEvent[]; open_count: number; critical_count: number }>(
-        "monitor", `/list?active=${active}`
-      ),
+      req<{
+        events: ApiMonitorEvent[];
+        open_count: number;
+        critical_count: number;
+      }>("monitor", `/list?active=${active}`),
 
     resolve: (id: number) =>
       req<{ ok: boolean }>("monitor", "/resolve", "POST", { id }),
@@ -584,7 +569,13 @@ export type ApiDeal = {
   arbiterId?: string;
   date: string;
   step: number;
-  disputeMessages: { from: string; role: string; text: string; time?: string; isSystem?: boolean }[];
+  disputeMessages: {
+    from: string;
+    role: string;
+    text: string;
+    time?: string;
+    isSystem?: boolean;
+  }[];
 };
 
 export type ApiNotification = {
@@ -664,7 +655,13 @@ export type ApiAdminStats = {
   usersByStatus: Record<string, number>;
   pendingWithdrawals: number;
   pendingWithdrawalsVolume: number;
-  withdrawals: { pendingCount: number; pendingVolume: number; day: number; week: number; month: number };
+  withdrawals: {
+    pendingCount: number;
+    pendingVolume: number;
+    day: number;
+    week: number;
+    month: number;
+  };
 };
 
 export type ApiWithdrawalRequisite = {
@@ -742,7 +739,12 @@ export type ApiActiveDeposit = {
   currency: string;
   requisiteName: string;
   requisiteDetails: string;
-  status: "awaiting_payment" | "pending" | "confirmed" | "rejected" | "cancelled";
+  status:
+    | "awaiting_payment"
+    | "pending"
+    | "confirmed"
+    | "rejected"
+    | "cancelled";
   expiresAt: string | null;
   requisite: ApiDepositRequisite | null;
 };
