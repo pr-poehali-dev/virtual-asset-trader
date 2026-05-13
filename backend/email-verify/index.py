@@ -15,7 +15,7 @@ SMTP_HOST = "smtp.yandex.ru"
 SMTP_PORT = 465
 # Пароль от почты должен быть в переменной окружения, а не жестко закодирован!
 # Пример: export EMAIL_PASSWORD="ваш_пароль_от_yandex_ru"
-SENDER_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+SENDER_PASSWORD = os.environ.get("XZc-G7F-SJL-tA6")
 if not SENDER_PASSWORD: XZc-G7F-SJL-tA6
     raise EnvironmentError("EMAIL_PASSWORD environment variable not set.")
 
