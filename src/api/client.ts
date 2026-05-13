@@ -105,10 +105,13 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-export const api = {
+const api = {
   auth: {
+    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
+    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
+    me: () => req("auth", "/me", "GET"),
+    logout: () => req("auth", "/logout", "POST"),
   },
-  
   emailVerify: {
     send: (email: string) =>
       req("email-verify", "/send", "POST", { email }),
@@ -116,19 +119,15 @@ export const api = {
       req("email-verify", "/check", "POST", { email, code }),
   },
   products: {
-      list: (params?: { category?: string; search?: string; price_max?: string }) => {
-        const qs = params ? "?" + new URLSearchParams(
-          Object.fromEntries(Object.entries(params).filter(([, v]) => v))
-        ).toString() : "";
-        return req<{ products: ApiProduct[] }>("products", "/products" + qs);
-      }, // Здесь должна быть только запятая
-      create: (data: { title: string; category: string; price: number; description?: string }) =>
-        req<ApiProduct>("products", "/products", "POST", data),
-      boost: (product_id: number) =>
-        req("products", "/products/boost", "POST", { product_id }),
-        
-      // ... остальные методы (delete и т.д.)
-    }, // Закрывает блок products
+    list: (params?: any) => {
+      const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+      return req("products", "/products" + qs, "GET");
+    },
+    create: (data: any) => req("products", "/products", "POST", data),
+    boost: (id: number) => req("products", "/products/boost", "POST", { product_id: id }),
+    delete: (id: number) => req("products", `/products/${id}`, "DELETE"),
+  },
+};
 
     create: (data: { title: string; category: string; price: number; description?: string }) =>
       req<ApiProduct>("products", "/products", "POST", data),
