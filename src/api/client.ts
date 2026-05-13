@@ -275,14 +275,15 @@ const api = {
     register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
     me: () => req("auth", "/me", "GET"),
     logout: () => req("auth", "/logout", "POST"),
-  }, // <-- Запятая нужна, если emailVerify следует дальше
+  },
   emailVerify: {
-    send: (email: string) => { // <-- Начало блока
+    send: (email: string) => {
       return req("email-verify", "/send", "POST", { email });
-    }, // <-- Конец блока, нужна запятая, если дальше идет check
-    check: (email: string, code: string) => { // <-- Начало блока
+    },
+    check: (email: string, code: string) => {
       return req("email-verify", "/check", "POST", { email, code });
     },
+  },
 
   deals: {
     buy: (product_id: number) =>
