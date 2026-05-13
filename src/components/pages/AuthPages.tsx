@@ -179,24 +179,6 @@ export function LoginPage({
               Войти
             </Button>
 
-            <VKIDWidget onError={setError} />
-
-            <p className="text-center text-xs text-muted-foreground">
-              Нет аккаунта?{" "}
-              <button
-                onClick={onRegister}
-                className="text-gold hover:underline font-semibold"
-              >
-                Зарегистрироваться
-              </button>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── REGISTER PAGE ────────────────────────────────────────────────────────────
 
 export function RegisterPage({ onLogin }: { onLogin: () => void }) {
