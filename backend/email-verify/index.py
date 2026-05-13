@@ -69,7 +69,7 @@ def send_email(to: str, code: str):
     try:
         # Подключение к SMTP-серверу и отправка письма
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            server.login(FROM_EMAIL, SENDER_PASSWORD)
+            server.login(FROM_EMAIL, VERIFYEMAIL)
             server.sendmail(FROM_EMAIL, to, msg.as_string())
     except Exception as e:
         print(f"Error sending email: {e}")
