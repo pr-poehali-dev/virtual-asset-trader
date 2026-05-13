@@ -275,7 +275,8 @@ const api = {
     register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
     me: () => req("auth", "/me", "GET"),
     logout: () => req("auth", "/logout", "POST"),
-  },
+  }, // <-- Запятая, если дальше идет emailVerify
+
   emailVerify: {
     send: (email: string) => {
       return req("email-verify", "/send", "POST", { email });
