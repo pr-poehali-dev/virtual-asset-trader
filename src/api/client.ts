@@ -269,33 +269,38 @@ export const api = {
 
   // Добавлен раздел verify, который, как я понял из предыдущих сообщений, вам нужен.
   // Если он не нужен, просто удалите этот блок.
-  verify: {
-    submit: (data: {
+  verify: { // <-- Начало объекта verify
+    submit: (data: { // <-- Первый метод в verify
       full_name: string;
       doc_type: string;
       doc_number: string;
       doc_photo?: string;
       selfie?: string;
     }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data), // <-- Завершение метода submit
 
-    status: () =>
+    // --- ВАЖНО: Запятая между методами ---
+    status: () => // <-- Второй метод в verify
       req<{
         id?: string;
         status: string | null;
         reject_reason?: string;
         date?: string;
         verified?: boolean;
-      }>("verify", "/status"),
+      }>("verify", "/status"), // <-- Завершение метода status
 
+    // --- Запятая между методами ---
     adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"), // <-- Завершение метода adminList
 
-    approve: (id: string) => req("verify", "/approve", "POST", { id }),
+    // --- Запятая между методами ---
+    approve: (id: string) => req("verify", "/approve", "POST", { id }), // <-- Завершение метода approve
 
+    // --- Запятая между методами ---
     reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  }, // <-- Нет запятой, если verify - последний раздел
+      req("verify", "/reject", "POST", { id, reason }), // <-- Завершение последнего метода в verify
+
+  }, // <-- Закрывающая скобка объекта verify. Нет запятой, так как это последний раздел API.
 
 };
 
