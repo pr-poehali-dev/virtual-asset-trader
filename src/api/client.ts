@@ -308,6 +308,91 @@ const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
+
+    // --- ВАЖНО: УДАЛЕНА ЛИШНЯЯ ИНСТРУКЦИЯ ---
+    // Строка 244 (const api = {) должна быть ВНЕЦЕ этого блока.
+    // Код здесь заканчивается, и ставится ЗАПЯТАЯ, если дальше идут другие разделы.
+  }, // <-- Запятая, так как дальше идут другие разделы API (например, verify)
+
+  verify: { // <-- Этот раздел теперь находится ВНУТРИ объекта api
+    submit: (data: {
+      full_name: string;
+      doc_type: string;
+      doc_number: string;
+      doc_photo?: string;
+      selfie?: string;
+    }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{
+        id?: string;
+        status: string | null;
+        reject_reason?: string;
+        date?: string;
+        verified?: boolean;
+      }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) => req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  }, // <-- Нет запятой, если verify - последний раздел
+
+};
+  deals: {
+    buy: (product_id: number) =>
+      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
+
+    list: () =>
+      req<{ deals: ApiDeal[] }>("deals", "/deals"),
+
+    dispute: (deal_id: string) =>
+      req("deals", "/deals/dispute", "POST", { deal_id }),
+
+    message: (deal_id: string, text: string) =>
+      req("deals", "/deals/message", "POST", { deal_id, text }),
+
+    resolve: (deal_id: string, refund_buyer: boolean) =>
+      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
+  }, // <-- Запятая, если дальше идет finance
+
+  finance: {
+    notifications: () =>
+      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
+
+    markRead: (id: string) =>
+      req("finance", "/notifications/read", "POST", { id }),
+
+    maintenance: () =>
+      req<{ maintenance: boolean }>("finance", "/maintenance"),
+
+    setMaintenance: (enabled: boolean) =>
+      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
+
+    deposit: (amount: number, currency: string) =>
+      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
+
+    depositPaid: (dep_id: string) =>
+      req("finance", "/deposit/paid", "POST", { dep_id }),
+
+    depositCancel: (dep_id: string) =>
+      req("finance", "/deposit/cancel", "POST", { dep_id }),
+
+    depositActive: () =>
+      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
+
+    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
+      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
+
+    myWithdrawals: () =>
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
+
+    review: (seller_id: string, rating: number, text: string) =>
+      req("finance", "/review", "POST", { seller_id, rating, text }),
   }, // <-- Запятая, если дальше идет verify
 
   // Раздел verify теперь находится ВНУТРИ объекта api
