@@ -123,8 +123,14 @@ const api = {
       const qs = params ? "?" + new URLSearchParams(params).toString() : "";
       return req("products", "/products" + qs, "GET");
     },
-    create: (data: any) => req("products", "/products", "POST", data),
-    boost: (id: number) => req("products", "/products/boost", "POST", { product_id: id }),
+    // ИСПРАВЛЕНИЕ НАЧИНАЕТСЯ ЗДЕСЬ
+    create: (data: any) => { // <-- Добавлены фигурные скобки {}
+      return req("products", "/products", "POST", data); // <-- Добавлен явный return
+    },
+    boost: (id: number) => { // <-- Добавлены фигурные скобки {}
+      return req("products", "/products/boost", "POST", { product_id: id }); // <-- Добавлен явный return
+    },
+    // ИСПРАВЛЕНИЕ ЗАКАНЧИВАЕТСЯ ЗДЕСЬ
     delete: (id: number) => req("products", `/products/${id}`, "DELETE"),
   },
 };
