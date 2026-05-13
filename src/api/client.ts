@@ -107,19 +107,20 @@ async function req<T = unknown>(
 
 export const api = {
   auth: {
-    register: (username: string, email: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
-
-    login: (login: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
-
-    me: () =>
-      req<{ user: ApiUser }>("auth", "/me"),
-
-    logout: () =>
-      req("auth", "/logout", "POST"),
+  
   },
-
+  emailVerify: {
+    send: (email: string) => 
+      req<{ ok: boolean }>("emailVerify", "/send", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+    check: (email: string, code: string) => 
+      req<{ verified: boolean; ok: boolean }>("emailVerify", "/check", {
+        method: "POST",
+        body: JSON.stringify({ email, code }),
+      }),
+  },
   products: {
     list: (params?: { category?: string; search?: string; price_max?: string }) => {
       const qs = params ? "?" + new URLSearchParams(
@@ -127,6 +128,8 @@ export const api = {
       ).toString() : "";
       return req<{ products: ApiProduct[] }>("products", "/products" + qs);
     },
+  },
+};
 
     create: (data: { title: string; category: string; price: number; description?: string }) =>
       req<ApiProduct>("products", "/products", "POST", data),
