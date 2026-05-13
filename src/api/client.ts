@@ -270,7 +270,6 @@ const api = {
   },
     // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
   },
-};
 
   emailVerify: {
     send: (email: string) =>
