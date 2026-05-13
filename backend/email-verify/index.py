@@ -17,7 +17,7 @@ SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 FROM_EMAIL = "gorant.shop-supp0rt@yandex.ru"
 SMTP_HOST = "smtp.yandex.ru"
 SMTP_PORT = 465
-SENDER_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+SENDER_PASSWORD = os.environ.get("VERIFYEMAIL")
 
 if not SENDER_PASSWORD:
 
