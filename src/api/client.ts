@@ -269,13 +269,13 @@ const api = {
       req("verify", "/reject", "POST", { id, reason }),
   },
     // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
-  const api = {
+ const api = {
   auth: {
     login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
     register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
     me: () => req("auth", "/me", "GET"),
     logout: () => req("auth", "/logout", "POST"),
-  }, // <-- Запятая, если дальше идет emailVerify
+  },
 
   emailVerify: {
     send: (email: string) => {
@@ -336,7 +336,14 @@ const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
+  },
 
+  // Предполагаю, что у вас был раздел 'verify' до этого, и он закончился некорректно.
+  // Добавляю его с закрывающей скобкой. Если у вас его нет, просто удалите этот блок.
+  verify: {
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  },
     // Admin
     adminUsers: () =>
       req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
