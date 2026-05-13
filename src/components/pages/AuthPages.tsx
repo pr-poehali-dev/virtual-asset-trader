@@ -191,7 +191,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   const [sending, setSending] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setInterval(
@@ -200,7 +199,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     );
     return () => clearInterval(t);
   }, [resendTimer]);
-
   const handleSendCode = async () => {
     setError("");
     if (!username.trim() || !email.trim() || !password || !password2) {
@@ -236,7 +234,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     }
     setSending(false);
   };
-
   const handleVerify = async () => {
     setError("");
     if (!code.trim()) {
@@ -263,7 +260,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     }
     setRegistering(false);
   };
-
   const handleResend = async () => {
     if (resendTimer > 0) return;
     setSending(true);
@@ -276,7 +272,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     }
     setSending(false);
   };
-
   return (
     <div className="min-h-[70vh] flex items-center justify-center animate-fade-in px-4">
       <div className="w-full max-w-sm">
@@ -298,7 +293,6 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                 : "Создайте аккаунт Gorant Shop"}
             </p>
           </div>
-
           {step === "form" ? (
             <div className="space-y-4">
               <div>
@@ -376,10 +370,8 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                 ) : null}
                 {sending ? "Отправляем код..." : "Получить код подтверждения"}
               </Button>
-
-              <VKIDWidget onError={setError} />
-
-              <p className="text-center text-xs text-muted-foreground">
+              {/* VKIDWidget удален отсюда */}
+              <p className="text-center text-xs text-muted-foreground pt-2">
                 Уже есть аккаунт?{" "}
                 <button
                   onClick={onLogin}
