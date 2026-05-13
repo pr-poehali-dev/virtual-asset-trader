@@ -71,19 +71,6 @@ export function FrozenPage({
   );
 }
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-2">
-      <div className="relative flex items-center gap-3 my-1">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground">или войти через</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-      <div ref={containerRef} />
-    </div>
-  );
-}
-
 export function LoginPage({
   onRegister,
   onFrozen,

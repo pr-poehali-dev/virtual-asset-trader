@@ -97,13 +97,6 @@ type AuthContextType = {
     code: string,
     redirect_uri: string,
   ) => Promise<"ok" | "blocked" | "error">;
-  loginWithVK: (data: {
-    access_token: string;
-    user_id: string;
-    email?: string;
-    first_name?: string;
-    last_name?: string;
-  }) => Promise<"ok" | "blocked" | "error">;
   register: (
     username: string,
     email: string,
@@ -221,50 +214,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ...
   const loginWithOAuth = async (
     provider: "google",
     code: string,
     redirect_uri: string,
   ): Promise<"ok" | "blocked" | "error"> => {
     try {
-      // Если есть отдельная обработка для VK, ее тоже нужно удалить/закомментировать
-      // Пример:
-      // if (provider === "vk") {
-      //   const { token, user: u } = await api.oauth.vk(code, redirect_uri); // Предполагаем, что такая функция существует
-      //   setToken(token);
-      //   const appUser = apiUserToApp(u);
-      //   setUser(appUser);
-      //   await loadUserData(u.id);
-      //   return "ok";
-      // }
-
-      if (provider === "google") {
-        const { token, user: u } = await api.oauth.google(code, redirect_uri);
-        setToken(token);
-        const appUser = apiUserToApp(u);
-        setUser(appUser);
-        await loadUserData(u.id);
-        return "ok";
-      }
-      return "error"; // Или другое значение по умолчанию, если провайдер неизвестен
-    } catch (e: unknown) {
-      const err = e as { error?: string };
-      if (err?.error === "blocked") return "blocked";
-      return "error";
-    }
-  };
-  // ...
-
-  const loginWithVK = async (data: {
-    access_token: string;
-    user_id: string;
-    email?: string;
-    first_name?: string;
-    last_name?: string;
-  }): Promise<"ok" | "blocked" | "error"> => {
-    try {
-      const { token, user: u } = await api.oauth.vk(data);
+      const { token, user: u } = await api.oauth.google(code, redirect_uri);
       setToken(token);
       const appUser = apiUserToApp(u);
       setUser(appUser);
