@@ -149,11 +149,11 @@ export const api = {
   },
 
   emailVerify: {
-    send: (email: string) =>
-      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
-    check: (email: string, code: string) =>
-      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
-  },
+  send: (email: string) =>
+    req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
+  check: (email: string, code: string) =>
+    req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
+},
 
   deals: {
     buy: (product_id: number) =>
