@@ -120,9 +120,12 @@ const api = {
   },
   products: {
     list: (params?: any) => {
-      const qs = params ? "?" + new URLSearchParams(params).toString() : "";
-      return req("products", "/products" + qs, "GET");
-    },
+      const qs = params
+  ? "?" +
+    new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')) // Уточните, какие именно "пустые" значения нужно фильтровать
+    ).toString()
+  : "";
     // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
     create: (data: { title: string; category: string; price: number; description?: string }) => { // <-- Используем более строгий тип данных
       return req<ApiProduct>("products", "/products", "POST", data);
