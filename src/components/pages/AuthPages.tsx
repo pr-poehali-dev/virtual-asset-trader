@@ -72,74 +72,6 @@ export function FrozenPage({
 }
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
-
-const VK_APP_ID = 54583876;
-
-function VKIDWidget({ onError }: { onError: (msg: string) => void }) {
-  const { loginWithVK } = useAuth();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    import("@vkid/sdk").then((mod) => {
-      const VKID = mod.default ?? mod;
-
-      VKID.Config.init({
-        app: VK_APP_ID,
-        redirectUrl: `${window.location.origin}/auth/vk/callback`,
-        responseMode: VKID.ConfigResponseMode.Callback,
-        source: VKID.ConfigSource.LOWCODE,
-        scope: "email",
-      });
-
-      const oneTap = new VKID.OneTap();
-
-      oneTap
-        .render({
-          container: containerRef.current!,
-          showAlternativeLogin: true,
-          styles: { borderRadius: 10 },
-        })
-        .on(VKID.WidgetEvents.ERROR, () => onError("Ошибка VK ID"))
-        .on(
-          VKID.OneTapInternalEvents.LOGIN_SUCCESS,
-          async (payload: { code: string; device_id: string }) => {
-            try {
-              const result = await VKID.Auth.exchangeCode(
-                payload.code,
-                payload.device_id,
-              );
-              const data = {
-                access_token: result.access_token ?? "",
-                user_id: String(result.user_id ?? ""),
-                email: result.email ?? "",
-                first_name: result.first_name ?? "",
-                last_name: result.last_name ?? "",
-              };
-              const res = await loginWithVK(data);
-              if (res === "blocked") onError("Аккаунт заблокирован");
-              if (res === "error") onError("Ошибка входа через ВКонтакте");
-            } catch {
-              onError("Ошибка входа через ВКонтакте");
-            }
-          },
-        );
-    });
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      <div className="relative flex items-center gap-3 my-1">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground">или войти через</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-      <div ref={containerRef} />
-    </div>
-  );
-}
-
 export function LoginPage({
   onRegister,
   onFrozen,
@@ -151,7 +83,6 @@ export function LoginPage({
   const [loginValue, setLoginValue] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
   const handleLogin = () => {
     if (!loginValue || !password) {
       setError("Заполните все поля");
@@ -174,7 +105,6 @@ export function LoginPage({
     }
     setError("Неверный email / имя пользователя или пароль");
   };
-
   return (
     <div className="min-h-[70vh] flex items-center justify-center animate-fade-in px-4">
       <div className="w-full max-w-sm">
@@ -188,7 +118,6 @@ export function LoginPage({
             </h1>
             <p className="text-xs text-muted-foreground">Gorant Shop</p>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
@@ -220,24 +149,20 @@ export function LoginPage({
                 className="bg-background border-border text-sm"
               />
             </div>
-
             {error && (
               <p className="text-xs text-red-400 flex items-center gap-1">
                 <Icon name="AlertCircle" size={12} />
                 {error}
               </p>
             )}
-
             <Button
               className="w-full bg-gold text-background hover:bg-gold/90 font-bold"
               onClick={handleLogin}
             >
               Войти
             </Button>
-
-            <VKIDWidget onError={setError} />
-
-            <p className="text-center text-xs text-muted-foreground">
+            {/* Блок VKIDWidget удален отсюда */}
+            <p className="text-center text-xs text-muted-foreground pt-2">
               Нет аккаунта?{" "}
               <button
                 onClick={onRegister}
@@ -252,7 +177,6 @@ export function LoginPage({
     </div>
   );
 }
-
 // ─── REGISTER PAGE ────────────────────────────────────────────────────────────
 
 export function RegisterPage({ onLogin }: { onLogin: () => void }) {
