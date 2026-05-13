@@ -123,36 +123,27 @@ const api = {
       const qs = params ? "?" + new URLSearchParams(params).toString() : "";
       return req("products", "/products" + qs, "GET");
     },
-    // ИСПРАВЛЕНИЕ НАЧИНАЕТСЯ ЗДЕСЬ
-    create: (data: any) => { // <-- Добавлены фигурные скобки {}
-      return req("products", "/products", "POST", data); // <-- Добавлен явный return
+    // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
+    create: (data: { title: string; category: string; price: number; description?: string }) => { // <-- Используем более строгий тип данных
+      return req<ApiProduct>("products", "/products", "POST", data);
     },
-    boost: (id: number) => { // <-- Добавлены фигурные скобки {}
-      return req("products", "/products/boost", "POST", { product_id: id }); // <-- Добавлен явный return
+    boost: (product_id: number) => { // <-- Используем product_id как в вашем последнем фрагменте
+      return req("products", "/products/boost", "POST", { product_id });
     },
-    // ИСПРАВЛЕНИЕ ЗАКАНЧИВАЕТСЯ ЗДЕСЬ
-    delete: (id: number) => req("products", `/products/${id}`, "DELETE"),
+    delete: (id: number) => { // <-- Используем id как в вашем первом фрагменте, а не product_id
+      return req("products", `/products/${id}`, "DELETE");
+    },
+    my: () => {
+      return req<{ products: ApiProduct[] }>("products", "/products/my");
+    },
+    seller: (id: string) => {
+      return req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
+        "products", `/products/seller/${id}`
+      );
+    },
+    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
   },
 };
-
-    create: (data: { title: string; category: string; price: number; description?: string }) => {
-  return req<ApiProduct>("products", "/products", "POST", data);
-},
-
-    boost: (product_id: number) =>
-      req("products", "/products/boost", "POST", { product_id }),
-
-    delete: (product_id: number) =>
-      req("products", "/products/delete", "POST", { product_id }),
-
-    my: () =>
-      req<{ products: ApiProduct[] }>("products", "/products/my"),
-
-    seller: (id: string) =>
-      req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
-        "products", `/products/seller/${id}`
-      ),
-  },
 
   emailVerify: {
     send: (email: string) =>
