@@ -105,332 +105,52 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-const api = {
+export const api = {
   auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
+    register: (username: string, email: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
+
+    login: (login: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
+
+    me: () =>
+      req<{ user: ApiUser }>("auth", "/me"),
+
+    logout: () =>
+      req("auth", "/logout", "POST"),
   },
+
+  products: {
+    list: (params?: { category?: string; search?: string; price_max?: string }) => {
+      const qs = params ? "?" + new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v))
+      ).toString() : "";
+      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
+    },
+
+    create: (data: { title: string; category: string; price: number; description?: string }) =>
+      req<ApiProduct>("products", "/products", "POST", data),
+
+    boost: (product_id: number) =>
+      req("products", "/products/boost", "POST", { product_id }),
+
+    delete: (product_id: number) =>
+      req("products", "/products/delete", "POST", { product_id }),
+
+    my: () =>
+      req<{ products: ApiProduct[] }>("products", "/products/my"),
+
+    seller: (id: string) =>
+      req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
+        "products", `/products/seller/${id}`
+      ),
+  },
+
   emailVerify: {
     send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
+      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
     check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
-  },
-  products: {
-    list: (params?: { // Используем более строгий тип для параметров, если он известен
-      category?: string;
-      search?: string;
-      price_max?: string;
-    }) => {
-      // Фильтруем только непустые, неnull и неundefined значения
-      const filteredParams = Object.entries(params || {}).filter(([, v]) => v !== null && v !== undefined && v !== '');
-      const qs = filteredParams.length > 0
-        ? "?" + new URLSearchParams(filteredParams).toString()
-        : "";
-      // Важно: в функции req, path "/products" передается как _path query-параметр.
-      // Если здесь также есть query-параметры (qs), они будут добавлены после _path.
-      // Убедитесь, что ваш сервер корректно обрабатывает такую структуру URL.
-      return req("products", "/products" + qs, "GET");
-    },
-    create: (data: { title: string; category: string; price: number; description?: string }) => {
-      return req<ApiProduct>("products", "/products", "POST", data);
-    }, // <-- Запятая здесь, потому что boost следует дальше
-    boost: (product_id: number) => {
-      return req("products", "/products/boost", "POST", { product_id });
-    }, // <-- Запятая здесь, потому что delete следует дальше
-    delete: (id: number) => {
-      return req("products", `/products/${id}`, "DELETE");
-    }, // <-- Запятая здесь, потому что my следует дальше
-    my: () => {
-      return req<{ products: ApiProduct[] }>("products", "/products/my");
-    }, // <-- Запятая здесь, потому что seller следует дальше
-    seller: (id: string) => {
-      return req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
-        "products", `/products/seller/${id}`
-      );
-    }, // <-- Запятая здесь, потому что это последний метод в секции products
-  }, // <-- Запятая здесь, потому что deals следует дальше
-
-  deals: {
-    buy: (product_id: number) =>
-      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", {
-        product_id,
-      }),
-
-    list: () => req<{ deals: ApiDeal[] }>("deals", "/deals"),
-
-    dispute: (deal_id: string) =>
-      req("deals", "/deals/dispute", "POST", { deal_id }),
-
-    message: (deal_id: string, text: string) =>
-      req("deals", "/deals/message", "POST", { deal_id, text }),
-
-    resolve: (deal_id: string, refund_buyer: boolean) =>
-      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  },
-
-  finance: {
-    notifications: () =>
-      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
-
-    markRead: (id: string) =>
-      req("finance", "/notifications/read", "POST", { id }),
-
-    maintenance: () => req<{ maintenance: boolean }>("finance", "/maintenance"),
-
-    setMaintenance: (enabled: boolean) =>
-      req<{ ok: boolean; maintenance: boolean }>(
-        "finance", "/admin/maintenance", "POST", { enabled }
-      ),
-
-    deposit: (amount: number, currency: string) =>
-      req<{
-        id: string;
-        requisite: ApiDepositRequisite;
-        expiresAt: string;
-        amount: number;
-      }>("finance", "/deposit", "POST", { amount, currency }),
-
-    depositPaid: (dep_id: string) =>
-      req("finance", "/deposit/paid", "POST", { dep_id }),
-
-    depositCancel: (dep_id: string) =>
-      req("finance", "/deposit/cancel", "POST", { dep_id }),
-
-    depositActive: () =>
-      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
-
-    withdraw: (data: {
-      amount: number;
-      currency: string;
-      requisite_type: string;
-      requisite_details: string;
-      commission?: number;
-    }) =>
-      req<{ id: string; to_receive: number }>(
-        "finance", "/withdraw", "POST", data
-      ),
-
-    myWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
-
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }),
-
-    // Admin
-    adminUsers: () => req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
-
-    adminUserStatus: (user_id: string, status: string, reason?: string) =>
-      req("finance", "/user-status", "POST", { user_id, status, reason }),
-
-    adminDeposits: () =>
-      req<{ deposits: ApiDeposit[] }>("finance", "/deposits"),
-
-    confirmDeposit: (id: string) =>
-      req("finance", "/deposits/confirm", "POST", { id }),
-
-    rejectDeposit: (id: string) =>
-      req("finance", "/deposits/reject", "POST", { id }),
-
-    adminWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/admin/withdrawals"),
-
-    updateWithdrawalStatus: (id: string, status: string) =>
-      req("finance", "/withdrawal-status", "POST", { id, status }),
-  },
-
-  const api = {
-  auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
-  }, // <-- Запятая, если дальше идет emailVerify
-
-  emailVerify: {
-    send: (email: string) => {
-      return req("email-verify", "/send", "POST", { email });
-    },
-    check: (email: string, code: string) => {
-      return req("email-verify", "/check", "POST", { email, code });
-    },
-  }, // <-- Запятая, если дальше идет deals
-
-  deals: {
-    buy: (product_id: number) =>
-      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
-
-    list: () =>
-      req<{ deals: ApiDeal[] }>("deals", "/deals"),
-
-    dispute: (deal_id: string) =>
-      req("deals", "/deals/dispute", "POST", { deal_id }),
-
-    message: (deal_id: string, text: string) =>
-      req("deals", "/deals/message", "POST", { deal_id, text }),
-
-    resolve: (deal_id: string, refund_buyer: boolean) =>
-      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  }, // <-- Запятая, если дальше идет finance
-
-  finance: {
-    notifications: () =>
-      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
-
-    markRead: (id: string) =>
-      req("finance", "/notifications/read", "POST", { id }),
-
-    maintenance: () =>
-      req<{ maintenance: boolean }>("finance", "/maintenance"),
-
-    setMaintenance: (enabled: boolean) =>
-      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
-
-    deposit: (amount: number, currency: string) =>
-      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
-
-    depositPaid: (dep_id: string) =>
-      req("finance", "/deposit/paid", "POST", { dep_id }),
-
-    depositCancel: (dep_id: string) =>
-      req("finance", "/deposit/cancel", "POST", { dep_id }),
-
-    depositActive: () =>
-      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
-
-    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
-      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
-
-    myWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
-
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }),
-
-    // --- ВАЖНО: УДАЛЕНА ЛИШНЯЯ ИНСТРУКЦИЯ ---
-    // Строка 244 (const api = {) должна быть ВНЕЦЕ этого блока.
-    // Код здесь заканчивается, и ставится ЗАПЯТАЯ, если дальше идут другие разделы.
-  }, // <-- Запятая, так как дальше идут другие разделы API (например, verify)
-
-  verify: { // <-- Этот раздел теперь находится ВНУТРИ объекта api
-    submit: (data: {
-      full_name: string;
-      doc_type: string;
-      doc_number: string;
-      doc_photo?: string;
-      selfie?: string;
-    }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
-
-    status: () =>
-      req<{
-        id?: string;
-        status: string | null;
-        reject_reason?: string;
-        date?: string;
-        verified?: boolean;
-      }>("verify", "/status"),
-
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
-
-    approve: (id: string) => req("verify", "/approve", "POST", { id }),
-
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  }, // <-- Нет запятой, если verify - последний раздел
-
-};
-  deals: {
-    buy: (product_id: number) =>
-      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
-
-    list: () =>
-      req<{ deals: ApiDeal[] }>("deals", "/deals"),
-
-    dispute: (deal_id: string) =>
-      req("deals", "/deals/dispute", "POST", { deal_id }),
-
-    message: (deal_id: string, text: string) =>
-      req("deals", "/deals/message", "POST", { deal_id, text }),
-
-    resolve: (deal_id: string, refund_buyer: boolean) =>
-      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  }, // <-- Запятая, если дальше идет finance
-
-  finance: {
-    notifications: () =>
-      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
-
-    markRead: (id: string) =>
-      req("finance", "/notifications/read", "POST", { id }),
-
-    maintenance: () =>
-      req<{ maintenance: boolean }>("finance", "/maintenance"),
-
-    setMaintenance: (enabled: boolean) =>
-      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
-
-    deposit: (amount: number, currency: string) =>
-      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
-
-    depositPaid: (dep_id: string) =>
-      req("finance", "/deposit/paid", "POST", { dep_id }),
-
-    depositCancel: (dep_id: string) =>
-      req("finance", "/deposit/cancel", "POST", { dep_id }),
-
-    depositActive: () =>
-      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
-
-    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
-      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
-
-    myWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
-
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }),
-  }, // <-- Запятая, если дальше идет verify
-
-  // Раздел verify теперь находится ВНУТРИ объекта api
-  verify: {
-    submit: (data: {
-      full_name: string;
-      doc_type: string;
-      doc_number: string;
-      doc_photo?: string;
-      selfie?: string;
-    }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
-
-    status: () =>
-      req<{
-        id?: string;
-        status: string | null;
-        reject_reason?: string;
-        date?: string;
-        verified?: boolean;
-      }>("verify", "/status"),
-
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
-
-    approve: (id: string) => req("verify", "/approve", "POST", { id }),
-
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  },
-
-  emailVerify: {
-    send: (email: string) => {
-      return req("email-verify", "/send", "POST", { email });
-    },
-    check: (email: string, code: string) => {
-      return req("email-verify", "/check", "POST", { email, code });
-    },
+      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
   },
 
   deals: {
@@ -483,14 +203,7 @@ const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
-  },
 
-  // Предполагаю, что у вас был раздел 'verify' до этого, и он закончился некорректно.
-  // Добавляю его с закрывающей скобкой. Если у вас его нет, просто удалите этот блок.
-  verify: {
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  },
     // Admin
     adminUsers: () =>
       req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
