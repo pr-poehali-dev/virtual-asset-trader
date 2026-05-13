@@ -107,26 +107,28 @@ async function req<T = unknown>(
 
 export const api = {
   auth: {
-    register: (username: string, email: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
-
-    login: (login: string, password: string) =>
-      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
-
-    me: () =>
-      req<{ user: ApiUser }>("auth", "/me"),
-
-    logout: () =>
-      req("auth", "/logout", "POST"),
-  }, // <-- Запятая, если дальше идет products
-
+  },
+  
+  emailVerify: {
+    send: (email: string) =>
+      req("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req("email-verify", "/check", "POST", { email, code }),
+  },
   products: {
-    list: (params?: { category?: string; search?: string; price_max?: string }) => {
-      const qs = params ? "?" + new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v))
-      ).toString() : "";
-      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
-    },
+      list: (params?: { category?: string; search?: string; price_max?: string }) => {
+        const qs = params ? "?" + new URLSearchParams(
+          Object.fromEntries(Object.entries(params).filter(([, v]) => v))
+        ).toString() : "";
+        return req<{ products: ApiProduct[] }>("products", "/products" + qs);
+      }, // Здесь должна быть только запятая
+      create: (data: { title: string; category: string; price: number; description?: string }) =>
+        req<ApiProduct>("products", "/products", "POST", data),
+      boost: (product_id: number) =>
+        req("products", "/products/boost", "POST", { product_id }),
+        
+      // ... остальные методы (delete и т.д.)
+    }, // Закрывает блок products
 
     create: (data: { title: string; category: string; price: number; description?: string }) =>
       req<ApiProduct>("products", "/products", "POST", data),
@@ -144,14 +146,14 @@ export const api = {
       req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
         "products", `/products/seller/${id}`
       ),
-  }, // <-- Запятая, если дальше идет emailVerify
+  },
 
   emailVerify: {
     send: (email: string) =>
       req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
     check: (email: string, code: string) =>
       req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
-  }, // <-- Запятая, если дальше идет deals
+  },
 
   deals: {
     buy: (product_id: number) =>
@@ -168,9 +170,9 @@ export const api = {
 
     resolve: (deal_id: string, refund_buyer: boolean) =>
       req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  }, // <-- Запятая, если дальше идет finance
+  },
 
- finance: {
+  finance: {
     notifications: () =>
       req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
 
@@ -203,106 +205,6 @@ export const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
-
-    // --- ВАЖНО: УДАЛЕНА ЛИШНЯЯ ЗАКРЫВАЮЩАЯ СКОБКА '};' ---
-    // Если adminUsers - это новый раздел API (а не часть finance),
-    // то здесь должна быть запятая, и adminUsers объявляется ПОСЛЕ finance.
-    // Если adminUsers - это часть finance, то он должен быть вложен сюда,
-    // и тогда закрывающая скобка для finance будет ПОСЛЕ adminUsers.
-  }, // <-- Запятая, если дальше идут другие разделы API.
-
-  // --- Вариант 1: adminUsers - это отдельный раздел API ---
-  adminUsers: { // <-- Объявление нового раздела API
-    // Если adminUsers - это отдельный раздел API, то вот его методы:
-    list: () => req<{ users: ApiAdminUser[] }>("admin", "/users"), // Пример пути, если это отдельный раздел
-    updateStatus: (user_id: string, status: string, reason?: string) =>
-      req("admin", "/user/status", "POST", { user_id, status, reason }), // Пример пути
-    // ... другие методы для adminUsers ...
-  }, // <-- Запятая, если дальше идут другие разделы API
-
-  // --- Вариант 2: adminUsers - это метод внутри finance ---
-  // Если adminUsers и adminUserStatus - это методы внутри finance,
-  // то код должен выглядеть так:
-  /*
-  finance: {
-    // ... все предыдущие методы finance ...
-
-    // Метод adminUsers внутри finance
-    adminUsers: () => req<{ users: ApiAdminUser[] }>("finance", "/admin/users"), // Предполагаемый путь
-    adminUserStatus: (user_id: string, status: string, reason?: string) =>
-      req("finance", "/admin/user/status", "POST", { user_id, status, reason }), // Предполагаемый путь
-    // ... другие методы finance ...
-  }, // <-- Закрывающая скобка для finance, если больше нет методов
-  */
-
-
-  // --- Продолжаем с другими разделами API (например, verify) ---
-  verify: { // <-- Если verify идет после adminUsers
-    submit: (data: {
-      full_name: string;
-      doc_type: string;
-      doc_number: string;
-      doc_photo?: string;
-      selfie?: string;
-    }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
-
-    status: () =>
-      req<{
-        id?: string;
-        status: string | null;
-        reject_reason?: string;
-        date?: string;
-        verified?: boolean;
-      }>("verify", "/status"),
-
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
-
-    approve: (id: string) => req("verify", "/approve", "POST", { id }),
-
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }),
-  }, // <-- Нет запятой, если verify - последний раздел
-
-}; // <-- Запятая, если дальше идет verify
-
-  // Добавлен раздел verify, который, как я понял из предыдущих сообщений, вам нужен.
-  // Если он не нужен, просто удалите этот блок.
-  verify: { // <-- Начало объекта verify
-    submit: (data: { // <-- Первый метод в verify
-      full_name: string;
-      doc_type: string;
-      doc_number: string;
-      doc_photo?: string;
-      selfie?: string;
-    }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data), // <-- Завершение метода submit
-
-    // --- ВАЖНО: Запятая между методами ---
-    status: () => // <-- Второй метод в verify
-      req<{
-        id?: string;
-        status: string | null;
-        reject_reason?: string;
-        date?: string;
-        verified?: boolean;
-      }>("verify", "/status"), // <-- Завершение метода status
-
-    // --- Запятая между методами ---
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"), // <-- Завершение метода adminList
-
-    // --- Запятая между методами ---
-    approve: (id: string) => req("verify", "/approve", "POST", { id }), // <-- Завершение метода approve
-
-    // --- Запятая между методами ---
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }), // <-- Завершение последнего метода в verify
-
-  }, // <-- Закрывающая скобка объекта verify. Нет запятой, так как это последний раздел API.
-
-};
 
     // Admin
     adminUsers: () =>
