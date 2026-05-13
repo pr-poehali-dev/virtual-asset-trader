@@ -13,10 +13,10 @@ const URLS = {
   monitor:        "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
 };
 
-// Ключ для хранения токена сессии в localStorage
+// ── Токен сессии ──────────────────────────────────────────────────────────────
+
 const TOKEN_KEY = "gs_session_token";
 
-// Функции для работы с токеном сессии
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -27,15 +27,15 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-// Тип ошибки API для обработки на фронтенде
+// ── Базовый запрос ────────────────────────────────────────────────────────────
+
+// Тип ошибки API — для нормальной обработки во фронтенде
 export type ApiError = { status: number; error?: string; message?: string };
 
-// Проверка, является ли объект ошибкой API
 export function isApiError(e: unknown): e is ApiError {
   return typeof e === "object" && e !== null && "status" in e;
 }
 
-// Получение человекочитаемого сообщения об ошибке API
 export function apiErrorMessage(e: unknown): string {
   if (!isApiError(e)) return "Неизвестная ошибка";
   const err = e as ApiError;
@@ -46,31 +46,31 @@ export function apiErrorMessage(e: unknown): string {
     exists: "Уже существует",
     no_balance: "Недостаточно средств",
     wrong: "Неверный логин или пароль",
+    blocked: "Аккаунт заблокирован",
     frozen: "Аккаунт заморожен",
+    self_buy: "Нельзя купить собственный товар",
+    missing_fields: "Заполните все поля",
+    invalid_data: "Некорректные данные",
     already_pending: "Заявка уже подана",
     already_verified: "Аккаунт уже верифицирован",
     not_buyer: "Отзыв доступен только после покупки",
     owner_protected: "Действие недоступно для владельца",
     wrong_status: "Неверный статус сделки",
-    network_error: "Нет соединения с сервером", // Добавлено для сетевых ошибок
-    parse_error: "Ошибка обработки ответа", // Добавлено для ошибок парсинга
   };
-  // Возвращаем сообщение из карты ошибок, если оно есть, иначе сообщение из объекта ошибки или общий текст
   return map[err.error ?? ""] || err.message || `Ошибка ${err.status}`;
 }
 
-// Базовая функция для выполнения HTTP-запросов к API
 async function req<T = unknown>(
-  base: keyof typeof URLS, // Ключ для выбора базового URL из константы URLS
-  path: string, // Путь к ресурсу API
-  method: "GET" | "POST" = "GET", // HTTP-метод запроса
-  body?: unknown // Тело запроса (для POST)
+  base: keyof typeof URLS,
+  path: string,
+  method: "GET" | "POST" = "GET",
+  body?: unknown
 ): Promise<T> {
-  const token = getToken(); // Получение токена сессии
+  const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["X-Session-Token"] = token; // Добавление токена в заголовок, если он есть
+  if (token) headers["X-Session-Token"] = token;
 
-  // Формирование URL: платформа не маршрутизирует подпути, передаем их как query-параметр _path
+  // Платформа не маршрутизирует подпути — передаём путь как query-параметр
   const [pathOnly, qs2] = path.split("?");
   const finalUrl = URLS[base] + "?_path=" + encodeURIComponent(pathOnly) + (qs2 ? "&" + qs2 : "");
   let res: Response;
@@ -78,149 +78,186 @@ async function req<T = unknown>(
     res = await fetch(finalUrl, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined, // Сериализация тела запроса
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-  } catch (e) {
-    // Обработка сетевых ошибок
-    throw {json(); // Попытка парсинга JSON-ответа
-  } catch (e) {
-    // Обработка ошибок парсинга
+  } catch {
+    throw { status: 0, error: "network_error", message: "Нет соединения с сервером" } as ApiError;
+  }
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
     throw { status: res.status, error: "parse_error", message: "Ошибка обработки ответа" } as ApiError;
   }
 
-  // Если ответ не успешен (статус не 2xx)
   if (!res.ok) {
-    // Отправка ошибки в систему мониторинга, если это не корневой GET-запрос и не из мониторного модуля
     if (base !== "monitor") {
+      // Асинхронно отправляем событие в мониторинг (не блокируем основной поток)
       import("@/lib/errorMonitor").then(({ reportApiError }) => {
-        reportApiError(path, res.status); // Асинхронная отправка отчета
-      }).catch(() => {}); // Игнорируем ошибки при импорте или вызове reportApiError
+        reportApiError(path, res.status);
+      }).catch(() => {});
     }
-    // Возвращаем ошибку с соответствующими данными
     throw { status: res.status, ...(data as object) };
   }
-  // В случае успеха, возвращаем полученные данные, приведенные к типу T
   return data as T;
 }
 
-// Интерфейсы для различных типов данных API (примеры)
-interface ApiProduct {}
-interface ApiSeller {}
-interface ApiReview {}
-interface ApiDeal {}
-interface ApiNotification {}
-interface ApiDepositRequisite {}
-interface ApiActiveDeposit {}
-interface ApiWithdrawal {}
-interface ApiAdminUser {}
-interface ApiDeposit {}
-interface ApiVerification {}
-interface ApiAdminStats {}
+// ── AUTH ──────────────────────────────────────────────────────────────────────
 
-// Экспортируемый объект с методами API
-export const api = {
+const api = {
   auth: {
-    // Методы авторизации (если они есть)
+    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
+    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
+    me: () => req("auth", "/me", "GET"),
+    logout: () => req("auth", "/logout", "POST"),
   },
-
-  // Методы для верификации email
   emailVerify: {
     send: (email: string) =>
-      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }), // Отправка кода подтверждения
+      req("email-verify", "/send", "POST", { email }),
     check: (email: string, code: string) =>
-      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }), // Проверка кода
+      req("email-verify", "/check", "POST", { email, code }),
   },
-
-  // Методы для работы с продуктами
   products: {
-    list: (params?: { category?: string; search?: string; price_max?: string }) => {
-      // Формирование query-параметров для списка продуктов
-      const qs = params ? "?" + new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v)) // Фильтрация пустых значений
-      ).toString() : "";
-      return req<{ products: ApiProduct[] }>("products", "/products" + qs); //), // Создание нового продукта
-    boost: (product_id: number) =>
-      req("products", "/products/boost", "POST", { product_id }), // Повышение продукта в списке
-    delete: (product_id: number) =>
-      req("products", "/products/delete", "POST", { product_id }), // Удаление продукта
-    my: () =>
-      req<{ products: ApiProduct[] }>("products", "/products/my"), // Получение продуктов текущего пользователя
-    seller: (id: string) =>
-      req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
-        "products", `/products/seller/${id}` // Получение информации о продавце и его продуктах
-      ),
+    list: (params?: any) => {
+      const qs = params
+  ? "?" +
+    new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')) // Уточните, какие именно "пустые" значения нужно фильтровать
+    ).toString()
+  : "";
+    // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
+    create: (data: { title: string; category: string; price: number; description?: string }) => { // <-- Используем более строгий тип данных
+      return req<ApiProduct>("products", "/products", "POST", data);
+    },
+    boost: (product_id: number) => { // <-- Используем product_id как в вашем последнем фрагменте
+      return req("products", "/products/boost", "POST", { product_id });
+    },
+    delete: (id: number) => { // <-- Используем id как в вашем первом фрагменте, а не product_id
+      return req("products", `/products/${id}`, "DELETE");
+    },
+    my: () => {
+      return req<{ products: ApiProduct[] }>("products", "/products/my");
+    },
+    seller: (id: string) => {
+      return req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
+        "products", `/products/seller/${id}`
+      );
+    },
+    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
+  },
+};
+
+  emailVerify: {
+    send: (email: string) =>
+      req("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req("email-verify", "/check", "POST", { email, code }),
   },
 
-  // Методы для работы со сделками
   deals: {
     buy: (product_id: number) =>
-      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }), // Покупка продукта
+      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
+
     list: () =>
-      req<{ deals: ApiDeal[] }>("deals", "/deals"), // Получение списка сделок
+      req<{ deals: ApiDeal[] }>("deals", "/deals"),
+
     dispute: (deal_id: string) =>
-      req("deals", "/deals/dispute", "POST", { deal_id }), // Открытие спора по сделке
+      req("deals", "/deals/dispute", "POST", { deal_id }),
+
     message: (deal_id: string, text: string) =>
-      req("deals", "/deals/message", "POST", { deal_id, text }), // Отправка сообщения по сделке
+      req("deals", "/deals/message", "POST", { deal_id, text }),
+
     resolve: (deal_id: string, refund_buyer: boolean) =>
-      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }), // Разрешение спора
+      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
   },
 
-  // Методы для работы с финансами
   finance: {
     notifications: () =>
-      req<{ notifications: ApiNotification[] }>("finance", "/notifications"), // Получение уведомлений
-    markRead: (id: string) =>
-      req("finance", "/notifications/read", "POST", { id }), // Пометить уведомление как прочитанное
-    maintenance: () =>
-      req<{ maintenance: boolean }>("finance", "/maintenance"), // Проверка статуса обслуживания
-    setMaintenance: (enabled: boolean) =>
-      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }), // Включение/выключение обслуживания (админ)
-    deposit: (amount: number, currency: string) =>
-      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }), // Создание заявки на пополнение
-    depositPaid: (dep_id: string) =>
-      req("finance", "/deposit/paid", "POST", { dep_id }), // Отметить пополнение как оплаченное
-    depositCancel: (dep_id: string) =>
-      req("finance", "/deposit/cancel", "POST", { dep_id }), // Отмена заявки на пополнение_type: string; requisite_details: string; commission?: number }) =>
-      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data), // Создание заявки на вывод средств
-    myWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"), // Получение истории выводов средств
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }), // Оставить отзыв
+      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
 
-    // Админские методы финансов
+    markRead: (id: string) =>
+      req("finance", "/notifications/read", "POST", { id }),
+
+    maintenance: () =>
+      req<{ maintenance: boolean }>("finance", "/maintenance"),
+
+    setMaintenance: (enabled: boolean) =>
+      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
+
+    deposit: (amount: number, currency: string) =>
+      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
+
+    depositPaid: (dep_id: string) =>
+      req("finance", "/deposit/paid", "POST", { dep_id }),
+
+    depositCancel: (dep_id: string) =>
+      req("finance", "/deposit/cancel", "POST", { dep_id }),
+
+    depositActive: () =>
+      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
+
+    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
+      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
+
+    myWithdrawals: () =>
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
+
+    review: (seller_id: string, rating: number, text: string) =>
+      req("finance", "/review", "POST", { seller_id, rating, text }),
+
+    // Admin
     adminUsers: () =>
-      req<{ users: ApiAdminUser[] }>("finance", "/admin/users"), // Список пользователей (админ)
+      req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
+
     adminUserStatus: (user_id: string, status: string, reason?: string) =>
-      req("finance", "/user-status", "POST", { user_id, status, reason }), // Изменение статуса пользователя (админ)
+      req("finance", "/user-status", "POST", { user_id, status, reason }),
+
     adminDeposits: () =>
-      req<{ deposits: ApiDeposit[] }>("finance", "/deposits"), // Список пополнений (админ)
+      req<{ deposits: ApiDeposit[] }>("finance", "/deposits"),
+
     confirmDeposit: (id: string) =>
-      req("finance", "/deposits/confirm", "POST", { id }), // Подтвердить пополнение (админ)
+      req("finance", "/deposits/confirm", "POST", { id }),
+
     rejectDeposit: (id: string) =>
-      req("finance", "/deposits/reject", "POST", { id }), // Отклонить пополнение (админ)
+      req("finance", "/deposits/reject", "POST", { id }),
+
     adminWithdrawals: () =>
-      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/admin/withdrawals"), // Список выводов средств (админ)
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/admin/withdrawals"),
+
     updateWithdrawalStatus: (id: string, status: string) =>
-      req("finance", "/withdrawal-status", "POST", {; doc_number: string; doc_photo?: string; selfie?: string }) =>
-      req<{ id: string; status: string }>("verify", "/submit", "POST", data), // Отправка данных для верификации
-    status: () =>
-      req<{ id?: string; status: string | null; reject_reason?: string; date?: string; verified?: boolean }>("verify", "/status"), // Получение статуса верификации
-    adminList: () =>
-      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"), // Список заявок на верификацию (админ)
-    approve: (id: string) =>
-      req("verify", "/approve", "POST", { id }), // Одобрить верификацию (админ)
-    reject: (id: string, reason: string) =>
-      req("verify", "/reject", "POST", { id, reason }), // Отклонить верификацию (админ)
+      req("finance", "/withdrawal-status", "POST", { id, status }),
   },
 
-  // Расширенные админские методы
+  verify: {
+    submit: (data: { full_name: string; doc_type: string; doc_number: string; doc_photo?: string; selfie?: string }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{ id?: string; status: string | null; reject_reason?: string; date?: string; verified?: boolean }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) =>
+      req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  },
+
+  // ── Расширенные admin-методы ─────────────────────────────────────────────
+
   adminExtra: {
     stats: () =>
-      req<ApiAdminStats>("finance", "/admin/stats"), // Статистика (админ)
+      req<ApiAdminStats>("finance", "/admin/stats"),
+
     staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
-      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }), // Управление правами персонала (админ)
+      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }),
+
     arbiter: (deal_id: string, arbiter_id: string) =>
       req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
+
     // Реквизиты пополнения (пул платформы)
     getDepositRequisites: () =>
       req<{ requisites: ApiDepositRequisite[] }>("finance", "/admin/deposit-requisites"),
