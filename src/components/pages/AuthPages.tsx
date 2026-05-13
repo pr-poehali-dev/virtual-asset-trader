@@ -73,85 +73,8 @@ export function FrozenPage({
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 
-const VK_APP_ID = 54583876;
-
-function VKIDWidget({ onError }: { onError: (msg: string) => void }) {
-  const { loginWithVK } = useAuth();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    import("@vkid/sdk").then((mod) => {
-      const VKID = mod.default ?? mod;
-
-      VKID.Config.init({
-        app: VK_APP_ID,
-        redirectUrl: `${window.location.origin}/auth/vk/callback`,
-        responseMode: VKID.ConfigResponseMode.Callback,
-        source: VKID.ConfigSource.LOWCODE,
-        scope: "email",
-      });
-
-      const oneTap = new VKID.OneTap();
-
-      oneTap
-        .render({
-          container: containerRef.current!,
-          showAlternativeLogin: true,
-          styles: { borderRadius: 10 },
-        })
-        .on(VKID.WidgetEvents.ERROR, () => onError("Ошибка VK ID"))
-        .on(
-          VKID.OneTapInternalEvents.LOGIN_SUCCESS,
-          async (payload: { code: string; device_id: string }) => {
-            try {
-              const result = await VKID.Auth.exchangeCode(
-                payload.code,
-                payload.device_id,
-              );
-              const data = {
-                access_token: result.access_token ?? "",
-                user_id: String(result.user_id ?? ""),
-                email: result.email ?? "",
-                first_name: result.first_name ?? "",
-                last_name: result.last_name ?? "",
-              };
-              const res = await loginWithVK(data);
-              if (res === "blocked") onError("Аккаунт заблокирован");
-              if (res === "error") onError("Ошибка входа через ВКонтакте");
-            } catch {
-              onError("Ошибка входа через ВКонтакте");
-            }
-          },
-        );
-    });
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      <div className="relative flex items-center gap-3 my-1">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground">или войти через</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-      <div ref={containerRef} />
-    </div>
-  );
-}
-
 export function LoginPage({
   onRegister,
-  onFrozen,
-}: {
-  onRegister: () => void;
-  onFrozen: (reason?: string) => void;
-}) {
-  const { login, users } = useAuth();
-  const [loginValue, setLoginValue] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
   const handleLogin = () => {
     if (!loginValue || !password) {
       setError("Заполните все поля");
@@ -235,8 +158,6 @@ export function LoginPage({
               Войти
             </Button>
 
-            <VKIDWidget onError={setError} />
-
             <p className="text-center text-xs text-muted-foreground">
               Нет аккаунта?{" "}
               <button
@@ -277,24 +198,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
     return () => clearInterval(t);
   }, [resendTimer]);
 
-  const handleSendCode = async () => {
-    setError("");
-    if (!username.trim() || !email.trim() || !password || !password2) {
-      setError("Заполните все поля");
-      return;
-    }
-    if (password !== password2) {
-      setError("Пароли не совпадают");
-      return;
-    }
-    if (password.length < 6) {
-      setError("Пароль не менее 6 символов");
-      return;
-    }
-    if (!email.includes("@")) {
-      setError("Введите корректный email");
-      return;
-    }
+  
     setSending(true);
     try {
       await api.emailVerify.send(email.trim().toLowerCase());
@@ -330,32 +234,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
         setRegistering(false);
         return;
       }
-      const result = register(username, email, password);
-      if (result === "exists") {
-        setError("Никнейм или email уже занят");
-      }
-    } catch {
-      setError("Неверный или просроченный код");
-    }
-    setRegistering(false);
-  };
-
-  const handleResend = async () => {
-    if (resendTimer > 0) return;
-    setSending(true);
-    try {
-      await api.emailVerify.send(email.trim().toLowerCase());
-      setResendTimer(60);
-      setError("");
-    } catch {
-      setError("Ошибка повторной отправки");
-    }
-    setSending(false);
-  };
-
-  return (
     <div className="min-h-[70vh] flex items-center justify-center animate-fade-in px-4">
-      <div className="w-full max-w-sm">
         <div className="bg-surface border border-border rounded-2xl p-8">
           <div className="text-center mb-7">
             <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-4">
@@ -523,9 +402,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                   disabled={resendTimer > 0 || sending}
                   className={`font-semibold ${resendTimer > 0 ? "text-muted-foreground" : "text-gold hover:underline"}`}
                 >
-                  {resendTimer > 0
-                    ? `Повторно через ${resendTimer}с`
-                    : "Отправить снова"}
+                  {resendTimer > 0 
                 </button>
               </div>
             </div>
@@ -576,7 +453,6 @@ function DepositTab() {
         }
         if (deposit.status === "pending") {
           setPhase("processing");
-          setDepId(deposit.id);
           setAmount(String(deposit.amount));
           setCurrency(deposit.currency);
         }
