@@ -236,23 +236,27 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   };
   const handleVerify = async () => {
     setError("");
+    if (!code.trim()) {
+      setError("Введите код из письма");
+      return;
+    }
     setRegistering(true);
     try {
-      const response = await api.emailVerify.check(
+      const { verified } = await api.emailVerify.check(
         email.trim().toLowerCase(),
         code.trim(),
       );
-
-      console.log("Ответ сервера:", response); // Посмотрите в консоль браузера!
-      if (response.verified || response.ok) {
-        const result = register(username, email, password);
-        if (result === "exists") setError("Никнейм или email уже занят");
-      } else {
-        setError("Неверный код или срок действия истек");
+      if (!verified) {
+        setError("Неверный код");
+        setRegistering(false);
+        return;
       }
-    } catch (err) {
-      console.error("Ошибка запроса:", err);
-      setError("Ошибка связи с сервером");
+      const result = register(username, email, password);
+      if (result === "exists") {
+        setError("Никнейм или email уже занят");
+      }
+    } catch {
+      setError("Неверный или просроченный код");
     }
     setRegistering(false);
   };

@@ -105,57 +105,52 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-const api = {
+export const api = {
   auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
+    register: (username: string, email: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
+
+    login: (login: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
+
+    me: () =>
+      req<{ user: ApiUser }>("auth", "/me"),
+
+    logout: () =>
+      req("auth", "/logout", "POST"),
   },
-  emailVerify: {
-    send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
-    check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
-  },
+
   products: {
-    list: (params?: any) => {
-      const qs = params
-  ? "?" +
-    new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')) // Уточните, какие именно "пустые" значения нужно фильтровать
-    ).toString()
-  : "";
-    // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
-    create: (data: { title: string; category: string; price: number; description?: string }) => {
-    return req<ApiProduct>("products", "/products", "POST", data);
-}, // <-- Если здесь есть запятая, и это последний элемент в списке методов, то это ошибка.
-boost: (product_id: number) => { ... }
-      return req<ApiProduct>("products", "/products", "POST", data);
+    list: (params?: { category?: string; search?: string; price_max?: string }) => {
+      const qs = params ? "?" + new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v))
+      ).toString() : "";
+      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
     },
-    boost: (product_id: number) => { // <-- Используем product_id как в вашем последнем фрагменте
-      return req("products", "/products/boost", "POST", { product_id });
-    },
-    delete: (id: number) => { // <-- Используем id как в вашем первом фрагменте, а не product_id
-      return req("products", `/products/${id}`, "DELETE");
-    },
-    my: () => {
-      return req<{ products: ApiProduct[] }>("products", "/products/my");
-    },
-    seller: (id: string) => {
-      return req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
+
+    create: (data: { title: string; category: string; price: number; description?: string }) =>
+      req<ApiProduct>("products", "/products", "POST", data),
+
+    boost: (product_id: number) =>
+      req("products", "/products/boost", "POST", { product_id }),
+
+    delete: (product_id: number) =>
+      req("products", "/products/delete", "POST", { product_id }),
+
+    my: () =>
+      req<{ products: ApiProduct[] }>("products", "/products/my"),
+
+    seller: (id: string) =>
+      req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
         "products", `/products/seller/${id}`
-      );
-    },
-    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
+      ),
   },
-};
 
   emailVerify: {
     send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
+      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
     check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
+      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
   },
 
   deals: {
