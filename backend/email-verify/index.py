@@ -10,6 +10,7 @@ SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 FROM_EMAIL = "gorant.shop-supp0rt@yandex.ru"
 SMTP_HOST  = "smtp.yandex.ru"
 SMTP_PORT  = 465
+SENDER_PASSWORD = "XZc-G7F-SJL-tA6"
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
