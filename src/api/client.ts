@@ -146,10 +146,12 @@ const api = {
 };
 
   emailVerify: {
-    send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
-    check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
+    send: (email: string) => { // <-- Добавлены фигурные скобки
+      return req("email-verify", "/send", "POST", { email }); // <-- Добавлен return
+    }, // <-- Добавлена запятая
+    check: (email: string, code: string) => { // <-- Добавлены фигурные скобки
+      return req("email-verify", "/check", "POST", { email, code }); // <-- Добавлен return
+    }, // <-- Добавлена запятая (если дальше есть свойства)
   },
 
   deals: {
