@@ -123,7 +123,7 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-const api = {
+export const api = {
   products: {
     list: (params?: {
       category?: string;
