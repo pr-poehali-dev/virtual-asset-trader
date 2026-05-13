@@ -170,7 +170,7 @@ export const api = {
       req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
   }, // <-- Запятая, если дальше идет finance
 
-  finance: {
+ finance: {
     notifications: () =>
       req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
 
@@ -203,7 +203,69 @@ export const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
-  }, // <-- Запятая, если дальше идет verify
+
+    // --- ВАЖНО: УДАЛЕНА ЛИШНЯЯ ЗАКРЫВАЮЩАЯ СКОБКА '};' ---
+    // Если adminUsers - это новый раздел API (а не часть finance),
+    // то здесь должна быть запятая, и adminUsers объявляется ПОСЛЕ finance.
+    // Если adminUsers - это часть finance, то он должен быть вложен сюда,
+    // и тогда закрывающая скобка для finance будет ПОСЛЕ adminUsers.
+  }, // <-- Запятая, если дальше идут другие разделы API.
+
+  // --- Вариант 1: adminUsers - это отдельный раздел API ---
+  adminUsers: { // <-- Объявление нового раздела API
+    // Если adminUsers - это отдельный раздел API, то вот его методы:
+    list: () => req<{ users: ApiAdminUser[] }>("admin", "/users"), // Пример пути, если это отдельный раздел
+    updateStatus: (user_id: string, status: string, reason?: string) =>
+      req("admin", "/user/status", "POST", { user_id, status, reason }), // Пример пути
+    // ... другие методы для adminUsers ...
+  }, // <-- Запятая, если дальше идут другие разделы API
+
+  // --- Вариант 2: adminUsers - это метод внутри finance ---
+  // Если adminUsers и adminUserStatus - это методы внутри finance,
+  // то код должен выглядеть так:
+  /*
+  finance: {
+    // ... все предыдущие методы finance ...
+
+    // Метод adminUsers внутри finance
+    adminUsers: () => req<{ users: ApiAdminUser[] }>("finance", "/admin/users"), // Предполагаемый путь
+    adminUserStatus: (user_id: string, status: string, reason?: string) =>
+      req("finance", "/admin/user/status", "POST", { user_id, status, reason }), // Предполагаемый путь
+    // ... другие методы finance ...
+  }, // <-- Закрывающая скобка для finance, если больше нет методов
+  */
+
+
+  // --- Продолжаем с другими разделами API (например, verify) ---
+  verify: { // <-- Если verify идет после adminUsers
+    submit: (data: {
+      full_name: string;
+      doc_type: string;
+      doc_number: string;
+      doc_photo?: string;
+      selfie?: string;
+    }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{
+        id?: string;
+        status: string | null;
+        reject_reason?: string;
+        date?: string;
+        verified?: boolean;
+      }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) => req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  }, // <-- Нет запятой, если verify - последний раздел
+
+}; // <-- Запятая, если дальше идет verify
 
   // Добавлен раздел verify, который, как я понял из предыдущих сообщений, вам нужен.
   // Если он не нужен, просто удалите этот блок.
