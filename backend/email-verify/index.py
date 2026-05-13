@@ -58,13 +58,11 @@ def send_email(to: str, code: str):
     Отправляет email с кодом подтверждения на указанный адрес.
     Использует SMTP-сервер Yandex.
     """
-    # Создание многокомпонентного сообщения (для HTML и обычного текста)
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Код подтверждения — Gorant Shop"  # Тема письма
-    msg["From"] = FROM_EMAIL  # Адрес отправителя
-    msg["To"] = to  # Адрес получателя
+    msg["Subject"] = "Код подтверждения — Gorant Shop"
+    msg["From"] = FROM_EMAIL
+    msg["To"] = to
 
-    # HTML-шаблон письма с кодом подтверждения
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#0e0e0e;padding:40px;border-radius:12px;max-width:480px;margin:auto">
       <h2 style="color:#c9a227;font-size:22px;margin-bottom:8px">Gorant Shop</h2>
@@ -77,19 +75,15 @@ def send_email(to: str, code: str):
       <p style="color:#666;font-size:12px">Если вы не регистрировались на Gorant Shop — просто проигнорируйте это письмо.</p>
     </div>
     """
-    # Прикрепление HTML-части к сообщению
     msg.attach(MIMEText(html, "html"))
 
     try:
-        # Подключение к SMTP-серверу Yandex по SSL
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            # Авторизация на сервере с использованием логина и пароля
+            # Используем переменную SENDER_PASSWORD, полученную из переменной окружения
             server.login(FROM_EMAIL, SENDER_PASSWORD)
-            # Отправка письма
             server.sendmail(FROM_EMAIL, to, msg.as_string())
         print(f"Email sent successfully to {to}")
     except Exception as e:
-        # Обработка ошибок при отправке email
         print(f"Error sending email to {to}: {e}")
         raise  # Перебрасываем исключение для дальнейшей обработки
 
