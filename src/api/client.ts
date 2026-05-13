@@ -241,14 +241,35 @@ const api = {
 
   // <-- Запятая после finance, чтобы отделить его от adminExtra
 
-  adminExtra: { // <-- Новое свойство
+  const api = {
+  auth: {
+    // ... (ваш код для auth)
+  }, // <-- Запятая
+
+  emailVerify: {
+    // ... (ваш код для emailVerify)
+  }, // <-- Запятая
+
+  products: {
+    // ... (ваш код для products)
+  }, // <-- Запятая
+
+  deals: {
+    // ... (ваш код для deals)
+  }, // <-- Запятая
+
+  finance: {
+    // ... (ваш код для finance, который не связан с администрированием)
+    // Например: notifications, markRead, maintenance, setMaintenance, deposit, depositPaid, depositCancel, depositActive, withdraw, myWithdrawals, review
+  }, // <-- Запятая
+
+  // Новый раздел для административных финансовых функций
+  adminFinance: {
+    // Методы из adminExtra
     stats: () =>
-        req<ApiAdminStats>("finance", "/admin/stats"),
-
+      req<ApiAdminStats>("finance", "/admin/stats"),
     staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
-          req("finance", "/admin/staff", "POST", { user_id, action, permissions }),
-  }, // <-- Запятая после adminExtra, если дальше есть свойства (например, verify)
-
+      req("finance", "/admin/staff", "POST", { user_id, action, permissions }),
 
     // Реквизиты пополнения (пул платформы)
     getDepositRequisites: () =>
@@ -271,7 +292,12 @@ const api = {
       req<{ partners: ApiPartner[] }>("finance", "/admin/partners"),
     togglePartner: (id: string) =>
       req("finance", "/admin/partner-toggle", "POST", { id }),
-  },
+  }, // <-- Запятая после adminFinance, если verify следует за ним
+
+  verify: {
+    // ... (ваш код для verify)
+  }, // <-- Нет запятой после последнего свойства verify
+};
 
   // Реквизиты вывода (личные)
   withdrawalRequisites: {
