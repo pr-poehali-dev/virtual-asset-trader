@@ -107,19 +107,13 @@ async function req<T = unknown>(
 
 export const api = {
   auth: {
-  
   },
+  
   emailVerify: {
-    send: (email: string) => 
-      req<{ ok: boolean }>("emailVerify", "/send", {
-        method: "POST",
-        body: JSON.stringify({ email }),
-      }),
-    check: (email: string, code: string) => 
-      req<{ verified: boolean; ok: boolean }>("emailVerify", "/check", {
-        method: "POST",
-        body: JSON.stringify({ email, code }),
-      }),
+    send: (email: string) =>
+      req("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req("email-verify", "/check", "POST", { email, code }),
   },
   products: {
       list: (params?: { category?: string; search?: string; price_max?: string }) => {
