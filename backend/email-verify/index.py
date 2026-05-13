@@ -155,6 +155,14 @@ def handler(event: dict, context) -> dict:
             )
             verification_record = cur.fetchone()
 
+            # --- ОТЛАДОЧНЫЙ ВЫВОД ДОБАВЛЕН СЮДА ---
+            if verification_record:
+                verification_id, expires_at = verification_record
+                print(f"Verification record found: ID={verification_id}, Expires at={expires_at}")
+            else:
+                print("No verification record found for the given email and code.")
+            # --- КОНЕЦ ОТЛАДОЧНОГО ВЫВОДА ---
+
             if not verification_record:
                 return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "invalid_code"})}
 
@@ -187,10 +195,3 @@ def handler(event: dict, context) -> dict:
     finally:
         if conn:
             conn.close()
-
-            print(f"Verification record found: {verification_record}")
-if verification_record:
-    verification_id, expires_at = verification_record
-    print(f"Verification ID: {verification_id}, Expires at: {expires_at}")
-else:
-    print("No verification record found for the given email and code.")
