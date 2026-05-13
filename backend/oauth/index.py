@@ -18,8 +18,6 @@ CORS = {
 
 GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-VK_CLIENT_ID         = os.environ.get("VK_CLIENT_ID", "")
-VK_CLIENT_SECRET     = os.environ.get("VK_CLIENT_SECRET", "")
 
 
 def get_conn():
@@ -197,48 +195,6 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         try:
             user  = find_or_create_user(conn, "google", provider_id, email, name)
-            if user.get("status") == "blocked":
-                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "blocked", "reason": user.get("block_reason")})}
-            token = make_token()
-            cur   = conn.cursor()
-            cur.execute(f"INSERT INTO {SCHEMA}.sessions (token, user_id) VALUES (%s,%s)", (token, user["id"]))
-            conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"token": token, "user": user})}
-        finally:
-            conn.close()
-
-    # ── POST /oauth/vk  (VKID SDK — access_token передаётся с фронтенда) ────────
-    if path.endswith("/vk"):
-        # VKID SDK передаёт access_token + user_id + email напрямую
-        access_token = body.get("access_token", "")
-        vk_user_id   = str(body.get("user_id", ""))
-        email        = body.get("email", "")
-        first_name   = body.get("first_name", "")
-        last_name    = body.get("last_name", "")
-        name         = f"{first_name} {last_name}".strip()
-
-        if not vk_user_id:
-            return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_user_id"})}
-
-        # Верифицируем токен через VK API
-        if access_token:
-            try:
-                verify = http_get(
-                    f"https://api.vk.com/method/users.get"
-                    f"?user_ids={vk_user_id}&fields=first_name,last_name"
-                    f"&access_token={access_token}&v=5.131"
-                )
-                vk_profile = verify.get("response", [{}])[0]
-                if str(vk_profile.get("id", "")) != vk_user_id:
-                    return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "token_mismatch"})}
-                if not name:
-                    name = f"{vk_profile.get('first_name','')} {vk_profile.get('last_name','')}".strip()
-            except Exception as e:
-                return {"statusCode": 502, "headers": CORS, "body": json.dumps({"error": "vk_verify_failed", "detail": str(e)})}
-
-        conn = get_conn()
-        try:
-            user  = find_or_create_user(conn, "vk", vk_user_id, email, name)
             if user.get("status") == "blocked":
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "blocked", "reason": user.get("block_reason")})}
             token = make_token()
