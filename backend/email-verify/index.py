@@ -79,13 +79,12 @@ def send_email(to: str, code: str):
 
     try:
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            # Используем переменную SENDER_PASSWORD, полученную из переменной окружения
             server.login(FROM_EMAIL, SENDER_PASSWORD)
             server.sendmail(FROM_EMAIL, to, msg.as_string())
         print(f"Email sent successfully to {to}")
     except Exception as e:
         print(f"Error sending email to {to}: {e}")
-        raise  # Перебрасываем исключение для дальнейшей обработки
+        raise  
 
 # --- Основная функция обработчика запросов ---
 def handler(event: dict, context) -> dict:
