@@ -118,7 +118,7 @@ export const api = {
 
     logout: () =>
       req("auth", "/logout", "POST"),
-  },
+  }, // <-- Запятая, если дальше идет products
 
   products: {
     list: (params?: { category?: string; search?: string; price_max?: string }) => {
@@ -144,14 +144,14 @@ export const api = {
       req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
         "products", `/products/seller/${id}`
       ),
-  },
+  }, // <-- Запятая, если дальше идет emailVerify
 
   emailVerify: {
     send: (email: string) =>
       req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
     check: (email: string, code: string) =>
       req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
-  },
+  }, // <-- Запятая, если дальше идет deals
 
   deals: {
     buy: (product_id: number) =>
@@ -168,7 +168,7 @@ export const api = {
 
     resolve: (deal_id: string, refund_buyer: boolean) =>
       req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  },
+  }, // <-- Запятая, если дальше идет finance
 
   finance: {
     notifications: () =>
@@ -203,6 +203,39 @@ export const api = {
 
     review: (seller_id: string, rating: number, text: string) =>
       req("finance", "/review", "POST", { seller_id, rating, text }),
+  }, // <-- Запятая, если дальше идет verify
+
+  // Добавлен раздел verify, который, как я понял из предыдущих сообщений, вам нужен.
+  // Если он не нужен, просто удалите этот блок.
+  verify: {
+    submit: (data: {
+      full_name: string;
+      doc_type: string;
+      doc_number: string;
+      doc_photo?: string;
+      selfie?: string;
+    }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{
+        id?: string;
+        status: string | null;
+        reject_reason?: string;
+        date?: string;
+        verified?: boolean;
+      }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) => req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  }, // <-- Нет запятой, если verify - последний раздел
+
+};
 
     // Admin
     adminUsers: () =>
