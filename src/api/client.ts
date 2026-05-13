@@ -239,15 +239,16 @@ const api = {
 
   // ── Расширенные admin-методы ─────────────────────────────────────────────
 
-  adminExtra: {
+  // <-- Запятая после finance, чтобы отделить его от adminExtra
+
+  adminExtra: { // <-- Новое свойство
     stats: () =>
-      req<ApiAdminStats>("finance", "/admin/stats"),
+        req<ApiAdminStats>("finance", "/admin/stats"),
 
     staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
-      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }),
+          req("finance", "/admin/staff", "POST", { user_id, action, permissions }),
+  }, // <-- Запятая после adminExtra, если дальше есть свойства (например, verify)
 
-    arbiter: (deal_id: string, arbiter_id: string) =>
-      req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
 
     // Реквизиты пополнения (пул платформы)
     getDepositRequisites: () =>
