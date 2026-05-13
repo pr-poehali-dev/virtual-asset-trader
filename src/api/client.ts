@@ -111,26 +111,28 @@ const api = {
     register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
     me: () => req("auth", "/me", "GET"),
     logout: () => req("auth", "/logout", "POST"),
-  },
+  }, // <-- ЗАПЯТАЯ ДОЛЖНА БЫТЬ ЗДЕСЬ!
+
   emailVerify: {
-    send: (email: string) =>
-      req("email-verify", "/send", "POST", { email }),
-    check: (email: string, code: string) =>
-      req("email-verify", "/check", "POST", { email, code }),
-  },
+    send: (email: string) => {
+      return req("email-verify", "/send", "POST", { email });
+    },
+    check: (email: string, code: string) => {
+      return req("email-verify", "/check", "POST", { email, code });
+    },
+  }, // <-- Запятая здесь, если products следует за emailVerify
   products: {
     list: (params?: any) => {
       const qs = params ? "?" + new URLSearchParams(params).toString() : "";
       return req("products", "/products" + qs, "GET");
     },
-    // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
-    create: (data: { title: string; category: string; price: number; description?: string }) => { // <-- Используем более строгий тип данных
+    create: (data: { title: string; category: string; price: number; description?: string }) => {
       return req<ApiProduct>("products", "/products", "POST", data);
     },
-    boost: (product_id: number) => { // <-- Используем product_id как в вашем последнем фрагменте
+    boost: (product_id: number) => {
       return req("products", "/products/boost", "POST", { product_id });
     },
-    delete: (id: number) => { // <-- Используем id как в вашем первом фрагменте, а не product_id
+    delete: (id: number) => {
       return req("products", `/products/${id}`, "DELETE");
     },
     my: () => {
@@ -141,7 +143,6 @@ const api = {
         "products", `/products/seller/${id}`
       );
     },
-    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
   },
 };
 
