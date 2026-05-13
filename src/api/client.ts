@@ -105,16 +105,272 @@ async function req<T = unknown>(
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-const api = {
-  auth: { ... },
-  emailVerify: {
-    send: (email) => { ... },
-    check: (email, code) => { ... }
-  }, // запятая между блоками
+export const api = {
+  auth: {
+    register: (username: string, email: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/register", "POST", { username, email, password }),
+
+    login: (login: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
+
+    me: () =>
+      req<{ user: ApiUser }>("auth", "/me"),
+
+    logout: () =>
+      req("auth", "/logout", "POST"),
+  },
+
   products: {
-    list: (params) => { ... }
-  }
+    list: (params?: { category?: string; search?: string; price_max?: string }) => {
+      const qs = params ? "?" + new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v))
+      ).toString() : "";
+      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
+    },
+
+    create: (data: { title: string; category: string; price: number; description?: string }) =>
+      req<ApiProduct>("products", "/products", "POST", data),
+
+    boost: (product_id: number) =>
+      req("products", "/products/boost", "POST", { product_id }),
+
+    delete: (product_id: number) =>
+      req("products", "/products/delete", "POST", { product_id }),
+
+    my: () =>
+      req<{ products: ApiProduct[] }>("products", "/products/my"),
+
+    seller: (id: string) =>
+      req<{ seller: ApiSeller; products: ApiProduct[]; reviews: ApiReview[]; avgRating: number }>(
+        "products", `/products/seller/${id}`
+      ),
+  },
+
+  emailVerify: {
+    send: (email: string) =>
+      req<{ ok: boolean }>("email-verify", "/send", "POST", { email }),
+    check: (email: string, code: string) =>
+      req<{ ok: boolean; verified: boolean }>("email-verify", "/check", "POST", { email, code }),
+  },
+
+  deals: {
+    buy: (product_id: number) =>
+      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
+
+    list: () =>
+      req<{ deals: ApiDeal[] }>("deals", "/deals"),
+
+    dispute: (deal_id: string) =>
+      req("deals", "/deals/dispute", "POST", { deal_id }),
+
+    message: (deal_id: string, text: string) =>
+      req("deals", "/deals/message", "POST", { deal_id, text }),
+
+    resolve: (deal_id: string, refund_buyer: boolean) =>
+      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
+  },
+
+  finance: {
+    notifications: () =>
+      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
+
+    markRead: (id: string) =>
+      req("finance", "/notifications/read", "POST", { id }),
+
+    maintenance: () =>
+      req<{ maintenance: boolean }>("finance", "/maintenance"),
+
+    setMaintenance: (enabled: boolean) =>
+      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
+
+    deposit: (amount: number, currency: string) =>
+      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
+
+    depositPaid: (dep_id: string) =>
+      req("finance", "/deposit/paid", "POST", { dep_id }),
+
+    depositCancel: (dep_id: string) =>
+      req("finance", "/deposit/cancel", "POST", { dep_id }),
+
+    depositActive: () =>
+      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
+
+    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
+      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
+
+    myWithdrawals: () =>
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
+
+    review: (seller_id: string, rating: number, text: string) =>
+      req("finance", "/review", "POST", { seller_id, rating, text }),
+
+    // Admin
+    adminUsers: () =>
+      req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
+
+    adminUserStatus: (user_id: string, status: string, reason?: string) =>
+      req("finance", "/user-status", "POST", { user_id, status, reason }),
+
+    adminDeposits: () =>
+      req<{ deposits: ApiDeposit[] }>("finance", "/deposits"),
+
+    confirmDeposit: (id: string) =>
+      req("finance", "/deposits/confirm", "POST", { id }),
+
+    rejectDeposit: (id: string) =>
+      req("finance", "/deposits/reject", "POST", { id }),
+
+    adminWithdrawals: () =>
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/admin/withdrawals"),
+
+    updateWithdrawalStatus: (id: string, status: string) =>
+      req("finance", "/withdrawal-status", "POST", { id, status }),
+  },
+
+  verify: {
+    submit: (data: { full_name: string; doc_type: string; doc_number: string; doc_photo?: string; selfie?: string }) =>
+      req<{ id: string; status: string }>("verify", "/submit", "POST", data),
+
+    status: () =>
+      req<{ id?: string; status: string | null; reject_reason?: string; date?: string; verified?: boolean }>("verify", "/status"),
+
+    adminList: () =>
+      req<{ verifications: ApiVerification[] }>("verify", "/admin/list"),
+
+    approve: (id: string) =>
+      req("verify", "/approve", "POST", { id }),
+
+    reject: (id: string, reason: string) =>
+      req("verify", "/reject", "POST", { id, reason }),
+  },
+
+  // ── Расширенные admin-методы ─────────────────────────────────────────────
+
+  adminExtra: {
+    stats: () =>
+      req<ApiAdminStats>("finance", "/admin/stats"),
+
+    staff: (user_id: string, action: "add" | "remove" | "update", permissions?: string[]) =>
+      req("finance", "/admin/staff", "POST", { user_id, action, permissions: permissions ?? [] }),
+
+    arbiter: (deal_id: string, arbiter_id: string) =>
+      req("finance", "/admin/arbiter", "POST", { deal_id, arbiter_id }),
+
+    // Реквизиты пополнения (пул платформы)
+    getDepositRequisites: () =>
+      req<{ requisites: ApiDepositRequisite[] }>("finance", "/admin/deposit-requisites"),
+    addDepositRequisite: (data: { name: string; type: string; details: string; bank?: string; currency: string }) =>
+      req("finance", "/admin/deposit-requisites/add", "POST", data),
+    toggleDepositRequisite: (id: string) =>
+      req("finance", "/admin/deposit-requisites/toggle", "POST", { id }),
+    deleteDepositRequisite: (id: string) =>
+      req("finance", "/admin/deposit-requisites/delete", "POST", { id }),
+
+    // Партнёры
+    getPartnerApplications: () =>
+      req<{ applications: ApiPartnerApplication[] }>("finance", "/admin/partner-applications"),
+    approvePartner: (id: string) =>
+      req<{ ok: boolean; refCode: string }>("finance", "/admin/partner-approve", "POST", { id }),
+    rejectPartner: (id: string, reason: string) =>
+      req("finance", "/admin/partner-reject", "POST", { id, reason }),
+    getPartners: () =>
+      req<{ partners: ApiPartner[] }>("finance", "/admin/partners"),
+    togglePartner: (id: string) =>
+      req("finance", "/admin/partner-toggle", "POST", { id }),
+  },
+
+  // Реквизиты вывода (личные)
+  withdrawalRequisites: {
+    list: () =>
+      req<{ requisites: ApiWithdrawalRequisite[] }>("finance", "/withdrawal-requisites"),
+    add: (data: { type: "sbp" | "card"; phone?: string; bank?: string; card_number?: string; card_holder?: string; label?: string }) =>
+      req<{ id: string }>("finance", "/withdrawal-requisites/add", "POST", data),
+    delete: (id: string) =>
+      req("finance", "/withdrawal-requisites/delete", "POST", { id }),
+  },
+
+  // Реквизит пополнения (рандомный из пула)
+  depositRequisite: () =>
+    req<ApiDepositRequisite>("finance", "/deposit-requisite"),
+
+  // Партнёрство
+  partner: {
+    status: () =>
+      req<ApiPartnerStatus>("finance", "/partner/status"),
+    apply: (platforms: ApiPartnerPlatform[]) =>
+      req<{ id: string }>("finance", "/partner/apply", "POST", { platforms }),
+  },
+
+  // Поддержка
+  support: {
+    openTicket: (subject: string, message: string) =>
+      req<{ ticketId: string }>("support", "/ticket/open", "POST", { subject, message }),
+    getTicket: () =>
+      req<{ ticket: ApiSupportTicket | null }>("support", "/support/ticket"),
+    sendMessage: (ticket_id: string, text: string) =>
+      req("support", "/ticket/message", "POST", { ticket_id, text }),
+    closeTicket: (ticket_id: string) =>
+      req("support", "/ticket/close", "POST", { ticket_id }),
+
+    // Admin
+    getTickets: (status = "open") =>
+      req<{ tickets: ApiSupportTicketItem[] }>("support", `/admin/tickets?status=${status}`),
+    getTicketDetail: (id: string) =>
+      req<{ ticket: ApiSupportTicketDetail }>("support", `/admin/ticket/${id}`),
+    reply: (ticket_id: string, text: string) =>
+      req("support", "/admin/reply", "POST", { ticket_id, text }),
+    assign: (ticket_id: string, operator_id?: string) =>
+      req("support", "/admin/assign", "POST", { ticket_id, operator_id }),
+
+    getDisputes: () =>
+      req<{ disputes: ApiDispute[] }>("support", "/admin/disputes"),
+    getDisputeMessages: (deal_id: string) =>
+      req<{ messages: ApiDisputeMessage[] }>("support", `/admin/dispute/${deal_id}/messages`),
+    disputeMessage: (deal_id: string, text: string) =>
+      req("support", "/admin/dispute/message", "POST", { deal_id, text }),
+    resolveDispute: (deal_id: string, refund_buyer: boolean) =>
+      req("support", "/admin/dispute/resolve", "POST", { deal_id, refund_buyer }),
+    assignDispute: (deal_id: string, arbiter_id?: string) =>
+      req("support", "/admin/dispute/assign", "POST", { deal_id, arbiter_id }),
+    getOperators: () =>
+      req<{ operators: { id: string; username: string; role: string }[] }>("support", "/admin/operators"),
+    chatBan: (user_id: string) =>
+      req("support", "/admin/chat-ban", "POST", { user_id }),
+    permaBan: (user_id: string) =>
+      req("support", "/admin/perma-ban", "POST", { user_id }),
+  },
+
+  oauth: {
+    google: (code: string, redirect_uri: string) =>
+      req<{ token: string; user: ApiUser }>("oauth", "/google", "POST", { code, redirect_uri }),
+    vk: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) =>
+      req<{ token: string; user: ApiUser }>("oauth", "/vk", "POST", data),
+  },
+
+  monitor: {
+    report: (data: {
+      event_type: string;
+      severity?: "info" | "warning" | "error" | "critical";
+      title: string;
+      description?: string;
+      url?: string;
+      user_id?: string;
+      status_code?: number;
+    }) => req<{ ok: boolean }>("monitor", "/report", "POST", data),
+
+    list: (active = true) =>
+      req<{ events: ApiMonitorEvent[]; open_count: number; critical_count: number }>(
+        "monitor", `/list?active=${active}`
+      ),
+
+    resolve: (id: number) =>
+      req<{ ok: boolean }>("monitor", "/resolve", "POST", { id }),
+
+    resolveAll: () =>
+      req<{ ok: boolean }>("monitor", "/resolve-all", "POST", {}),
+  },
 };
+
 // ── ТИПЫ ──────────────────────────────────────────────────────────────────────
 
 export type ApiMonitorEvent = {

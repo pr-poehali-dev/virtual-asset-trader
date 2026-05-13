@@ -236,35 +236,23 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   };
   const handleVerify = async () => {
     setError("");
-    if (!code.trim()) {
-      setError("Введите код из письма");
-      return;
-    }
     setRegistering(true);
     try {
-      // ВАЖНО: убедитесь, что api.emailVerify.check принимает именно эти два аргумента
-      const res = await api.emailVerify.check(
+      const response = await api.emailVerify.check(
         email.trim().toLowerCase(),
         code.trim(),
       );
-      console.log("Ответ от сервера:", res);
-      if (res && (res.verified === true || res.ok === true)) {
-        const result = await register(username, email, password);
-        if (result === "exists") {
-          setError("Никнейм или email уже занят");
-        }
-        // Если регистрация успешна, useAuth обычно сам редиректит или меняет стейт
+
+      console.log("Ответ сервера:", response); // Посмотрите в консоль браузера!
+      if (response.verified || response.ok) {
+        const result = register(username, email, password);
+        if (result === "exists") setError("Никнейм или email уже занят");
       } else {
-        setError(
-          res?.error === "invalid_code"
-            ? "Неверный код"
-            : "Срок действия кода истек",
-        );
+        setError("Неверный код или срок действия истек");
       }
-    } catch (err: any) {
-      console.error("Детальная ошибка запроса:", err);
-      // Это выведет в консоль браузера (F12) подробности: 404, 500 или Network Error
-      setError("Ошибка связи с сервером. Проверьте консоль (F12)");
+    } catch (err) {
+      console.error("Ошибка запроса:", err);
+      setError("Ошибка связи с сервером");
     }
     setRegistering(false);
   };
