@@ -127,7 +127,10 @@ const api = {
     ).toString()
   : "";
     // --- ИСПРАВЛЕННЫЕ МЕТОДЫ ---
-    create: (data: { title: string; category: string; price: number; description?: string }) => { // <-- Используем более строгий тип данных
+    create: (data: { title: string; category: string; price: number; description?: string }) => {
+    return req<ApiProduct>("products", "/products", "POST", data);
+}, // <-- Если здесь есть запятая, и это последний элемент в списке методов, то это ошибка.
+boost: (product_id: number) => { ... }
       return req<ApiProduct>("products", "/products", "POST", data);
     },
     boost: (product_id: number) => { // <-- Используем product_id как в вашем последнем фрагменте
