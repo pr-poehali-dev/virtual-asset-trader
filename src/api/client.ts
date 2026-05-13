@@ -241,6 +241,76 @@ const api = {
       req("finance", "/withdrawal-status", "POST", { id, status }),
   },
 
+  const api = {
+  auth: {
+    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
+    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
+    me: () => req("auth", "/me", "GET"),
+    logout: () => req("auth", "/logout", "POST"),
+  }, // <-- Запятая, если дальше идет emailVerify
+
+  emailVerify: {
+    send: (email: string) => {
+      return req("email-verify", "/send", "POST", { email });
+    },
+    check: (email: string, code: string) => {
+      return req("email-verify", "/check", "POST", { email, code });
+    },
+  }, // <-- Запятая, если дальше идет deals
+
+  deals: {
+    buy: (product_id: number) =>
+      req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", { product_id }),
+
+    list: () =>
+      req<{ deals: ApiDeal[] }>("deals", "/deals"),
+
+    dispute: (deal_id: string) =>
+      req("deals", "/deals/dispute", "POST", { deal_id }),
+
+    message: (deal_id: string, text: string) =>
+      req("deals", "/deals/message", "POST", { deal_id, text }),
+
+    resolve: (deal_id: string, refund_buyer: boolean) =>
+      req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
+  }, // <-- Запятая, если дальше идет finance
+
+  finance: {
+    notifications: () =>
+      req<{ notifications: ApiNotification[] }>("finance", "/notifications"),
+
+    markRead: (id: string) =>
+      req("finance", "/notifications/read", "POST", { id }),
+
+    maintenance: () =>
+      req<{ maintenance: boolean }>("finance", "/maintenance"),
+
+    setMaintenance: (enabled: boolean) =>
+      req<{ ok: boolean; maintenance: boolean }>("finance", "/admin/maintenance", "POST", { enabled }),
+
+    deposit: (amount: number, currency: string) =>
+      req<{ id: string; requisite: ApiDepositRequisite; expiresAt: string; amount: number }>("finance", "/deposit", "POST", { amount, currency }),
+
+    depositPaid: (dep_id: string) =>
+      req("finance", "/deposit/paid", "POST", { dep_id }),
+
+    depositCancel: (dep_id: string) =>
+      req("finance", "/deposit/cancel", "POST", { dep_id }),
+
+    depositActive: () =>
+      req<{ deposit: ApiActiveDeposit | null }>("finance", "/deposit/active"),
+
+    withdraw: (data: { amount: number; currency: string; requisite_type: string; requisite_details: string; commission?: number }) =>
+      req<{ id: string; to_receive: number }>("finance", "/withdraw", "POST", data),
+
+    myWithdrawals: () =>
+      req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
+
+    review: (seller_id: string, rating: number, text: string) =>
+      req("finance", "/review", "POST", { seller_id, rating, text }),
+  }, // <-- Запятая, если дальше идет verify
+
+  // Раздел verify теперь находится ВНУТРИ объекта api
   verify: {
     submit: (data: {
       full_name: string;
@@ -267,14 +337,6 @@ const api = {
 
     reject: (id: string, reason: string) =>
       req("verify", "/reject", "POST", { id, reason }),
-  },
-    // --- КОНЕЦ ИСПРАВЛЕННЫХ МЕТОДОВ ---
- const api = {
-  auth: {
-    login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
-    register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
-    me: () => req("auth", "/me", "GET"),
-    logout: () => req("auth", "/logout", "POST"),
   },
 
   emailVerify: {
