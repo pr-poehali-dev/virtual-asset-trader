@@ -122,14 +122,19 @@ export const api = {
       }),
   },
   products: {
-    list: (params?: { category?: string; search?: string; price_max?: string }) => {
-      const qs = params ? "?" + new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v))
-      ).toString() : "";
-      return req<{ products: ApiProduct[] }>("products", "/products" + qs);
-    },
-  },
-};
+      list: (params?: { category?: string; search?: string; price_max?: string }) => {
+        const qs = params ? "?" + new URLSearchParams(
+          Object.fromEntries(Object.entries(params).filter(([, v]) => v))
+        ).toString() : "";
+        return req<{ products: ApiProduct[] }>("products", "/products" + qs);
+      }, // Здесь должна быть только запятая
+      create: (data: { title: string; category: string; price: number; description?: string }) =>
+        req<ApiProduct>("products", "/products", "POST", data),
+      boost: (product_id: number) =>
+        req("products", "/products/boost", "POST", { product_id }),
+        
+      // ... остальные методы (delete и т.д.)
+    }, // Закрывает блок products
 
     create: (data: { title: string; category: string; price: number; description?: string }) =>
       req<ApiProduct>("products", "/products", "POST", data),
