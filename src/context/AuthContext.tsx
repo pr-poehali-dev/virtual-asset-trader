@@ -1,6 +1,26 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { api, getToken, setToken, clearToken, type ApiUser, type ApiProduct, type ApiDeal, type ApiNotification, type ApiWithdrawal, type ApiDeposit } from "@/api/client";
-import { HOLD_CATEGORIES, PLATFORM_COMMISSION } from "@/components/data/constants";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import {
+  api,
+  getToken,
+  setToken,
+  clearToken,
+  type ApiUser,
+  type ApiProduct,
+  type ApiDeal,
+  type ApiNotification,
+  type ApiWithdrawal,
+  type ApiDeposit,
+} from "@/api/client";
+import {
+  HOLD_CATEGORIES,
+  PLATFORM_COMMISSION,
+} from "@/components/data/constants";
 import type { StaffPermission } from "@/components/data/constants";
 import { setMonitorUserId } from "@/lib/errorMonitor";
 
@@ -26,7 +46,14 @@ export type AppUser = ApiUser & {
 };
 
 export type AppProduct = ApiProduct & { sellerId: string; sellerName: string };
-export type AppReview = { id: string; fromUserId: string; fromUser: string; rating: number; text: string; date: string };
+export type AppReview = {
+  id: string;
+  fromUserId: string;
+  fromUser: string;
+  rating: number;
+  text: string;
+  date: string;
+};
 export type AppNotification = ApiNotification & { userId: string };
 export type AppDeal = ApiDeal;
 
@@ -61,26 +88,54 @@ type AuthContextType = {
   deposits: ApiDeposit[];
   loading: boolean;
 
-  login: (loginStr: string, password: string) => Promise<"ok" | "blocked" | "frozen" | "wrong">;
-  loginWithOAuth: (provider: "google", code: string, redirect_uri: string) => Promise<"ok" | "blocked" | "error">;
-  loginWithVK: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) => Promise<"ok" | "blocked" | "error">;
-  register: (username: string, email: string, password: string) => Promise<"ok" | "exists" | "error">;
+  login: (
+    loginStr: string,
+    password: string,
+  ) => Promise<"ok" | "blocked" | "frozen" | "wrong">;
+  loginWithOAuth: (
+    provider: "google",
+    code: string,
+    redirect_uri: string,
+  ) => Promise<"ok" | "blocked" | "error">;
+  loginWithVK: (data: {
+    access_token: string;
+    user_id: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+  }) => Promise<"ok" | "blocked" | "error">;
+  register: (
+    username: string,
+    email: string,
+    password: string,
+  ) => Promise<"ok" | "exists" | "error">;
   logout: () => Promise<void>;
 
   updateUsers: (users: AppUser[]) => void;
   addProduct: (product: AppProduct) => Promise<void>;
-  buyProduct: (product: AppProduct, _seller: AppUser) => Promise<"ok" | "no_balance" | "self">;
+  buyProduct: (
+    product: AppProduct,
+    _seller: AppUser,
+  ) => Promise<"ok" | "no_balance" | "self">;
   boostProduct: (productId: number) => Promise<"ok" | "no_balance">;
-  addReview: (sellerId: string, review: Omit<AppReview, "id">) => Promise<"ok" | "not_buyer">;
+  addReview: (
+    sellerId: string,
+    review: Omit<AppReview, "id">,
+  ) => Promise<"ok" | "not_buyer">;
   openDispute: (dealId: string) => Promise<void>;
   sendDisputeMessage: (dealId: string, text: string) => Promise<void>;
   resolveDispute: (dealId: string, refundBuyer: boolean) => Promise<void>;
   assignArbiter: (dealId: string, arbiterId: string) => void;
 
-  addNotification: (userId: string, notif: Omit<AppNotification, "id" | "userId" | "read" | "date">) => void;
+  addNotification: (
+    userId: string,
+    notif: Omit<AppNotification, "id" | "userId" | "read" | "date">,
+  ) => void;
   markNotifRead: (notifId: string) => Promise<void>;
 
-  addDeposit: (dep: Omit<ApiDeposit, "id" | "status" | "date">) => Promise<void>;
+  addDeposit: (
+    dep: Omit<ApiDeposit, "id" | "status" | "date">,
+  ) => Promise<void>;
   confirmDeposit: (depId: string) => Promise<void>;
   rejectDeposit: (depId: string) => Promise<void>;
 
@@ -106,14 +161,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Восстанавливаем сессию при загрузке
   useEffect(() => {
     const token = getToken();
-    if (!token) { setLoading(false); return; }
-    api.auth.me()
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    api.auth
+      .me()
       .then(({ user: u }) => {
         setUser(apiUserToApp(u));
         setMonitorUserId(u.id);
         loadUserData(u.id);
       })
-      .catch(() => { clearToken(); })
+      .catch(() => {
+        clearToken();
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -124,14 +185,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         api.finance.notifications().catch(() => ({ notifications: [] })),
       ]);
       setDeals(dealsRes.deals);
-      setUser((prev) => prev && prev.id === userId ? {
-        ...prev,
-        notifications: notifsRes.notifications.map((n) => ({ ...n, userId })),
-      } : prev);
-    } catch { /* ignore */ }
+      setUser((prev) =>
+        prev && prev.id === userId
+          ? {
+              ...prev,
+              notifications: notifsRes.notifications.map((n) => ({
+                ...n,
+                userId,
+              })),
+            }
+          : prev,
+      );
+    } catch {
+      /* ignore */
+    }
   };
 
-  const login = async (loginStr: string, password: string): Promise<"ok" | "blocked" | "frozen" | "wrong"> => {
+  const login = async (
+    loginStr: string,
+    password: string,
+  ): Promise<"ok" | "blocked" | "frozen" | "wrong"> => {
     try {
       const { token, user: u } = await api.auth.login(loginStr, password);
       setToken(token);
@@ -148,22 +221,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithOAuth = async (provider: "google", code: string, redirect_uri: string): Promise<"ok" | "blocked" | "error"> => {
+  // ...
+  const loginWithOAuth = async (
+    provider: "google",
+    code: string,
+    redirect_uri: string,
+  ): Promise<"ok" | "blocked" | "error"> => {
     try {
-      const { token, user: u } = await api.oauth.google(code, redirect_uri);
-      setToken(token);
-      const appUser = apiUserToApp(u);
-      setUser(appUser);
-      await loadUserData(u.id);
-      return "ok";
+      // Если есть отдельная обработка для VK, ее тоже нужно удалить/закомментировать
+      // Пример:
+      // if (provider === "vk") {
+      //   const { token, user: u } = await api.oauth.vk(code, redirect_uri); // Предполагаем, что такая функция существует
+      //   setToken(token);
+      //   const appUser = apiUserToApp(u);
+      //   setUser(appUser);
+      //   await loadUserData(u.id);
+      //   return "ok";
+      // }
+
+      if (provider === "google") {
+        const { token, user: u } = await api.oauth.google(code, redirect_uri);
+        setToken(token);
+        const appUser = apiUserToApp(u);
+        setUser(appUser);
+        await loadUserData(u.id);
+        return "ok";
+      }
+      return "error"; // Или другое значение по умолчанию, если провайдер неизвестен
     } catch (e: unknown) {
       const err = e as { error?: string };
       if (err?.error === "blocked") return "blocked";
       return "error";
     }
   };
+  // ...
 
-  const loginWithVK = async (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }): Promise<"ok" | "blocked" | "error"> => {
+  const loginWithVK = async (data: {
+    access_token: string;
+    user_id: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+  }): Promise<"ok" | "blocked" | "error"> => {
     try {
       const { token, user: u } = await api.oauth.vk(data);
       setToken(token);
@@ -178,9 +277,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (username: string, email: string, password: string): Promise<"ok" | "exists" | "error"> => {
+  const register = async (
+    username: string,
+    email: string,
+    password: string,
+  ): Promise<"ok" | "exists" | "error"> => {
     try {
-      const { token, user: u } = await api.auth.register(username, email, password);
+      const { token, user: u } = await api.auth.register(
+        username,
+        email,
+        password,
+      );
       setToken(token);
       setUser(apiUserToApp(u));
       return "ok";
@@ -209,20 +316,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         price: product.price,
         description: "",
       });
-      setUser((prev) => prev ? { ...prev, products: [...prev.products, product] } : prev);
-    } catch { /* ignore */ }
+      setUser((prev) =>
+        prev ? { ...prev, products: [...prev.products, product] } : prev,
+      );
+    } catch {
+      /* ignore */
+    }
   };
 
-  const buyProduct = async (product: AppProduct, _seller: AppUser): Promise<"ok" | "no_balance" | "self"> => {
+  const buyProduct = async (
+    product: AppProduct,
+    _seller: AppUser,
+  ): Promise<"ok" | "no_balance" | "self"> => {
     try {
       await api.deals.buy(product.id);
       // Обновляем баланс локально
-      setUser((prev) => prev ? {
-        ...prev,
-        balances: { ...prev.balances, RUB: Math.max(0, (prev.balances.RUB ?? 0) - product.price) },
-        purchasedProductIds: [...prev.purchasedProductIds, product.id],
-        deals: prev.deals + 1,
-      } : prev);
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              balances: {
+                ...prev.balances,
+                RUB: Math.max(0, (prev.balances.RUB ?? 0) - product.price),
+              },
+              purchasedProductIds: [...prev.purchasedProductIds, product.id],
+              deals: prev.deals + 1,
+            }
+          : prev,
+      );
       await loadUserData(user?.id ?? "");
       return "ok";
     } catch (e: unknown) {
@@ -233,21 +354,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const boostProduct = async (productId: number): Promise<"ok" | "no_balance"> => {
+  const boostProduct = async (
+    productId: number,
+  ): Promise<"ok" | "no_balance"> => {
     try {
       await api.products.boost(productId);
-      setUser((prev) => prev ? {
-        ...prev,
-        balances: { ...prev.balances, RUB: (prev.balances.RUB ?? 0) - 25 },
-        products: prev.products.map((p) => p.id === productId ? { ...p, boosted: true } : p),
-      } : prev);
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              balances: {
+                ...prev.balances,
+                RUB: (prev.balances.RUB ?? 0) - 25,
+              },
+              products: prev.products.map((p) =>
+                p.id === productId ? { ...p, boosted: true } : p,
+              ),
+            }
+          : prev,
+      );
       return "ok";
     } catch {
       return "no_balance";
     }
   };
 
-  const addReview = async (sellerId: string, review: Omit<AppReview, "id">): Promise<"ok" | "not_buyer"> => {
+  const addReview = async (
+    sellerId: string,
+    review: Omit<AppReview, "id">,
+  ): Promise<"ok" | "not_buyer"> => {
     try {
       await api.finance.review(sellerId, review.rating, review.text);
       return "ok";
@@ -258,44 +393,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const openDispute = async (dealId: string) => {
     await api.deals.dispute(dealId);
-    setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, status: "dispute" } : d));
+    setDeals((prev) =>
+      prev.map((d) => (d.id === dealId ? { ...d, status: "dispute" } : d)),
+    );
   };
 
   const sendDisputeMessage = async (dealId: string, text: string) => {
     await api.deals.message(dealId, text);
-    const now = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-    setDeals((prev) => prev.map((d) => {
-      if (d.id !== dealId) return d;
-      const role: "buyer" | "seller" | "arbiter" =
-        d.arbiterId === user?.id ? "arbiter" : d.buyerId === user?.id ? "buyer" : "seller";
-      return { ...d, disputeMessages: [...d.disputeMessages, { from: user?.username ?? "", role, text, time: now }] };
-    }));
+    const now = new Date().toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    setDeals((prev) =>
+      prev.map((d) => {
+        if (d.id !== dealId) return d;
+        const role: "buyer" | "seller" | "arbiter" =
+          d.arbiterId === user?.id
+            ? "arbiter"
+            : d.buyerId === user?.id
+              ? "buyer"
+              : "seller";
+        return {
+          ...d,
+          disputeMessages: [
+            ...d.disputeMessages,
+            { from: user?.username ?? "", role, text, time: now },
+          ],
+        };
+      }),
+    );
   };
 
   const resolveDispute = async (dealId: string, refundBuyer: boolean) => {
     await api.deals.resolve(dealId, refundBuyer);
-    setDeals((prev) => prev.map((d) =>
-      d.id === dealId ? { ...d, status: refundBuyer ? "refunded" : "completed" } : d
-    ));
+    setDeals((prev) =>
+      prev.map((d) =>
+        d.id === dealId
+          ? { ...d, status: refundBuyer ? "refunded" : "completed" }
+          : d,
+      ),
+    );
   };
 
   const assignArbiter = (dealId: string, arbiterId: string) => {
-    setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, arbiterId } : d));
+    setDeals((prev) =>
+      prev.map((d) => (d.id === dealId ? { ...d, arbiterId } : d)),
+    );
   };
 
-  const addNotification = (_userId: string, _notif: Omit<AppNotification, "id" | "userId" | "read" | "date">) => {
+  const addNotification = (
+    _userId: string,
+    _notif: Omit<AppNotification, "id" | "userId" | "read" | "date">,
+  ) => {
     // Уведомления создаются на бэкенде; для UI только обновляем при следующем запросе
   };
 
   const markNotifRead = async (notifId: string) => {
     await api.finance.markRead(notifId).catch(() => {});
-    setUser((prev) => prev ? {
-      ...prev,
-      notifications: prev.notifications.map((n) => n.id === notifId ? { ...n, read: true } : n),
-    } : prev);
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            notifications: prev.notifications.map((n) =>
+              n.id === notifId ? { ...n, read: true } : n,
+            ),
+          }
+        : prev,
+    );
   };
 
-  const addDeposit = async (dep: Omit<ApiDeposit, "id" | "status" | "date">) => {
+  const addDeposit = async (
+    dep: Omit<ApiDeposit, "id" | "status" | "date">,
+  ) => {
     await api.finance.deposit(dep.amount, dep.currency, dep.requisiteType);
     await refreshNotifications();
   };
@@ -312,13 +481,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Staff management — local only (admin panel uses updateUsers)
   const addStaff = (userId: string, permissions: StaffPermission[]) => {
-    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: "staff", staffPermissions: permissions } : u));
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, role: "staff", staffPermissions: permissions }
+          : u,
+      ),
+    );
   };
   const removeStaff = (userId: string) => {
-    setUsers((prev) => prev.map((u) => u.id === userId && !u.isOwner ? { ...u, role: "user", staffPermissions: [] } : u));
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId && !u.isOwner
+          ? { ...u, role: "user", staffPermissions: [] }
+          : u,
+      ),
+    );
   };
   const updateStaffPerms = (userId: string, permissions: StaffPermission[]) => {
-    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, staffPermissions: permissions } : u));
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId ? { ...u, staffPermissions: permissions } : u,
+      ),
+    );
   };
 
   const refreshDeals = async () => {
@@ -329,11 +514,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshNotifications = async () => {
     if (!user) return;
-    const res = await api.finance.notifications().catch(() => ({ notifications: [] }));
-    setUser((prev) => prev ? {
-      ...prev,
-      notifications: res.notifications.map((n) => ({ ...n, userId: prev.id })),
-    } : prev);
+    const res = await api.finance
+      .notifications()
+      .catch(() => ({ notifications: [] }));
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            notifications: res.notifications.map((n) => ({
+              ...n,
+              userId: prev.id,
+            })),
+          }
+        : prev,
+    );
   };
 
   // Периодически обновляем данные пока авторизован
@@ -351,16 +545,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   void PLATFORM_COMMISSION;
 
   return (
-    <AuthContext.Provider value={{
-      user, users, deals, deposits, loading,
-      login, loginWithOAuth, loginWithVK, register, logout, updateUsers,
-      addProduct, buyProduct, boostProduct, addReview,
-      openDispute, sendDisputeMessage, resolveDispute, assignArbiter,
-      addNotification, markNotifRead,
-      addDeposit, confirmDeposit, rejectDeposit,
-      addStaff, removeStaff, updateStaffPerms,
-      refreshDeals, refreshNotifications,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        users,
+        deals,
+        deposits,
+        loading,
+        login,
+        loginWithOAuth,
+        loginWithVK,
+        register,
+        logout,
+        updateUsers,
+        addProduct,
+        buyProduct,
+        boostProduct,
+        addReview,
+        openDispute,
+        sendDisputeMessage,
+        resolveDispute,
+        assignArbiter,
+        addNotification,
+        markNotifRead,
+        addDeposit,
+        confirmDeposit,
+        rejectDeposit,
+        addStaff,
+        removeStaff,
+        updateStaffPerms,
+        refreshDeals,
+        refreshNotifications,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
