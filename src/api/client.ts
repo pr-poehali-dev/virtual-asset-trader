@@ -113,7 +113,8 @@ const api = {
     logout: () => req("auth", "/logout", "POST"),
   }, // <-- ЗАПЯТАЯ ДОЛЖНА БЫТЬ ЗДЕСЬ!
 
-  emailVerify: {
+  emailVerify: }, 
+  products: { ... }
     send: (email: string) => {
       return req("email-verify", "/send", "POST", { email });
     },
