@@ -17,12 +17,13 @@ SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 FROM_EMAIL = "gorant.shop-supp0rt@yandex.ru"
 SMTP_HOST = "smtp.yandex.ru"
 SMTP_PORT = 465
-# Получаем пароль от переменной окружения, если не установлен - выдаем ошибку
 SENDER_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+
 if not SENDER_PASSWORD:
+
     raise EnvironmentError("EMAIL_PASSWORD environment variable not set.")
 
-# Время жизни кода подтверждения в минутах и минимальный интервал между отправками
+
 CODE_LIFETIME_MINUTES = 10
 RESEND_INTERVAL_SECONDS = 60
 
@@ -67,13 +68,15 @@ def send_email(to: str, code: str):
     msg.attach(MIMEText(html, "html"))
 
     try:
-        # Подключение к SMTP-серверу и отправка письма
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            server.login(FROM_EMAIL, VERIFYEMAIL)
-            server.sendmail(FROM_EMAIL, to, msg.as_string())
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        raise
+    # ... (подключение и логин) ...
+    server.sendmail(FROM_EMAIL, to, msg.as_string())
+    print(f"Письмо с кодом успешно отправлено на {to}") # Логирование
+except Exception as e:
+    print(f"Error sending email to {to}: {e}")
+    # В случае ошибки отправки, нужно откатить и вставку кода, если она уже была сделана
+    # или вернуть ошибку пользователю
+    conn.rollback() # Откат, если вставка кода была ДО отправки письма
+    return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": "email_sending_failed"})}
 
 def handler(event: dict, context) -> dict:
     """Обработчик AWS Lambda для API запросов."""
@@ -120,12 +123,24 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 429, "headers": headers, "body": json.dumps({"error": "too_soon"})}
 
             # Генерация и сохранение кода
-            code = str(secrets.randbelow(900000) + 100000) # 6-значный код
-            cur.execute(
-                f"INSERT INTO {SCHEMA}.email_verifications (email, code, expires_at) VALUES (%s, %s, NOW() + INTERVAL '{CODE_LIFETIME_MINUTES} minutes')",
-                (email, code)
-            )
-            conn.commit() # Коммит транзакции
+            import secrets
+# Предполагаем, что SCHEMA, CODE_LIFETIME_MINUTES, email, conn, cur определены
+
+code = str(secrets.randbelow(900000) + 100000) # 6-значный код
+
+try:
+    cur.execute(
+        f"INSERT INTO {SCHEMA}.email_verifications (email, code, expires_at) VALUES (%s, %s, NOW() + INTERVAL '{CODE_LIFETIME_MINUTES} minutes')",
+        (email, code)
+    )
+    conn.commit() # Коммит транзакции
+    print(f"Код для {email} успешно создан: {code}") # Для отладки
+    return code # Или другая успешная операция
+except Exception as e:
+    conn.rollback() # Откат транзакции в случае ошибки
+    print(f"Ошибка при создании кода для {email}: {e}") # Логирование ошибки
+    # Здесь можно вернуть None, поднять исключение дальше, или обработать по-другому
+    return None
 
             # Отправка email
             try:
