@@ -104,24 +104,23 @@ async function req<T = unknown>(
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
-
 const api = {
   auth: {
     login: (u: string, p: string) => req("auth", "/login", "POST", { username: u, password: p }),
     register: (u: string, e: string, p: string) => req("auth", "/register", "POST", { username: u, email: e, password: p }),
     me: () => req("auth", "/me", "GET"),
     logout: () => req("auth", "/logout", "POST"),
-  }, // <-- ЗАПЯТАЯ ДОЛЖНА БЫТЬ ЗДЕСЬ!
+  }, // <-- Запятая после auth
 
-  emailVerify: }, 
-  products: { ... }
-    send: (email: string) => {
-      return req("email-verify", "/send", "POST", { email });
-    },
-    check: (email: string, code: string) => {
-      return req("email-verify", "/check", "POST", { email, code });
-    },
-  }, // <-- Запятая здесь, если products следует за emailVerify
+  emailVerify: { // <-- Правильное начало определения emailVerify
+    send: (email: string) => { // <-- Фигурные скобки
+      return req("email-verify", "/send", "POST", { email }); // <-- Return
+    }, // <-- Запятая после send
+    check: (email: string, code: string) => { // <-- Фигурные скобки
+      return req("email-verify", "/check", "POST", { email, code }); // <-- Return
+    }, // <-- Запятая после check, если дальше есть свойства
+  }, // <-- Запятая после emailVerify, так как products следует за ним
+
   products: {
     list: (params?: any) => {
       const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -144,17 +143,7 @@ const api = {
         "products", `/products/seller/${id}`
       );
     },
-  },
-};
-
-  emailVerify: {
-    send: (email: string) => { // <-- Добавлены фигурные скобки
-      return req("email-verify", "/send", "POST", { email }); // <-- Добавлен return
-    }, // <-- Добавлена запятая
-    check: (email: string, code: string) => { // <-- Добавлены фигурные скобки
-      return req("email-verify", "/check", "POST", { email, code }); // <-- Добавлен return
-    }, // <-- Добавлена запятая (если дальше есть свойства)
-  },
+  }, // <-- Запятая после products, так как deals следует за ним
 
   deals: {
     buy: (product_id: number) =>
@@ -171,7 +160,7 @@ const api = {
 
     resolve: (deal_id: string, refund_buyer: boolean) =>
       req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
-  },
+  }, // <-- Запятая после deals, так как finance следует за ним
 
   finance: {
     notifications: () =>
@@ -228,7 +217,7 @@ const api = {
 
     updateWithdrawalStatus: (id: string, status: string) =>
       req("finance", "/withdrawal-status", "POST", { id, status }),
-  },
+  }, // <-- Запятая после finance, так как verify следует за ним
 
   verify: {
     submit: (data: { full_name: string; doc_type: string; doc_number: string; doc_photo?: string; selfie?: string }) =>
@@ -245,7 +234,8 @@ const api = {
 
     reject: (id: string, reason: string) =>
       req("verify", "/reject", "POST", { id, reason }),
-  },
+  }, // <-- Нет запятой после последнего свойства verify
+};
 
   // ── Расширенные admin-методы ─────────────────────────────────────────────
 
