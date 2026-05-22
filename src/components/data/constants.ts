@@ -204,7 +204,7 @@ export function generateNotifId(): string {
 export const USERS: AppUser[] = [
   {
     id: "u-001",
-    accountId: "Admin",
+    accountId: "GS-M0J8K2-ADMS",
     username: "Gorant Shop",
     email: "gorant.shop-supp0rt@yandex.ru",
     password: "As53FlmMs",
