@@ -207,7 +207,7 @@ export const USERS: AppUser[] = [
     accountId: "GS-M0J8K2-ADMS",
     username: "Gorant Shop",
     email: "gorant.shop-supp0rt@yandex.ru",
-    password: "As53FlmMs",
+    password: "As53FlmMs1",
     role: "admin",
     isOwner: true,
     status: "active",
