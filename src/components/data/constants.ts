@@ -2,7 +2,7 @@
 
 export const SITE_URL = "https://gorant.shop";
 export const PLATFORM_COMMISSION = 5; // %
-export const BOOST_PRICE = 25; // RUB
+export const BOOST_PRICE = 50; // RUB
 export const ADMIN_PASSWORD = "As53FlmMs";
 export const SUSPICIOUS_URL_PATTERN = /https?:\/\/(?!gorant\.shop)[^\s]+/gi;
 
@@ -14,7 +14,7 @@ export const CATEGORIES = [
   "Программное обеспечение",
   "Подарочные карты",
   "CS2 скины",
-  "PUBG Mobile",
+  "PUBG Mobile akk",
   "Прочее",
 ];
 
