@@ -46,3 +46,8 @@ export function EscrowPage() {
     </div>
   );
 }
+<!-- TrustBox widget - Review Collector -->
+<div class="trustpilot-widget" data-locale="en-US" data-template-id="56278e9abfbbba0bdcd568bc" data-businessunit-id="6a22e15618800ca879005bbe" data-style-height="52px" data-style-width="100%" data-token="5c6b089a-d55d-4d81-aacb-d1f34c433f9c">
+  <a href="https://www.trustpilot.com/review/gorant.shop" target="_blank" rel="noopener">Trustpilot</a>
+</div>
+<!-- End TrustBox widget -->
