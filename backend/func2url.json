@@ -1,12 +1,13 @@
 {
-  "monitor": "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
-  "oauth": "https://functions.poehali.dev/928e63f8-0ef7-404d-a5c3-c7f9f291321f",
-  "email-verify": "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
-  "support": "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
-  "cron": "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
-  "verify": "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
-  "finance": "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
-  "deals": "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
-  "auth": "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
-  "products": "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd"
+  "finance": "https://functions.poehali.dev/e6860c2a-7a3c-478f-8b54-ce4304b40ce9",
+  "games": "https://functions.poehali.dev/81e75bfe-0ae5-45a5-bee5-bfa430b15eb9",
+  "monitor": "https://functions.poehali.dev/35d8efe4-e58b-4431-bb12-9de563346686",
+  "support": "https://functions.poehali.dev/bb975e6b-5919-4192-b818-f982c873bec9",
+  "deals": "https://functions.poehali.dev/772e4404-b373-4a01-930b-a0d20d166365",
+  "auth": "https://functions.poehali.dev/ebdf83cc-4195-48fb-a361-dbf53cd2e037",
+  "cron": "https://functions.poehali.dev/5c7df636-0a9b-4389-8386-33ea4436e034",
+  "verify": "https://functions.poehali.dev/402fc63e-0445-4679-aed8-9de14a0466cd",
+  "email-verify": "https://functions.poehali.dev/fcb9d830-fcfd-4ac1-822b-98a22d876b1b",
+  "oauth": "https://functions.poehali.dev/219a69fa-3e89-4e3a-8a96-ec1881003765",
+  "products": "https://functions.poehali.dev/92600ddd-131e-4901-a00b-83d99b2a46ef"
 }

@@ -20,6 +20,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "Сумма", to_receive: "К получению",
     protected: "Защищённое соединение",
     admin: "Админ",
+    games: "Ставки",
   },
   en: {
     home: "Home", catalog: "Catalog", deals: "Deals", about: "About",
@@ -37,6 +38,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "Amount", to_receive: "You Receive",
     protected: "Secure Connection",
     admin: "Admin",
+    games: "Bets",
   },
   kz: {
     home: "Басты бет", catalog: "Каталог", deals: "Мәмілелер", about: "Платформа туралы",

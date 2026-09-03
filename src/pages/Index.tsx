@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
+import { GamesPage } from "@/components/pages/GamesPage";
 import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
 import { VerifyPage } from "@/components/pages/VerifyPage";
 import { AdminPage, AdminLogin } from "@/components/pages/AdminPage";
@@ -168,6 +169,7 @@ function AppContent() {
       case "cabinet": return <CabinetPage setActive={handleSetActive} />;
       case "verify": return <VerifyPage setActive={handleSetActive} />;
       case "deals": return <DealsPage />;
+      case "games": return <GamesPage />;
       case "escrow": return <EscrowPage />;
       case "support": {
         if (user?.chat_banned || user?.chatBanned) return <ChatBannedSupportPage />;

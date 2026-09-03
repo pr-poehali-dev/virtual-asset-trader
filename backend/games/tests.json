@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "Список игр (публичный доступ)",
+      "method": "GET",
+      "path": "/games",
+      "expectedStatus": 200,
+      "expectedBody": {"games": "array"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Создание игры без прав админа отклоняется",
+      "method": "POST",
+      "path": "/games",
+      "body": {"bet_amount": 100, "target_bank": 1000, "duration_seconds": 300},
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Ставка без авторизации отклоняется",
+      "method": "POST",
+      "path": "/games/bet",
+      "body": {"game_id": "g-0001-abc"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

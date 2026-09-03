@@ -30,6 +30,7 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
     { id: "home",    label: t("home"),    icon: "Home" },
     { id: "catalog", label: t("catalog"), icon: "ShoppingBag" },
     { id: "deals",   label: t("deals"),   icon: "ArrowRightLeft" },
+    { id: "games",   label: t("games"),   icon: "Coins" },
     { id: "about",   label: t("about"),   icon: "Info" },
     { id: "support", label: t("support"), icon: "Headphones" },
   ];

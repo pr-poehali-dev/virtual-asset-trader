@@ -16,6 +16,7 @@ import { AdminVerificationsTab } from "@/components/pages/admin/AdminVerificatio
 import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/admin/AdminPartnersRequisites";
 import { AdminDisputesTab, AdminSupportTab } from "@/components/pages/admin/AdminSupportDisputes";
 import { AdminMonitorTab } from "@/components/pages/admin/AdminMonitor";
+import { AdminGamesTab } from "@/components/pages/admin/AdminGames";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -121,6 +122,7 @@ type AdminTab =
   | "stats"
   | "users"
   | "deals"
+  | "games"
   | "disputes"
   | "support-chat"
   | "requisites"
@@ -137,6 +139,7 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "stats", label: "Статистика", icon: "BarChart2" },
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
+  { id: "games", label: "Ставки", icon: "Coins" },
   { id: "disputes", label: "Споры", icon: "AlertTriangle" },
   { id: "support-chat", label: "Поддержка", icon: "Headphones" },
   { id: "requisites", label: "Реквизиты вывода", icon: "CreditCard" },
@@ -238,6 +241,7 @@ export function AdminPage() {
       {tab === "stats" && <AdminStatsTab />}
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}
+      {tab === "games" && <AdminGamesTab />}
       {tab === "disputes" && <AdminDisputesTab />}
       {tab === "support-chat" && <AdminSupportTab />}
       {tab === "requisites" && <AdminRequisitesTab />}

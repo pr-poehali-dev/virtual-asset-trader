@@ -1,18 +1,19 @@
 // ── URL бэкенд-функций ────────────────────────────────────────────────────────
 
 const URLS = {
-  auth: "https://functions.poehali.dev/f7cf9d27-0165-42aa-a519-ac9a60135a50",
+  auth: "https://functions.poehali.dev/ebdf83cc-4195-48fb-a361-dbf53cd2e037",
   products:
-    "https://functions.poehali.dev/60bab67c-c302-40ed-893c-642babdae2dd",
-  deals: "https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d",
-  finance: "https://functions.poehali.dev/157d72aa-df5a-4388-b097-ec2b1e0cc2cd",
-  verify: "https://functions.poehali.dev/250f9167-baf5-4f6c-871a-3d7b82fe125b",
-  cron: "https://functions.poehali.dev/f6cb1b5e-a65d-4603-a0c2-d4d68994a775",
-  support: "https://functions.poehali.dev/478e3db7-0bb0-4726-871f-61f868a0aab8",
+    "https://functions.poehali.dev/92600ddd-131e-4901-a00b-83d99b2a46ef",
+  deals: "https://functions.poehali.dev/772e4404-b373-4a01-930b-a0d20d166365",
+  finance: "https://functions.poehali.dev/e6860c2a-7a3c-478f-8b54-ce4304b40ce9",
+  verify: "https://functions.poehali.dev/402fc63e-0445-4679-aed8-9de14a0466cd",
+  cron: "https://functions.poehali.dev/5c7df636-0a9b-4389-8386-33ea4436e034",
+  support: "https://functions.poehali.dev/bb975e6b-5919-4192-b818-f982c873bec9",
   "email-verify":
-    "https://functions.poehali.dev/e51eefb2-b5c9-4c92-9e41-7f607402cfbd",
-  oauth: "https://functions.poehali.dev/928e63f8-0ef7-404d-a5c3-c7f9f291321f",
-  monitor: "https://functions.poehali.dev/9758e702-53a0-463c-937c-3749fca6454e",
+    "https://functions.poehali.dev/fcb9d830-fcfd-4ac1-822b-98a22d876b1b",
+  oauth: "https://functions.poehali.dev/219a69fa-3e89-4e3a-8a96-ec1881003765",
+  monitor: "https://functions.poehali.dev/35d8efe4-e58b-4431-bb12-9de563346686",
+  games: "https://functions.poehali.dev/81e75bfe-0ae5-45a5-bee5-bfa430b15eb9",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -500,6 +501,25 @@ export const api = {
     resolveAll: () =>
       req<{ ok: boolean }>("monitor", "/resolve-all", "POST", {}),
   },
+
+  games: {
+    list: () => req<{ games: ApiGame[] }>("games", "/games"),
+
+    get: (id: string) => req<{ game: ApiGame }>("games", `/games/${id}`),
+
+    create: (data: {
+      title?: string;
+      bet_amount: number;
+      target_bank: number;
+      duration_seconds: number;
+    }) => req<{ game: ApiGame }>("games", "/games", "POST", data),
+
+    bet: (game_id: string) =>
+      req<{ game: ApiGame }>("games", "/games/bet", "POST", { game_id }),
+
+    cancel: (game_id: string) =>
+      req<{ ok: boolean }>("games", "/games/cancel", "POST", { game_id }),
+  },
 };
 
 // ── ТИПЫ ──────────────────────────────────────────────────────────────────────
@@ -823,4 +843,31 @@ export type ApiDisputeMessage = {
   text: string;
   isSystem: boolean;
   time: string;
+};
+
+export type ApiGameBet = {
+  id: string;
+  userId: string;
+  username: string;
+  amount: number;
+  createdAt: string;
+};
+
+export type ApiGame = {
+  id: string;
+  title: string;
+  betAmount: number;
+  targetBank: number;
+  durationSeconds: number;
+  bank: number;
+  status: "active" | "finished" | "cancelled";
+  winnerId?: string | null;
+  winnerName?: string | null;
+  winnerAmount?: number | null;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  finishedAt?: string | null;
+  participantsCount: number;
+  bets?: ApiGameBet[];
 };
