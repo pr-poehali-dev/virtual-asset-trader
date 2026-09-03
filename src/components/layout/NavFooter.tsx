@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CURRENCIES, LANGUAGES } from "@/components/data/constants";
+import { AdminBadge, AdminAvatar } from "@/components/ui/admin-badge";
 
 // ─── VK ICON (SVG) ────────────────────────────────────────────────────────────
 
@@ -123,19 +124,24 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
 
             {/* User / login */}
             {isAdmin ? (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-400/10 border border-red-400/30">
-                <Icon name="ShieldAlert" size={13} className="text-red-400" />
-                <span className="text-xs font-bold text-red-400">Gorant Shop</span>
-                <span className="text-[10px] text-red-400/70 font-semibold bg-red-400/20 px-1 py-0.5 rounded">Админ</span>
+              <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gold/5 border border-gold/30">
+                <AdminAvatar size={24} />
+                <span className="text-xs font-bold text-foreground">Gorant Shop</span>
+                <AdminBadge size="sm" />
               </div>
             ) : user ? (
               <div className="flex items-center gap-1">
                 <button onClick={() => navigate("cabinet")}
                   className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border hover:border-gold/40 transition-colors min-h-[36px]">
-                  <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold shrink-0">
-                    {user.username[0].toUpperCase()}
-                  </div>
+                  {user.role === "admin" || user.isOwner ? (
+                    <AdminAvatar size={24} />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold shrink-0">
+                      {user.username[0].toUpperCase()}
+                    </div>
+                  )}
                   <span className="text-xs font-semibold text-foreground hidden sm:inline max-w-[80px] truncate">{user.username}</span>
+                  {(user.role === "admin" || user.isOwner) && <AdminBadge size="xs" />}
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">{unreadCount}</span>
                   )}

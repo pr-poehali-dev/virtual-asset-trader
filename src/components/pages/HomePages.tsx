@@ -185,7 +185,7 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
           <div className="relative hidden lg:block">
             <div className="relative rounded-xl overflow-hidden border border-border shadow-2xl">
               <img
-                src="https://cdn.poehali.dev/projects/6d96cf49-c0b6-45ab-ab7b-3c1367bdc4ef/files/bce0a5a2-1308-44c6-9ead-cae738702db0.jpg"
+                src="https://cdn.poehali.dev/projects/6d96cf49-c0b6-45ab-ab7b-3c1367bdc4ef/files/b2e71b64-eb36-4653-b580-f2a304a41993.jpg"
                 alt="Gorant Shop"
                 className="w-full object-cover"
               />

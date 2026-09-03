@@ -90,6 +90,7 @@ type AuthContextType = {
 
   refreshDeals: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -336,6 +337,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } : prev);
   };
 
+  // Перечитывает актуальные данные пользователя с сервера (например, баланс после ставки)
+  const refreshUser = async () => {
+    if (!getToken()) return;
+    try {
+      const { user: u } = await api.auth.me();
+      setUser((prev) => {
+        const fresh = apiUserToApp(u);
+        return prev ? { ...fresh, notifications: prev.notifications } : fresh;
+      });
+    } catch { /* ignore */ }
+  };
+
   // Периодически обновляем данные пока авторизован
   useEffect(() => {
     if (!user) return;
@@ -359,7 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       addNotification, markNotifRead,
       addDeposit, confirmDeposit, rejectDeposit,
       addStaff, removeStaff, updateStaffPerms,
-      refreshDeals, refreshNotifications,
+      refreshDeals, refreshNotifications, refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

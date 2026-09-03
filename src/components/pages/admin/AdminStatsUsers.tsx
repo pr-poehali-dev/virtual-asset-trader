@@ -6,6 +6,7 @@ import { PLATFORM_COMMISSION } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
 import { api, apiErrorMessage, type ApiAdminStats } from "@/api/client";
 import type { AppUser } from "@/components/data/constants";
+import { AdminBadge, AdminAvatar } from "@/components/ui/admin-badge";
 
 export const STATUS_STYLE: Record<string, string> = {
   active: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
@@ -341,14 +342,18 @@ export function AdminUsersTab() {
               }`}>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground flex-shrink-0">
-                      {u.username[0].toUpperCase()}
-                    </div>
+                    {u.role === "admin" || u.isOwner ? (
+                      <AdminAvatar size={28} />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground flex-shrink-0">
+                        {u.username[0].toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="font-display font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
                         {u.username}
                         {u.isOwner && <span className="text-[9px] text-gold/80 font-bold bg-gold/15 px-1.5 py-0.5 rounded border border-gold/20">Владелец</span>}
-                        {u.role === "admin" && !u.isOwner && <span className="text-[9px] text-red-400/80 font-bold bg-red-400/15 px-1.5 py-0.5 rounded border border-red-400/20">Админ</span>}
+                        {(u.role === "admin" || u.isOwner) && <AdminBadge size="xs" />}
                         {u.role === "staff" && <span className="text-[9px] text-blue-400/80 font-bold bg-blue-400/15 px-1.5 py-0.5 rounded border border-blue-400/20">Стафф</span>}
                         {u.verified && <Icon name="ShieldCheck" size={10} className="text-emerald-400" />}
                       </div>

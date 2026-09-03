@@ -29,7 +29,7 @@ function useCountdown(expiresAt: string, active: boolean) {
 // ─── КАРТОЧКА ИГРЫ ────────────────────────────────────────────────────────────
 
 function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) => void }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { format } = useCurrency();
   const [betting, setBetting] = useState(false);
   const [error, setError] = useState("");
@@ -37,16 +37,25 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
 
   const progress = Math.min(100, (game.bank / game.targetBank) * 100);
   const isFinished = game.status !== "active";
+  const notEnoughBalance = !!user && user.balance < game.betAmount;
 
   const handleBet = async () => {
     if (!user) { setError("Войдите, чтобы сделать ставку"); return; }
+    // Дополнительная проверка баланса на клиенте перед отправкой запроса —
+    // сервер всё равно перепроверит и отклонит, если баланса не хватает
+    if (user.balance < game.betAmount) {
+      setError("Недостаточно средств на балансе");
+      return;
+    }
     setBetting(true);
     setError("");
     try {
       const { game: updated } = await api.games.bet(game.id);
       onUpdate(updated);
+      await refreshUser();
     } catch (e) {
       setError(apiErrorMessage(e));
+      await refreshUser();
     } finally {
       setBetting(false);
     }
@@ -132,7 +141,7 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
         <>
           <Button
             onClick={handleBet}
-            disabled={betting || (user ? user.balance < game.betAmount : false)}
+            disabled={betting || notEnoughBalance}
             className="w-full bg-gold text-background hover:bg-gold/90 font-bold"
           >
             {betting ? (
@@ -147,7 +156,7 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
               <Icon name="AlertCircle" size={12} />{error}
             </p>
           )}
-          {user && user.balance < game.betAmount && !error && (
+          {notEnoughBalance && !error && (
             <p className="text-xs text-muted-foreground mt-2 text-center">Недостаточно средств на балансе</p>
           )}
         </>

@@ -118,6 +118,76 @@
       linear-gradient(90deg, rgba(180, 140, 60, 0.04) 1px, transparent 1px);
     background-size: 40px 40px;
   }
+
+  /* ── Анимированный фон сайта ── */
+  .animated-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    background: hsl(var(--background));
+  }
+
+  .animated-bg::before,
+  .animated-bg::after {
+    content: "";
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: 0.16;
+  }
+
+  .animated-bg::before {
+    width: 55vw;
+    height: 55vw;
+    top: -15%;
+    left: -10%;
+    background: radial-gradient(circle, hsl(var(--gold)) 0%, transparent 70%);
+    animation: floatBlobA 22s ease-in-out infinite;
+  }
+
+  .animated-bg::after {
+    width: 45vw;
+    height: 45vw;
+    bottom: -15%;
+    right: -10%;
+    background: radial-gradient(circle, hsl(43 90% 65%) 0%, transparent 70%);
+    animation: floatBlobB 26s ease-in-out infinite;
+  }
+
+  .animated-bg-blob {
+    position: absolute;
+    width: 38vw;
+    height: 38vw;
+    top: 35%;
+    left: 32%;
+    border-radius: 9999px;
+    background: radial-gradient(circle, hsl(43 70% 55%) 0%, transparent 70%);
+    filter: blur(100px);
+    opacity: 0.1;
+    animation: floatBlobC 30s ease-in-out infinite;
+  }
+
+  /* ── Радужный переливающийся текст ── */
+  .rainbow-text {
+    background-image: linear-gradient(
+      90deg,
+      #ff5f6d,
+      #ffc371,
+      #f9f871,
+      #6dfc9e,
+      #4fd3ff,
+      #a78bfa,
+      #ff6ec7,
+      #ff5f6d
+    );
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: rainbowShift 4s linear infinite;
+  }
 }
 
 @keyframes fadeIn {
@@ -137,6 +207,48 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes floatBlobA {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(8vw, 6vh) scale(1.15);
+  }
+  66% {
+    transform: translate(-4vw, 10vh) scale(0.9);
+  }
+}
+
+@keyframes floatBlobB {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-6vw, -8vh) scale(0.9);
+  }
+  66% {
+    transform: translate(5vw, -4vh) scale(1.2);
+  }
+}
+
+@keyframes floatBlobC {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-40%, -55%) scale(1.25);
+  }
+}
+
+@keyframes rainbowShift {
+  to {
+    background-position: 300% center;
   }
 }
 

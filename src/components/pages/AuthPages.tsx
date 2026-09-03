@@ -7,6 +7,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { api, apiErrorMessage, type ApiDepositRequisite } from "@/api/client";
 import { WithdrawalRequisitesTab } from "@/components/pages/WithdrawalRequisites";
 import { PartnerPage as PartnerPageInline } from "@/components/pages/PartnerPage";
+import { AdminBadge, AdminAvatar } from "@/components/ui/admin-badge";
 import {
   INITIAL_REQUISITES,
   INITIAL_WITHDRAWALS,
@@ -1101,19 +1102,19 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-xl font-bold text-gold">
-            {user.username[0].toUpperCase()}
-          </div>
+          {user.role === "admin" || user.isOwner ? (
+            <AdminAvatar size={56} />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-xl font-bold text-gold">
+              {user.username[0].toUpperCase()}
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-display font-bold text-xl text-foreground">
                 {user.username}
               </h1>
-              {user.role === "admin" && (
-                <span className="text-[10px] text-red-400/80 font-bold bg-red-400/15 px-1.5 py-0.5 rounded border border-red-400/20">
-                  Администратор
-                </span>
-              )}
+              {(user.role === "admin" || user.isOwner) && <AdminBadge size="md" />}
               {user.role === "staff" && (
                 <span className="text-[10px] text-blue-400/80 font-bold bg-blue-400/15 px-1.5 py-0.5 rounded border border-blue-400/20">
                   Персонал

@@ -187,6 +187,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background">
+      <div className="animated-bg">
+        <div className="animated-bg-blob" />
+      </div>
       <Nav active={page} setActive={handleSetActive} isAdmin={isAdmin} />
       <main className="pt-20 pb-16 md:pb-0">
         {renderPage()}
