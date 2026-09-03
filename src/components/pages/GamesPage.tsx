@@ -129,7 +129,7 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 flex-wrap gap-1">
         <span className="flex items-center gap-1.5">
           <Icon name="Users" size={13} />
           {game.participantsCount} {game.participantsCount === 1 ? "участник" : "участников"}
@@ -142,28 +142,50 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
         ) : (
           <span className="flex items-center gap-1.5">
             <Icon name="Percent" size={13} />
-            Победитель получает 90%
+            90% банка победителям
           </span>
         )}
       </div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+        <Icon name="Trophy" size={13} />
+        {game.winnersCount > 1 ? `${game.winnersCount} победителей` : "1 победитель"}
+      </div>
 
       {isFinished ? (
-        <div className={`rounded-xl p-4 text-center ${game.status === "finished" ? "bg-gold/5 border border-gold/20" : "bg-background/40 border border-border"}`}>
+        <div className={`rounded-xl p-4 ${game.status === "finished" ? "bg-gold/5 border border-gold/20" : "bg-background/40 border border-border"}`}>
           {game.status === "finished" ? (
-            <>
-              <Icon name="Trophy" size={20} className="text-gold mx-auto mb-1.5" />
-              <p className="text-sm text-foreground">
-                Победитель: <span className="font-bold text-gold">{game.winnerName}</span>
-                {game.winnerTicketNo != null && (
-                  <span className="text-muted-foreground"> · билет №{game.winnerTicketNo}</span>
-                )}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Выигрыш {game.winnerAmount ? format(game.winnerAmount) : "—"}
-              </p>
-            </>
+            game.winners && game.winners.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Icon name="Trophy" size={18} className="text-gold" />
+                  <span className="text-xs font-semibold text-gold">
+                    {game.winners.length > 1 ? `Победители (${game.winners.length})` : "Победитель"}
+                  </span>
+                </div>
+                {game.winners.map((w) => (
+                  <div key={w.userId} className="flex items-center justify-between text-sm bg-background/50 rounded-lg px-3 py-1.5">
+                    <span className="text-foreground font-medium">{w.username}</span>
+                    <span className="text-xs text-muted-foreground">билет №{w.ticketNo}</span>
+                    <span className="text-gold font-semibold">{format(w.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center">
+                <Icon name="Trophy" size={20} className="text-gold mx-auto mb-1.5" />
+                <p className="text-sm text-foreground">
+                  Победитель: <span className="font-bold text-gold">{game.winnerName}</span>
+                  {game.winnerTicketNo != null && (
+                    <span className="text-muted-foreground"> · билет №{game.winnerTicketNo}</span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Выигрыш {game.winnerAmount ? format(game.winnerAmount) : "—"}
+                </p>
+              </div>
+            )
           ) : (
-            <p className="text-sm text-muted-foreground">Игра отменена, ставки возвращены</p>
+            <p className="text-sm text-muted-foreground text-center">Игра отменена, ставки возвращены</p>
           )}
         </div>
       ) : (

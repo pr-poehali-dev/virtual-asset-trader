@@ -1,4 +1,5 @@
 import Icon from "@/components/ui/icon";
+import { PLATFORM_COMMISSION, WITHDRAW_FEE_FIXED } from "@/components/data/constants";
 
 export function AboutPage() {
   return (
@@ -41,7 +42,8 @@ export function AboutPage() {
             icon: "FileText",
             items: [
               "Минимальная сумма сделки: ₽ 100",
-              "Комиссия платформы: 5% от суммы (не менее ₽ 50)",
+              `Комиссия платформы: ${PLATFORM_COMMISSION}% от суммы сделки`,
+              `Комиссия за вывод средств: фиксированная ₽${WITHDRAW_FEE_FIXED}`,
               "Срок удержания средств: до подтверждения обеими сторонами или 72 часа",
               "CS2 скины: дополнительный холд 8 дней после подтверждения",
               "Лимит одной сделки без верификации: ₽ 100 000",

@@ -69,12 +69,12 @@ export function EscrowPage() {
           Комиссия платформы
         </h3>
         <div className="flex items-baseline justify-center gap-1 my-4">
-          <span className="font-display font-black text-5xl text-gold">5%</span>
+          <span className="font-display font-black text-5xl text-gold">{PLATFORM_COMMISSION}%</span>
           <span className="text-muted-foreground">от суммы сделки</span>
         </div>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Комиссия взимается только при успешном завершении сделки. Никаких
-          скрытых платежей или абонентской платы.
+          Комиссия взимается только при успешном завершении сделки. За вывод средств
+          взимается фиксированная комиссия ₽{WITHDRAW_FEE_FIXED}. Никаких скрытых платежей или абонентской платы.
         </p>
       </div>
     </div>

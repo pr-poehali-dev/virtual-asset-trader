@@ -239,22 +239,9 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
-        # ── GET /team — команда сайта: роли + онлайн-статус (для админки) ───────
+        # ── GET /team — команда сайта: роли + онлайн-статус (публичный эндпоинт —
+        # список видят и гости на главной странице, и админка) ──────────────────
         if method == "GET" and path.endswith("/team"):
-            token = (event.get("headers") or {}).get("X-Session-Token")
-            cur.execute(
-                f"""SELECT u.id FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
-                    WHERE s.token=%s AND s.expires_at > NOW()""",
-                (token,)
-            )
-            requester = cur.fetchone()
-            if not requester:
-                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
-            cur.execute(f"SELECT role, is_owner FROM {SCHEMA}.users WHERE id=%s", (requester[0],))
-            r_role, r_owner = cur.fetchone()
-            if r_role not in ("admin", "staff") and not r_owner:
-                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
-
             cur.execute(
                 f"""SELECT id, username, role, is_owner, last_seen_at
                     FROM {SCHEMA}.users

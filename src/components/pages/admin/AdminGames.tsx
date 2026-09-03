@@ -21,6 +21,7 @@ export function AdminGamesTab() {
   const [betAmount, setBetAmount] = useState("100");
   const [targetBank, setTargetBank] = useState("1000");
   const [durationMinutes, setDurationMinutes] = useState("10");
+  const [winnersCount, setWinnersCount] = useState("1");
   const [creating, setCreating] = useState(false);
 
   const load = () => {
@@ -37,12 +38,17 @@ export function AdminGamesTab() {
     const bet = Number(betAmount);
     const target = Number(targetBank);
     const minutes = Number(durationMinutes);
-    if (!bet || bet <= 0 || !target || target <= 0 || !minutes || minutes <= 0) {
+    const winners = Number(winnersCount);
+    if (!bet || bet <= 0 || !target || target <= 0 || !minutes || minutes <= 0 || !winners || winners <= 0) {
       setError("Заполните все поля корректными положительными числами");
       return;
     }
     if (target < bet) {
       setError("Целевой банк не может быть меньше суммы ставки");
+      return;
+    }
+    if (winners > 20) {
+      setError("Максимум 20 победителей");
       return;
     }
     setCreating(true);
@@ -53,8 +59,9 @@ export function AdminGamesTab() {
         bet_amount: bet,
         target_bank: target,
         duration_seconds: Math.round(minutes * 60),
+        winners_count: winners,
       });
-      setTitle(""); setBetAmount("100"); setTargetBank("1000"); setDurationMinutes("10");
+      setTitle(""); setBetAmount("100"); setTargetBank("1000"); setDurationMinutes("10"); setWinnersCount("1");
       setShowForm(false);
       load();
     } catch (e) {
@@ -124,10 +131,14 @@ export function AdminGamesTab() {
               <label className="text-xs text-muted-foreground mb-1 block">Время до розыгрыша, мин</label>
               <Input type="number" min={1} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} className="bg-background border-border text-sm" />
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Количество победителей</label>
+              <Input type="number" min={1} max={20} value={winnersCount} onChange={(e) => setWinnersCount(e.target.value)} className="bg-background border-border text-sm" />
+            </div>
           </div>
           <div className="bg-background/50 border border-border rounded-lg p-3 text-xs text-muted-foreground flex items-start gap-2">
             <Icon name="Info" size={13} className="text-gold shrink-0 mt-0.5" />
-            Победитель выбирается случайно (шанс пропорционален сумме ставок) и получает 90% банка. Игра завершится по достижении целевого банка или по истечении времени — раньше из двух.
+            Победители выбираются случайно (шанс пропорционален сумме ставок), 90% банка делится поровну между ними. Игра завершится по достижении целевого банка, по истечении времени или досрочно администратором.
           </div>
           {error && <p className="text-xs text-red-400 flex items-center gap-1"><Icon name="AlertCircle" size={12} />{error}</p>}
           <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold" onClick={handleCreate} disabled={creating}>
@@ -155,14 +166,18 @@ export function AdminGamesTab() {
                 <div className="flex-1 min-w-[180px]">
                   <div className="font-semibold text-sm text-foreground">{g.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    Ставка ₽{g.betAmount.toLocaleString("ru-RU")} · Банк ₽{g.bank.toLocaleString("ru-RU")} / ₽{g.targetBank.toLocaleString("ru-RU")} · {g.participantsCount} уч.
+                    Ставка ₽{g.betAmount.toLocaleString("ru-RU")} · Банк ₽{g.bank.toLocaleString("ru-RU")} / ₽{g.targetBank.toLocaleString("ru-RU")} · {g.participantsCount} уч. · {g.winnersCount} побед.
                   </div>
                   {g.creatorName && (
                     <div className="text-[10px] text-muted-foreground mt-0.5">Создал: {g.creatorName} ({g.creatorRole === "owner" ? "владелец" : g.creatorRole === "admin" ? "админ" : g.creatorRole})</div>
                   )}
-                  {g.status === "finished" && g.winnerName && (
-                    <div className="text-[10px] text-gold mt-0.5">
-                      Победитель: {g.winnerName}{g.winnerTicketNo != null ? ` (билет №${g.winnerTicketNo})` : ""} — ₽{(g.winnerAmount ?? 0).toLocaleString("ru-RU")}
+                  {g.status === "finished" && g.winners && g.winners.length > 0 && (
+                    <div className="text-[10px] text-gold mt-0.5 space-y-0.5">
+                      {g.winners.map((w) => (
+                        <div key={w.userId}>
+                          Победитель: {w.username} (билет №{w.ticketNo}) — ₽{w.amount.toLocaleString("ru-RU")}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

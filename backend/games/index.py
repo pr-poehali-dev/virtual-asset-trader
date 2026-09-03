@@ -86,7 +86,7 @@ def add_notification(cur, user_id, ntype, title, text, shield=False):
 
 def game_row_to_dict(row):
     (gid, title, bet_amount, target_bank, duration_seconds, bank, status,
-     winner_id, winner_amount, winner_name, winner_ticket_no,
+     winner_id, winner_amount, winner_name, winner_ticket_no, winners_count,
      created_by, creator_name, creator_role, creator_is_owner,
      created_at, expires_at, finished_at, participants_count) = row
     return {
@@ -101,6 +101,7 @@ def game_row_to_dict(row):
         "winnerName": winner_name,
         "winnerAmount": float(winner_amount) if winner_amount is not None else None,
         "winnerTicketNo": winner_ticket_no,
+        "winnersCount": winners_count,
         "createdBy": created_by,
         "creatorName": creator_name,
         "creatorRole": "owner" if creator_is_owner else creator_role,
@@ -114,7 +115,7 @@ def game_row_to_dict(row):
 def select_game_query(where_clause="", params=()):
     return (
         f"""SELECT g.id, g.title, g.bet_amount, g.target_bank, g.duration_seconds, g.bank,
-                   g.status, g.winner_id, g.winner_amount, w.username, g.winner_ticket_no,
+                   g.status, g.winner_id, g.winner_amount, w.username, g.winner_ticket_no, g.winners_count,
                    g.created_by, c.username, c.role, c.is_owner,
                    g.created_at, g.expires_at, g.finished_at,
                    (SELECT COUNT(DISTINCT user_id) FROM {SCHEMA}.game_bets WHERE game_id=g.id)
@@ -127,62 +128,96 @@ def select_game_query(where_clause="", params=()):
     )
 
 
-def finish_game(cur, game_id):
-    """Подводит итоги игры: выбирает победителя пропорционально вкладу и начисляет 90% банка."""
+def get_game_winners(cur, game_id):
     cur.execute(
-        f"SELECT id, bank, status FROM {SCHEMA}.games WHERE id=%s FOR UPDATE",
+        f"""SELECT gw.user_id, u.username, gw.ticket_no, gw.amount
+            FROM {SCHEMA}.game_winners gw JOIN {SCHEMA}.users u ON u.id=gw.user_id
+            WHERE gw.game_id=%s ORDER BY gw.amount DESC""",
+        (game_id,)
+    )
+    return [{"userId": r[0], "username": r[1], "ticketNo": r[2], "amount": float(r[3])} for r in cur.fetchall()]
+
+
+def finish_game(cur, game_id):
+    """Подводит итоги игры: разыгрывает 90% банка между N победителями (задаётся при создании
+    игры), выбранными случайно без повторов, с шансом пропорциональным сумме ставки."""
+    cur.execute(
+        f"SELECT id, bank, status, winners_count FROM {SCHEMA}.games WHERE id=%s FOR UPDATE",
         (game_id,)
     )
     row = cur.fetchone()
     if not row or row[2] != "active":
         return
     bank = float(row[1])
+    winners_count = max(1, int(row[3] or 1))
 
     cur.execute(
-        f"""SELECT user_id, amount, ticket_no FROM {SCHEMA}.game_bets
-            WHERE game_id=%s ORDER BY ticket_no""",
+        f"""SELECT user_id, SUM(amount) as total_amount,
+                   (ARRAY_AGG(ticket_no ORDER BY random()))[1] as sample_ticket
+            FROM {SCHEMA}.game_bets
+            WHERE game_id=%s GROUP BY user_id""",
         (game_id,)
     )
-    bets = [(uid, float(amt), tno) for uid, amt, tno in cur.fetchall()]
+    participants = [(uid, float(amt), tno) for uid, amt, tno in cur.fetchall()]
 
-    if not bets or bank <= 0:
+    if not participants or bank <= 0:
         cur.execute(
             f"UPDATE {SCHEMA}.games SET status='cancelled', finished_at=NOW() WHERE id=%s",
             (game_id,)
         )
         return
 
-    # Билет-победитель выбирается случайно, шанс пропорционален сумме ставки
-    r = random.uniform(0, bank)
-    acc = 0.0
-    winner_id, winner_ticket_no = bets[-1][0], bets[-1][2]
-    for uid, amt, tno in bets:
-        acc += amt
-        if r <= acc:
-            winner_id, winner_ticket_no = uid, tno
-            break
+    n = min(winners_count, len(participants))
 
-    winner_amount = round(bank * WINNER_SHARE, 2)
-    platform_amount = round(bank - winner_amount, 2)
+    # Взвешенный случайный выбор N уникальных победителей (шанс пропорционален сумме ставки),
+    # без повторов — выбранный участник удаляется из пула перед следующим розыгрышем.
+    pool = list(participants)
+    chosen = []
+    for _ in range(n):
+        total_weight = sum(p[1] for p in pool)
+        r = random.uniform(0, total_weight)
+        acc = 0.0
+        pick_idx = len(pool) - 1
+        for i, (uid, amt, tno) in enumerate(pool):
+            acc += amt
+            if r <= acc:
+                pick_idx = i
+                break
+        chosen.append(pool.pop(pick_idx))
 
-    cur.execute(
-        f"UPDATE {SCHEMA}.users SET balance_rub = balance_rub + %s WHERE id=%s",
-        (winner_amount, winner_id)
-    )
+    total_prize = round(bank * WINNER_SHARE, 2)
+    per_winner = round(total_prize / n, 2)
+    platform_amount = round(bank - per_winner * n, 2)
+
+    for uid, amt, tno in chosen:
+        cur.execute(
+            f"UPDATE {SCHEMA}.users SET balance_rub = balance_rub + %s WHERE id=%s",
+            (per_winner, uid)
+        )
+        cur.execute(
+            f"""INSERT INTO {SCHEMA}.game_winners (game_id, user_id, ticket_no, amount)
+                VALUES (%s,%s,%s,%s)""",
+            (game_id, uid, tno, per_winner)
+        )
+        add_notification(
+            cur, uid, "game_won", "Вы выиграли в игре!",
+            f"Билет №{tno} выиграл! Банк разыгран — вам начислено ₽{per_winner:,.0f}."
+            + (f" Победителей: {n}." if n > 1 else ""), shield=True
+        )
+
     cur.execute(
         f"""INSERT INTO {SCHEMA}.platform_revenue (source, amount, ref_id, description)
             VALUES ('game', %s, %s, 'Комиссия с игры на ставках')""",
         (platform_amount, game_id)
     )
+
+    # Легаси-поля (первый победитель) — для обратной совместимости со старым UI
+    first_uid, _, first_tno = chosen[0]
     cur.execute(
         f"""UPDATE {SCHEMA}.games
             SET status='finished', winner_id=%s, winner_amount=%s, winner_ticket_no=%s, finished_at=NOW()
             WHERE id=%s""",
-        (winner_id, winner_amount, winner_ticket_no, game_id)
-    )
-    add_notification(
-        cur, winner_id, "game_won", "Вы выиграли в игре!",
-        f"Билет №{winner_ticket_no} выиграл! Банк разыгран — вам начислено ₽{winner_amount:,.0f}.", shield=True
+        (first_uid, per_winner, first_tno, game_id)
     )
 
 
@@ -227,6 +262,21 @@ def handler(event: dict, context) -> dict:
             q, p = select_game_query()
             cur.execute(q, p)
             games = [game_row_to_dict(r) for r in cur.fetchall()]
+            for g in games:
+                if g["status"] == "finished":
+                    g["winners"] = get_game_winners(cur, g["id"])
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"games": games})}
+
+        # ── GET /games/history — история завершённых и отменённых игр ───────
+        if method == "GET" and path.rstrip("/").endswith("/games/history"):
+            finish_expired_games(cur)
+            conn.commit()
+            q, p = select_game_query("WHERE g.status IN ('finished','cancelled')")
+            cur.execute(q, p)
+            games = [game_row_to_dict(r) for r in cur.fetchall()]
+            for g in games:
+                if g["status"] == "finished":
+                    g["winners"] = get_game_winners(cur, g["id"])
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"games": games})}
 
         # ── GET /games/{id} — детали игры + ставки ──────────────────────────
@@ -252,6 +302,7 @@ def handler(event: dict, context) -> dict:
                 "amount": float(r[3]), "ticketNo": r[4], "createdAt": r[5].isoformat()
             } for r in cur.fetchall()]
             game["bets"] = bets
+            game["winners"] = get_game_winners(cur, game_id)
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"game": game})}
 
         # ── POST /games — создать игру (только админ) ───────────────────────
@@ -264,12 +315,15 @@ def handler(event: dict, context) -> dict:
                 bet_amount = float(body.get("bet_amount"))
                 target_bank = float(body.get("target_bank"))
                 duration_seconds = int(body.get("duration_seconds"))
+                winners_count = int(body.get("winners_count") or 1)
             except (TypeError, ValueError):
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
 
             if bet_amount <= 0 or target_bank <= 0 or duration_seconds <= 0:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
             if target_bank < bet_amount:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            if winners_count < 1 or winners_count > 20:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
 
             cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.games")
@@ -278,9 +332,9 @@ def handler(event: dict, context) -> dict:
 
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.games
-                    (id, title, bet_amount, target_bank, duration_seconds, bank, status, created_by, expires_at)
-                    VALUES (%s,%s,%s,%s,%s,0,'active',%s, NOW() + (%s || ' seconds')::interval)""",
-                (gid, title, bet_amount, target_bank, duration_seconds, user["id"], duration_seconds)
+                    (id, title, bet_amount, target_bank, duration_seconds, bank, status, created_by, expires_at, winners_count)
+                    VALUES (%s,%s,%s,%s,%s,0,'active',%s, NOW() + (%s || ' seconds')::interval, %s)""",
+                (gid, title, bet_amount, target_bank, duration_seconds, user["id"], duration_seconds, winners_count)
             )
             conn.commit()
 

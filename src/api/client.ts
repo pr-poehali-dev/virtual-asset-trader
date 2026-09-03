@@ -522,6 +522,7 @@ export const api = {
       bet_amount: number;
       target_bank: number;
       duration_seconds: number;
+      winners_count?: number;
     }) => req<{ game: ApiGame }>("games", "/games", "POST", data),
 
     bet: (game_id: string) =>
@@ -930,6 +931,13 @@ export type ApiGameBet = {
   createdAt: string;
 };
 
+export type ApiGameWinner = {
+  userId: string;
+  username: string;
+  ticketNo: number;
+  amount: number;
+};
+
 export type ApiGame = {
   id: string;
   title: string;
@@ -942,6 +950,8 @@ export type ApiGame = {
   winnerName?: string | null;
   winnerAmount?: number | null;
   winnerTicketNo?: number | null;
+  winnersCount: number;
+  winners?: ApiGameWinner[];
   createdBy: string;
   creatorName?: string | null;
   creatorRole?: string | null;
