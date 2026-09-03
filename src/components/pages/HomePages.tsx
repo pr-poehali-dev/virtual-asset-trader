@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { AppProduct } from "@/context/AuthContext";
 import { api } from "@/api/client";
+import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
@@ -587,7 +588,7 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 
 // ─── CATALOG PAGE ─────────────────────────────────────────────────────────────
 
-type BuyResult = "ok" | "no_balance" | "self" | null;
+type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const { user: me, buyProduct, boostProduct } = useAuth();
@@ -606,6 +607,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   // Buy feedback per product id
   const [buyResult, setBuyResult] = useState<Record<number, BuyResult>>({});
   const [boostResult, setBoostResult] = useState<Record<number, string>>({});
+  const [pendingBuy, setPendingBuy] = useState<AppProduct | null>(null);
 
   // Загружаем товары из API
   useEffect(() => {
@@ -641,6 +643,10 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
     }
     const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
     const result = await buyProduct(product, fakeSellerUser);
+    if (result === "verify_required") {
+      setPendingBuy(product);
+      return;
+    }
     setBuyResult((prev) => ({ ...prev, [product.id]: result }));
     setTimeout(() => {
       setBuyResult((prev) => ({ ...prev, [product.id]: null }));
@@ -1013,6 +1019,25 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
             );
           })}
         </div>
+      )}
+
+      {pendingBuy && (
+        <BigSpendVerifyModal
+          onClose={() => setPendingBuy(null)}
+          onConfirmed={async () => {
+            const product = pendingBuy;
+            setPendingBuy(null);
+            const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
+            const result = await buyProduct(product, fakeSellerUser);
+            setBuyResult((prev) => ({ ...prev, [product.id]: result }));
+            setTimeout(() => {
+              setBuyResult((prev) => ({ ...prev, [product.id]: null }));
+            }, 4000);
+            if (result === "ok") {
+              api.products.list().then(({ products }) => setAllProducts(products as AppProduct[])).catch(() => {});
+            }
+          }}
+        />
       )}
     </div>
   );

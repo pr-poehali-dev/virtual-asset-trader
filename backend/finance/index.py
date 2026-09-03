@@ -5,7 +5,8 @@ import json, os, secrets
 import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
-PLATFORM_COMMISSION = 5
+PLATFORM_COMMISSION = 7
+WITHDRAW_FEE_FIXED = 50  # фиксированная комиссия за вывод средств, ₽
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -327,14 +328,16 @@ def handler(event: dict, context) -> dict:
             currency  = body.get("currency") or "RUB"
             req_type  = body.get("requisite_type") or ""
             req_details = body.get("requisite_details") or ""
-            commission  = float(body.get("commission") or PLATFORM_COMMISSION)
+            commission  = WITHDRAW_FEE_FIXED  # фиксированная комиссия вывода, ₽
 
             if amount <= 0 or not req_type:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            if amount <= commission:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "amount_too_small"})}
             if user["balance_rub"] < amount:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "no_balance"})}
 
-            to_receive = round(amount * (1 - commission / 100), 2)
+            to_receive = round(amount - commission, 2)
             wd_id = "WD-" + secrets.token_hex(3).upper()
 
             cur.execute(

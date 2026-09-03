@@ -4,10 +4,12 @@
 время — случайно выбирается победитель (шанс пропорционален вкладу) и получает 90% банка.
 """
 import json, os, secrets, random
+from datetime import datetime
 import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 WINNER_SHARE = 0.9
+BIG_SPEND_THRESHOLD = 3000
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -20,6 +22,37 @@ def get_conn():
     conn = psycopg2.connect(os.environ["DATABASE_URL"])
     conn.autocommit = False
     return conn
+
+
+# ── DDoS-защита ────────────────────────────────────────────────────────────
+
+def get_client_ip(event):
+    return (event.get("requestContext") or {}).get("identity", {}).get("sourceIp") or "unknown"
+
+def is_ip_blocked(cur, ip):
+    cur.execute(f"SELECT blocked_until FROM {SCHEMA}.blocked_ips WHERE ip=%s", (ip,))
+    row = cur.fetchone()
+    return bool(row and row[0].timestamp() > datetime.now().timestamp())
+
+def check_rate_limit(cur, ip, bucket, window_sec=60, max_hits=20, block_minutes=15):
+    if is_ip_blocked(cur, ip):
+        return True
+    cur.execute(f"INSERT INTO {SCHEMA}.ip_hits (ip, bucket) VALUES (%s,%s)", (ip, bucket))
+    cur.execute(
+        f"""SELECT COUNT(*) FROM {SCHEMA}.ip_hits
+            WHERE ip=%s AND bucket=%s AND created_at >= NOW() - INTERVAL '{window_sec} seconds'""",
+        (ip, bucket)
+    )
+    count = cur.fetchone()[0]
+    if count > max_hits:
+        cur.execute(
+            f"""INSERT INTO {SCHEMA}.blocked_ips (ip, reason, blocked_until)
+                VALUES (%s,%s, NOW() + INTERVAL '{block_minutes} minutes')
+                ON CONFLICT (ip) DO UPDATE SET blocked_until=EXCLUDED.blocked_until, reason=EXCLUDED.reason, created_at=NOW()""",
+            (ip, f"Превышен лимит запросов: {bucket} ({count} за {window_sec}с)")
+        )
+        return True
+    return False
 
 
 def get_user_by_token(cur, token):
@@ -53,8 +86,9 @@ def add_notification(cur, user_id, ntype, title, text, shield=False):
 
 def game_row_to_dict(row):
     (gid, title, bet_amount, target_bank, duration_seconds, bank, status,
-     winner_id, winner_amount, winner_name, created_by, created_at, expires_at, finished_at,
-     participants_count) = row
+     winner_id, winner_amount, winner_name, winner_ticket_no,
+     created_by, creator_name, creator_role, creator_is_owner,
+     created_at, expires_at, finished_at, participants_count) = row
     return {
         "id": gid,
         "title": title,
@@ -66,7 +100,10 @@ def game_row_to_dict(row):
         "winnerId": winner_id,
         "winnerName": winner_name,
         "winnerAmount": float(winner_amount) if winner_amount is not None else None,
+        "winnerTicketNo": winner_ticket_no,
         "createdBy": created_by,
+        "creatorName": creator_name,
+        "creatorRole": "owner" if creator_is_owner else creator_role,
         "createdAt": created_at.isoformat() if created_at else None,
         "expiresAt": expires_at.isoformat() if expires_at else None,
         "finishedAt": finished_at.isoformat() if finished_at else None,
@@ -77,11 +114,13 @@ def game_row_to_dict(row):
 def select_game_query(where_clause="", params=()):
     return (
         f"""SELECT g.id, g.title, g.bet_amount, g.target_bank, g.duration_seconds, g.bank,
-                   g.status, g.winner_id, g.winner_amount, w.username, g.created_by,
+                   g.status, g.winner_id, g.winner_amount, w.username, g.winner_ticket_no,
+                   g.created_by, c.username, c.role, c.is_owner,
                    g.created_at, g.expires_at, g.finished_at,
                    (SELECT COUNT(DISTINCT user_id) FROM {SCHEMA}.game_bets WHERE game_id=g.id)
             FROM {SCHEMA}.games g
             LEFT JOIN {SCHEMA}.users w ON w.id = g.winner_id
+            LEFT JOIN {SCHEMA}.users c ON c.id = g.created_by
             {where_clause}
             ORDER BY g.created_at DESC""",
         params
@@ -100,26 +139,27 @@ def finish_game(cur, game_id):
     bank = float(row[1])
 
     cur.execute(
-        f"""SELECT user_id, SUM(amount) FROM {SCHEMA}.game_bets
-            WHERE game_id=%s GROUP BY user_id""",
+        f"""SELECT user_id, amount, ticket_no FROM {SCHEMA}.game_bets
+            WHERE game_id=%s ORDER BY ticket_no""",
         (game_id,)
     )
-    contributions = [(uid, float(amt)) for uid, amt in cur.fetchall()]
+    bets = [(uid, float(amt), tno) for uid, amt, tno in cur.fetchall()]
 
-    if not contributions or bank <= 0:
+    if not bets or bank <= 0:
         cur.execute(
             f"UPDATE {SCHEMA}.games SET status='cancelled', finished_at=NOW() WHERE id=%s",
             (game_id,)
         )
         return
 
+    # Билет-победитель выбирается случайно, шанс пропорционален сумме ставки
     r = random.uniform(0, bank)
     acc = 0.0
-    winner_id = contributions[-1][0]
-    for uid, amt in contributions:
+    winner_id, winner_ticket_no = bets[-1][0], bets[-1][2]
+    for uid, amt, tno in bets:
         acc += amt
         if r <= acc:
-            winner_id = uid
+            winner_id, winner_ticket_no = uid, tno
             break
 
     winner_amount = round(bank * WINNER_SHARE, 2)
@@ -136,13 +176,13 @@ def finish_game(cur, game_id):
     )
     cur.execute(
         f"""UPDATE {SCHEMA}.games
-            SET status='finished', winner_id=%s, winner_amount=%s, finished_at=NOW()
+            SET status='finished', winner_id=%s, winner_amount=%s, winner_ticket_no=%s, finished_at=NOW()
             WHERE id=%s""",
-        (winner_id, winner_amount, game_id)
+        (winner_id, winner_amount, winner_ticket_no, game_id)
     )
     add_notification(
         cur, winner_id, "game_won", "Вы выиграли в игре!",
-        f"Банк разыгран — вам начислено ₽{winner_amount:,.0f}.", shield=True
+        f"Билет №{winner_ticket_no} выиграл! Банк разыгран — вам начислено ₽{winner_amount:,.0f}.", shield=True
     )
 
 
@@ -170,9 +210,14 @@ def handler(event: dict, context) -> dict:
             pass
 
     token = (event.get("headers") or {}).get("X-Session-Token")
+    ip = get_client_ip(event)
     conn = get_conn()
     try:
         cur = conn.cursor()
+
+        if is_ip_blocked(cur, ip):
+            return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "ip_blocked"})}
+
         user = get_user_by_token(cur, token)
 
         # ── GET /games — список игр (публично) ─────────────────────────────
@@ -197,14 +242,14 @@ def handler(event: dict, context) -> dict:
             game = game_row_to_dict(row)
 
             cur.execute(
-                f"""SELECT b.id, b.user_id, u.username, b.amount, b.created_at
+                f"""SELECT b.id, b.user_id, u.username, b.amount, b.ticket_no, b.created_at
                     FROM {SCHEMA}.game_bets b JOIN {SCHEMA}.users u ON u.id=b.user_id
-                    WHERE b.game_id=%s ORDER BY b.created_at DESC""",
+                    WHERE b.game_id=%s ORDER BY b.ticket_no DESC""",
                 (game_id,)
             )
             bets = [{
                 "id": r[0], "userId": r[1], "username": r[2],
-                "amount": float(r[3]), "createdAt": r[4].isoformat()
+                "amount": float(r[3]), "ticketNo": r[4], "createdAt": r[5].isoformat()
             } for r in cur.fetchall()]
             game["bets"] = bets
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"game": game})}
@@ -250,6 +295,9 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             if user["status"] in ("frozen", "blocked"):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            if check_rate_limit(cur, ip, "games_bet", window_sec=10, max_hits=10, block_minutes=5):
+                conn.commit()
+                return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
 
             game_id = body.get("game_id")
             if not game_id:
@@ -271,19 +319,29 @@ def handler(event: dict, context) -> dict:
             if status != "active":
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
 
-            cur.execute(f"SELECT balance_rub FROM {SCHEMA}.users WHERE id=%s FOR UPDATE", (user["id"],))
-            balance = float(cur.fetchone()[0])
+            cur.execute(f"SELECT balance_rub, big_spend_verified_month FROM {SCHEMA}.users WHERE id=%s FOR UPDATE", (user["id"],))
+            balance, verified_month = cur.fetchone()
+            balance = float(balance)
             if balance < bet_amount:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "no_balance"})}
+
+            if bet_amount > BIG_SPEND_THRESHOLD:
+                month_key = datetime.now().strftime("%Y-%m")
+                if verified_month != month_key:
+                    return {"statusCode": 403, "headers": CORS,
+                            "body": json.dumps({"error": "big_spend_verification_required"})}
 
             cur.execute(f"UPDATE {SCHEMA}.users SET balance_rub = balance_rub - %s WHERE id=%s",
                         (bet_amount, user["id"]))
 
+            cur.execute(f"SELECT COALESCE(MAX(ticket_no),0) FROM {SCHEMA}.game_bets WHERE game_id=%s", (game_id,))
+            ticket_no = cur.fetchone()[0] + 1
+
             bid = secrets.token_hex(8)
             cur.execute(
-                f"""INSERT INTO {SCHEMA}.game_bets (id, game_id, user_id, amount)
-                    VALUES (%s,%s,%s,%s)""",
-                (bid, game_id, user["id"], bet_amount)
+                f"""INSERT INTO {SCHEMA}.game_bets (id, game_id, user_id, amount, ticket_no)
+                    VALUES (%s,%s,%s,%s,%s)""",
+                (bid, game_id, user["id"], bet_amount, ticket_no)
             )
             new_bank = round(bank + bet_amount, 2)
             cur.execute(f"UPDATE {SCHEMA}.games SET bank=%s WHERE id=%s", (new_bank, game_id))
@@ -296,7 +354,7 @@ def handler(event: dict, context) -> dict:
             q, p = select_game_query("WHERE g.id=%s", (game_id,))
             cur.execute(q, p)
             game = game_row_to_dict(cur.fetchone())
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"game": game})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"game": game, "ticketNo": ticket_no})}
 
         # ── POST /games/cancel — отменить игру и вернуть ставки (только админ) ─
         if method == "POST" and path.rstrip("/").endswith("/games/cancel"):

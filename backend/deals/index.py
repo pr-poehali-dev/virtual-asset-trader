@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
-PLATFORM_COMMISSION = 5
+PLATFORM_COMMISSION = 7
 HOLD_DAYS = {"CS2 скины": 8, "PUBG Mobile": 14}
 SUSPICIOUS_PATTERN = "http"
+BIG_SPEND_THRESHOLD = 3000
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -83,6 +84,36 @@ def add_notification(cur, user_id, ntype, title, text, shield=False):
         (nid, user_id, ntype, title, text, shield)
     )
 
+# ── DDoS-защита: ограничение запросов с одного IP ──────────────────────────
+
+def get_client_ip(event):
+    return (event.get("requestContext") or {}).get("identity", {}).get("sourceIp") or "unknown"
+
+def is_ip_blocked(cur, ip):
+    cur.execute(f"SELECT blocked_until FROM {SCHEMA}.blocked_ips WHERE ip=%s", (ip,))
+    row = cur.fetchone()
+    return bool(row and row[0].timestamp() > datetime.now().timestamp())
+
+def check_rate_limit(cur, ip, bucket, window_sec=60, max_hits=20, block_minutes=15):
+    if is_ip_blocked(cur, ip):
+        return True
+    cur.execute(f"INSERT INTO {SCHEMA}.ip_hits (ip, bucket) VALUES (%s,%s)", (ip, bucket))
+    cur.execute(
+        f"""SELECT COUNT(*) FROM {SCHEMA}.ip_hits
+            WHERE ip=%s AND bucket=%s AND created_at >= NOW() - INTERVAL '{window_sec} seconds'""",
+        (ip, bucket)
+    )
+    count = cur.fetchone()[0]
+    if count > max_hits:
+        cur.execute(
+            f"""INSERT INTO {SCHEMA}.blocked_ips (ip, reason, blocked_until)
+                VALUES (%s,%s, NOW() + INTERVAL '{block_minutes} minutes')
+                ON CONFLICT (ip) DO UPDATE SET blocked_until=EXCLUDED.blocked_until, reason=EXCLUDED.reason, created_at=NOW()""",
+            (ip, f"Превышен лимит запросов: {bucket} ({count} за {window_sec}с)")
+        )
+        return True
+    return False
+
 def handler(event: dict, context) -> dict:
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
@@ -98,15 +129,22 @@ def handler(event: dict, context) -> dict:
             pass
 
     token = (event.get("headers") or {}).get("X-Session-Token")
+    ip = get_client_ip(event)
     conn  = get_conn()
     try:
         cur = conn.cursor()
+
+        if is_ip_blocked(cur, ip):
+            return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "ip_blocked"})}
 
         # ── POST /deals/buy ───────────────────────────────────────────────────
         if method == "POST" and path.endswith("/buy"):
             user = get_user_by_token(cur, token)
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            if check_rate_limit(cur, ip, "deals_buy", window_sec=30, max_hits=15, block_minutes=10):
+                conn.commit()
+                return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
 
             product_id = body.get("product_id")
             cur.execute(
@@ -126,6 +164,14 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "self_buy"})}
             if user["balance_rub"] < price:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "no_balance"})}
+
+            if price > BIG_SPEND_THRESHOLD:
+                month_key = datetime.now().strftime("%Y-%m")
+                cur.execute(f"SELECT big_spend_verified_month FROM {SCHEMA}.users WHERE id=%s", (user["id"],))
+                verified_month = cur.fetchone()[0]
+                if verified_month != month_key:
+                    return {"statusCode": 403, "headers": CORS,
+                            "body": json.dumps({"error": "big_spend_verification_required"})}
 
             hold_days = HOLD_DAYS.get(category)
             seller_receives = round(price * (1 - PLATFORM_COMMISSION / 100), 2)

@@ -13,7 +13,7 @@ import {
   INITIAL_WITHDRAWALS,
   WITHDRAW_STATUS_MAP,
   WithdrawRequest,
-  PLATFORM_COMMISSION,
+  WITHDRAW_FEE_FIXED,
   HOLD_CATEGORIES,
 } from "@/components/data/constants";
 
@@ -252,7 +252,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
         setRegistering(false);
         return;
       }
-      const result = register(username, email, password);
+      const result = await register(username, email, password);
       if (result === "exists") {
         setError("Никнейм или email уже занят");
       }
@@ -1007,12 +1007,19 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
   const balanceRUB = user.balances.RUB ?? 0;
   const lockedRUB = user.lockedBalances.RUB ?? 0;
 
-  // commission preview
+  // commission preview — фиксированная комиссия за вывод
   const wAmountNum = parseFloat(wAmount) || 0;
-  const commissionAmount = Math.round(wAmountNum * (PLATFORM_COMMISSION / 100));
+  const commissionAmount = wAmountNum > 0 ? WITHDRAW_FEE_FIXED : 0;
   const toReceive = Math.max(0, wAmountNum - commissionAmount);
 
-  const submitWithdrawal = async () => {
+  // ── Подтверждение вывода кодом с почты ──
+  const [wStep, setWStep] = useState<"form" | "code">("form");
+  const [wTicketId, setWTicketId] = useState("");
+  const [wMaskedEmail, setWMaskedEmail] = useState("");
+  const [wCode, setWCode] = useState("");
+  const [wSending, setWSending] = useState(false);
+
+  const requestWithdrawal = async () => {
     setWError("");
     if (!wAmount || !wReqId) {
       setWError("Выберите реквизит и введите сумму");
@@ -1027,21 +1034,41 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
       setWError("Недостаточно средств на балансе");
       return;
     }
+    if (amount <= WITHDRAW_FEE_FIXED) {
+      setWError(`Сумма должна быть больше комиссии вывода (₽${WITHDRAW_FEE_FIXED})`);
+      return;
+    }
+    setWSending(true);
     try {
-      const res = await api.finance.withdraw({
+      const res = await api.security.withdrawRequest({
         amount,
         currency: "RUB",
         requisite_type: wReqLabel,
         requisite_details: wReqId,
-        commission: PLATFORM_COMMISSION,
       });
+      setWTicketId(res.ticketId);
+      setWMaskedEmail(res.maskedEmail);
+      setWStep("code");
+    } catch (e) {
+      setWError(apiErrorMessage(e));
+    }
+    setWSending(false);
+  };
+
+  const confirmWithdrawal = async () => {
+    if (!wCode.trim()) { setWError("Введите код из письма"); return; }
+    setWSending(true);
+    setWError("");
+    try {
+      const res = await api.security.withdrawConfirm(wTicketId, wCode.trim());
+      const amount = parseFloat(wAmount);
       const newWd: WithdrawRequest = {
         id: res.id,
         userId: user.id,
         username: user.username,
         amount,
         currency: "RUB",
-        commission: PLATFORM_COMMISSION,
+        commission: WITHDRAW_FEE_FIXED,
         toReceive: res.to_receive,
         requisiteType: wReqLabel,
         requisiteDetails: wReqId,
@@ -1052,11 +1079,14 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
       setWAmount("");
       setWReqId("");
       setWReqLabel("");
+      setWCode("");
       setWError("");
+      setWStep("form");
       setShowWithdrawForm(false);
     } catch (e) {
       setWError(apiErrorMessage(e));
     }
+    setWSending(false);
   };
 
   const submitDeposit = () => {
@@ -1477,7 +1507,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
             </div>
           </div>
 
-          {showWithdrawForm && (
+          {showWithdrawForm && wStep === "form" && (
             <div className="bg-surface border border-gold/20 rounded-xl p-5 mb-5">
               <h3 className="font-display font-semibold text-sm text-foreground mb-4">
                 Новая заявка на вывод
@@ -1564,7 +1594,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                       <span>₽ {wAmountNum.toLocaleString("ru-RU")}</span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
-                      <span>Комиссия платформы ({PLATFORM_COMMISSION}%)</span>
+                      <span>Комиссия за вывод (фикс.)</span>
                       <span className="text-red-400">
                         - ₽ {commissionAmount.toLocaleString("ru-RU")}
                       </span>
@@ -1602,11 +1632,66 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                   <Button
                     size="sm"
                     className="flex-1 bg-gold text-background hover:bg-gold/90 font-bold"
-                    onClick={submitWithdrawal}
+                    onClick={requestWithdrawal}
+                    disabled={wSending}
                   >
-                    Подать заявку
+                    {wSending && <Icon name="Loader" size={13} className="animate-spin mr-1.5" />}
+                    Получить код
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {showWithdrawForm && wStep === "code" && (
+            <div className="bg-surface border border-gold/20 rounded-xl p-5 mb-5">
+              <div className="text-center mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-3">
+                  <Icon name="Mail" size={22} className="text-gold" />
+                </div>
+                <h3 className="font-display font-semibold text-sm text-foreground mb-1">
+                  Подтверждение вывода
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Код отправлен на {wMaskedEmail}
+                </p>
+              </div>
+              <Input
+                placeholder="123456"
+                value={wCode}
+                onChange={(e) => { setWCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setWError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && confirmWithdrawal()}
+                className="bg-background border-border text-sm text-center font-mono text-lg tracking-widest mb-3"
+                maxLength={6}
+              />
+              {wError && (
+                <p className="text-xs text-red-400 flex items-center gap-1 justify-center mb-3">
+                  <Icon name="AlertCircle" size={12} />
+                  {wError}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-border"
+                  onClick={() => {
+                    setWStep("form");
+                    setWError("");
+                    setWCode("");
+                  }}
+                >
+                  Назад
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-gold text-background hover:bg-gold/90 font-bold"
+                  onClick={confirmWithdrawal}
+                  disabled={wSending}
+                >
+                  {wSending && <Icon name="Loader" size={13} className="animate-spin mr-1.5" />}
+                  Подтвердить
+                </Button>
               </div>
             </div>
           )}
@@ -1641,7 +1726,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                           ₽ {w.amount.toLocaleString("ru-RU")}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Комиссия {w.commission}% · {w.requisiteType}
+                          Комиссия ₽{w.commission} · {w.requisiteType}
                         </div>
                       </div>
                       <div className="text-right">

@@ -147,8 +147,13 @@ export function AdminGamesTab() {
                   <div className="text-xs text-muted-foreground">
                     Ставка ₽{g.betAmount.toLocaleString("ru-RU")} · Банк ₽{g.bank.toLocaleString("ru-RU")} / ₽{g.targetBank.toLocaleString("ru-RU")} · {g.participantsCount} уч.
                   </div>
+                  {g.creatorName && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">Создал: {g.creatorName} ({g.creatorRole === "owner" ? "владелец" : g.creatorRole === "admin" ? "админ" : g.creatorRole})</div>
+                  )}
                   {g.status === "finished" && g.winnerName && (
-                    <div className="text-[10px] text-gold mt-0.5">Победитель: {g.winnerName} (₽{(g.winnerAmount ?? 0).toLocaleString("ru-RU")})</div>
+                    <div className="text-[10px] text-gold mt-0.5">
+                      Победитель: {g.winnerName}{g.winnerTicketNo != null ? ` (билет №${g.winnerTicketNo})` : ""} — ₽{(g.winnerAmount ?? 0).toLocaleString("ru-RU")}
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

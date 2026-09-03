@@ -61,7 +61,7 @@ function ChatWindow({
             ) : (
               <div className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
                 <div className={`max-w-[72%] rounded-2xl px-3 py-2 ${
-                  m.role === "user" ? "bg-secondary text-foreground rounded-bl-sm" : "bg-gold text-background rounded-br-sm"
+                  m.role === "user" ? "bg-secondary text-foreground rounded-bl-sm" : m.role === "ai" ? "bg-blue-400/20 text-foreground rounded-br-sm" : "bg-gold text-background rounded-br-sm"
                 }`}>
                   {m.fromUsername && m.role === "user" && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-70">{m.fromUsername}</p>
@@ -71,6 +71,12 @@ function ChatWindow({
                   )}
                   {m.role === "operator" && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-80">Оператор</p>
+                  )}
+                  {m.role === "ai" && (
+                    <p className="text-[10px] font-semibold mb-0.5 opacity-80 flex items-center gap-1">
+                      <Icon name="Sparkles" size={10} />
+                      ИИ-ассистент
+                    </p>
                   )}
                   <p className="text-sm">{m.text}</p>
                   <p className={`text-[10px] mt-0.5 ${m.role === "user" ? "text-muted-foreground" : "text-background/60 text-right"}`}>{m.time}</p>

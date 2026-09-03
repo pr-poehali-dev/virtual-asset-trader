@@ -69,7 +69,7 @@ type AuthContextType = {
 
   updateUsers: (users: AppUser[]) => void;
   addProduct: (product: AppProduct) => Promise<void>;
-  buyProduct: (product: AppProduct, _seller: AppUser) => Promise<"ok" | "no_balance" | "self">;
+  buyProduct: (product: AppProduct, _seller: AppUser) => Promise<"ok" | "no_balance" | "self" | "verify_required">;
   boostProduct: (productId: number) => Promise<"ok" | "no_balance">;
   addReview: (sellerId: string, review: Omit<AppReview, "id">) => Promise<"ok" | "not_buyer">;
   openDispute: (dealId: string) => Promise<void>;
@@ -214,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
-  const buyProduct = async (product: AppProduct, _seller: AppUser): Promise<"ok" | "no_balance" | "self"> => {
+  const buyProduct = async (product: AppProduct, _seller: AppUser): Promise<"ok" | "no_balance" | "self" | "verify_required"> => {
     try {
       await api.deals.buy(product.id);
       // Обновляем баланс локально
@@ -230,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const err = e as { error?: string };
       if (err?.error === "no_balance") return "no_balance";
       if (err?.error === "self_buy") return "self";
+      if (err?.error === "big_spend_verification_required") return "verify_required";
       return "no_balance";
     }
   };
@@ -356,6 +357,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshDeals();
       refreshNotifications();
     }, 30000); // каждые 30 сек
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  // Heartbeat — отмечаем пользователя как "онлайн" (для команды сайта в админке)
+  useEffect(() => {
+    if (!user) return;
+    const beat = () => api.auth.heartbeat().catch(() => {});
+    beat();
+    const interval = setInterval(beat, 45000); // каждые 45 сек
     return () => clearInterval(interval);
   }, [user?.id]);
 

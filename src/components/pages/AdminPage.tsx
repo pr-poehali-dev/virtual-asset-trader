@@ -17,6 +17,8 @@ import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/
 import { AdminDisputesTab, AdminSupportTab } from "@/components/pages/admin/AdminSupportDisputes";
 import { AdminMonitorTab } from "@/components/pages/admin/AdminMonitor";
 import { AdminGamesTab } from "@/components/pages/admin/AdminGames";
+import { AdminTeamTab } from "@/components/pages/admin/AdminTeam";
+import { AdminSecurityTab } from "@/components/pages/admin/AdminSecurity";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -132,6 +134,8 @@ type AdminTab =
   | "staff"
   | "verifications"
   | "partners"
+  | "team"
+  | "security"
   | "monitor";
 
 const TABS: { id: AdminTab; label: string; icon: string }[] = [
@@ -149,6 +153,8 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "staff", label: "Сотрудники", icon: "UserCheck" },
   { id: "verifications", label: "Верификации", icon: "ShieldCheck" },
   { id: "partners", label: "Партнёры", icon: "Star" },
+  { id: "team", label: "Команда сайта", icon: "Users2" },
+  { id: "security", label: "Безопасность", icon: "ShieldAlert" },
 ];
 
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
@@ -251,6 +257,8 @@ export function AdminPage() {
       {tab === "staff" && <AdminStaffTab />}
       {tab === "verifications" && <AdminVerificationsTab />}
       {tab === "partners" && <AdminPartnersTab />}
+      {tab === "team" && <AdminTeamTab />}
+      {tab === "security" && <AdminSecurityTab />}
     </div>
   );
 }

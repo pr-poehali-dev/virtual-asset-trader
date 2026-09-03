@@ -1,7 +1,8 @@
 // ─── PLATFORM SETTINGS ────────────────────────────────────────────────────────
 
 export const SITE_URL = "https://gorant.shop";
-export const PLATFORM_COMMISSION = 5; // %
+export const PLATFORM_COMMISSION = 7; // % — комиссия с продаж/сделок
+export const WITHDRAW_FEE_FIXED = 50; // ₽ — фиксированная комиссия за вывод средств
 export const BOOST_PRICE = 50; // RUB
 export const ADMIN_PASSWORD = "As53FlmMs";
 export const SUSPICIOUS_URL_PATTERN = /https?:\/\/(?!gorant\.shop)[^\s]+/gi;

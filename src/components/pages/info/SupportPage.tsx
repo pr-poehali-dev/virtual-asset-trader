@@ -68,18 +68,21 @@ function SupportChat() {
   }, [loadTicket]);
 
   const openTicket = async () => {
-    if (!input.trim() && !subject.trim()) return;
+    const firstMessage = input.trim();
+    if (!firstMessage && !subject.trim()) return;
     setSending(true);
     try {
       const { ticketId } = await api.support.openTicket(
         subject.trim() || "Вопрос в поддержку",
-        input.trim(),
+        firstMessage,
       );
       setInput("");
       setSubject("");
       setShowNew(false);
       await loadTicket();
-      void ticketId;
+      if (firstMessage) {
+        api.aiSupport.respond(ticketId).then(() => loadTicket()).catch(() => {});
+      }
     } catch {
       /* ignore */
     }
@@ -113,6 +116,7 @@ function SupportChat() {
     });
     try {
       await api.support.sendMessage(ticket.id, text);
+      api.aiSupport.respond(ticket.id).then(() => loadTicket()).catch(() => {});
     } catch {
       /* ignore */
     }
@@ -246,6 +250,12 @@ function SupportChat() {
                 {m.role === "operator" && (
                   <p className="text-[10px] font-semibold mb-0.5 opacity-70">
                     Оператор
+                  </p>
+                )}
+                {m.role === "ai" && (
+                  <p className="text-[10px] font-semibold mb-0.5 opacity-70 flex items-center gap-1">
+                    <Icon name="Sparkles" size={10} />
+                    ИИ-ассистент
                   </p>
                 )}
                 <p className="text-sm leading-relaxed">{m.text}</p>

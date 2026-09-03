@@ -8,7 +8,7 @@ import json, os, secrets
 import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
-PLATFORM_COMMISSION = 5
+PLATFORM_COMMISSION = 7
 
 CORS = {
     "Access-Control-Allow-Origin": "*",

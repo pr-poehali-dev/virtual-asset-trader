@@ -6,7 +6,7 @@ import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 BOOST_PRICE = 50
-PLATFORM_COMMISSION = 5
+PLATFORM_COMMISSION = 7
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -34,6 +34,37 @@ def get_user_by_token(cur, token):
     return {"id": row[0], "username": row[1], "balance_rub": float(row[2]),
             "role": row[3], "is_owner": row[4], "verified": row[5]}
 
+# ── DDoS-защита ────────────────────────────────────────────────────────────
+import datetime as _dt
+
+def get_client_ip(event):
+    return (event.get("requestContext") or {}).get("identity", {}).get("sourceIp") or "unknown"
+
+def is_ip_blocked(cur, ip):
+    cur.execute(f"SELECT blocked_until FROM {SCHEMA}.blocked_ips WHERE ip=%s", (ip,))
+    row = cur.fetchone()
+    return bool(row and row[0].timestamp() > _dt.datetime.now().timestamp())
+
+def check_rate_limit(cur, ip, bucket, window_sec=60, max_hits=20, block_minutes=15):
+    if is_ip_blocked(cur, ip):
+        return True
+    cur.execute(f"INSERT INTO {SCHEMA}.ip_hits (ip, bucket) VALUES (%s,%s)", (ip, bucket))
+    cur.execute(
+        f"""SELECT COUNT(*) FROM {SCHEMA}.ip_hits
+            WHERE ip=%s AND bucket=%s AND created_at >= NOW() - INTERVAL '{window_sec} seconds'""",
+        (ip, bucket)
+    )
+    count = cur.fetchone()[0]
+    if count > max_hits:
+        cur.execute(
+            f"""INSERT INTO {SCHEMA}.blocked_ips (ip, reason, blocked_until)
+                VALUES (%s,%s, NOW() + INTERVAL '{block_minutes} minutes')
+                ON CONFLICT (ip) DO UPDATE SET blocked_until=EXCLUDED.blocked_until, reason=EXCLUDED.reason, created_at=NOW()""",
+            (ip, f"Превышен лимит запросов: {bucket} ({count} за {window_sec}с)")
+        )
+        return True
+    return False
+
 def handler(event: dict, context) -> dict:
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
@@ -50,9 +81,13 @@ def handler(event: dict, context) -> dict:
             pass
 
     token = (event.get("headers") or {}).get("X-Session-Token")
+    ip = get_client_ip(event)
     conn = get_conn()
     try:
         cur = conn.cursor()
+
+        if is_ip_blocked(cur, ip):
+            return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "ip_blocked"})}
 
         # ── GET /products ─────────────────────────────────────────────────────
         if method == "GET" and (path.endswith("/products") or path.endswith("/products/")):
@@ -104,6 +139,9 @@ def handler(event: dict, context) -> dict:
             user = get_user_by_token(cur, token)
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            if check_rate_limit(cur, ip, "products_create", window_sec=60, max_hits=20, block_minutes=10):
+                conn.commit()
+                return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
 
             title    = (body.get("title") or "").strip()
             category = body.get("category") or ""

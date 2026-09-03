@@ -3,7 +3,8 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
-import { api, apiErrorMessage, type ApiGame } from "@/api/client";
+import { api, apiErrorMessage, isApiError, type ApiGame } from "@/api/client";
+import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
 
 // ─── ТАЙМЕР ОБРАТНОГО ОТСЧЁТА ─────────────────────────────────────────────────
 
@@ -28,16 +29,45 @@ function useCountdown(expiresAt: string, active: boolean) {
 
 // ─── КАРТОЧКА ИГРЫ ────────────────────────────────────────────────────────────
 
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Владелец",
+  admin: "Админ",
+  staff: "Сотрудник",
+  user: "Пользователь",
+};
+
 function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) => void }) {
   const { user, refreshUser } = useAuth();
   const { format } = useCurrency();
   const [betting, setBetting] = useState(false);
   const [error, setError] = useState("");
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [myTicketNo, setMyTicketNo] = useState<number | null>(null);
   const timeLeft = useCountdown(game.expiresAt, game.status === "active");
 
   const progress = Math.min(100, (game.bank / game.targetBank) * 100);
   const isFinished = game.status !== "active";
   const notEnoughBalance = !!user && user.balance < game.betAmount;
+
+  const placeBet = async () => {
+    setBetting(true);
+    setError("");
+    try {
+      const { game: updated, ticketNo } = await api.games.bet(game.id);
+      onUpdate(updated);
+      setMyTicketNo(ticketNo);
+      await refreshUser();
+    } catch (e) {
+      if (isApiError(e) && e.error === "big_spend_verification_required") {
+        setNeedsVerify(true);
+      } else {
+        setError(apiErrorMessage(e));
+      }
+      await refreshUser();
+    } finally {
+      setBetting(false);
+    }
+  };
 
   const handleBet = async () => {
     if (!user) { setError("Войдите, чтобы сделать ставку"); return; }
@@ -47,18 +77,7 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
       setError("Недостаточно средств на балансе");
       return;
     }
-    setBetting(true);
-    setError("");
-    try {
-      const { game: updated } = await api.games.bet(game.id);
-      onUpdate(updated);
-      await refreshUser();
-    } catch (e) {
-      setError(apiErrorMessage(e));
-      await refreshUser();
-    } finally {
-      setBetting(false);
-    }
+    await placeBet();
   };
 
   return (
@@ -68,9 +87,16 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <h3 className="font-display font-bold text-lg text-foreground">{game.title}</h3>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-xs text-muted-foreground">Ставка: <span className="text-gold font-semibold">{format(game.betAmount)}</span></span>
           </div>
+          {game.creatorName && (
+            <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+              <Icon name="UserCog" size={11} />
+              Создал: <span className="text-foreground font-medium">{game.creatorName}</span>
+              <span className="text-muted-foreground">({ROLE_LABELS[game.creatorRole ?? ""] ?? game.creatorRole})</span>
+            </div>
+          )}
         </div>
         {game.status === "active" ? (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-400/10 border border-emerald-400/30 shrink-0">
@@ -128,6 +154,9 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
               <Icon name="Trophy" size={20} className="text-gold mx-auto mb-1.5" />
               <p className="text-sm text-foreground">
                 Победитель: <span className="font-bold text-gold">{game.winnerName}</span>
+                {game.winnerTicketNo != null && (
+                  <span className="text-muted-foreground"> · билет №{game.winnerTicketNo}</span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Выигрыш {game.winnerAmount ? format(game.winnerAmount) : "—"}
@@ -151,6 +180,11 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
             )}
             Поставить {format(game.betAmount)}
           </Button>
+          {myTicketNo !== null && !error && (
+            <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1 justify-center">
+              <Icon name="Ticket" size={12} />Ваш билет №{myTicketNo}
+            </p>
+          )}
           {error && (
             <p className="text-xs text-red-400 mt-2 flex items-center gap-1 justify-center">
               <Icon name="AlertCircle" size={12} />{error}
@@ -160,6 +194,16 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
             <p className="text-xs text-muted-foreground mt-2 text-center">Недостаточно средств на балансе</p>
           )}
         </>
+      )}
+
+      {needsVerify && (
+        <BigSpendVerifyModal
+          onClose={() => setNeedsVerify(false)}
+          onConfirmed={() => {
+            setNeedsVerify(false);
+            placeBet();
+          }}
+        />
       )}
     </div>
   );

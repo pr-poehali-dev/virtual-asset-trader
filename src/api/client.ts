@@ -14,6 +14,8 @@ const URLS = {
   oauth: "https://functions.poehali.dev/219a69fa-3e89-4e3a-8a96-ec1881003765",
   monitor: "https://functions.poehali.dev/35d8efe4-e58b-4431-bb12-9de563346686",
   games: "https://functions.poehali.dev/81e75bfe-0ae5-45a5-bee5-bfa430b15eb9",
+  security: "https://functions.poehali.dev/028a5ec8-d990-4d93-98ef-d1ebdb0f316c",
+  "ai-support": "https://functions.poehali.dev/03171705-36ec-4004-acf3-440b75a3f829",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -56,6 +58,10 @@ export function apiErrorMessage(e: unknown): string {
     invalid_data: "Некорректные данные",
     already_pending: "Заявка уже подана",
     already_verified: "Аккаунт уже верифицирован",
+    email_not_verified: "Подтвердите email перед регистрацией",
+    ip_blocked: "Слишком много запросов. Попробуйте позже",
+    rate_limited: "Слишком много запросов. Попробуйте позже",
+    amount_too_small: "Сумма слишком мала для вывода",
     not_buyer: "Отзыв доступен только после покупки",
     owner_protected: "Действие недоступно для владельца",
     wrong_status: "Неверный статус сделки",
@@ -139,6 +145,10 @@ export const api = {
     me: () => req<{ user: ApiUser }>("auth", "/me"),
 
     logout: () => req("auth", "/logout", "POST"),
+
+    heartbeat: () => req<{ ok: boolean }>("auth", "/heartbeat", "POST"),
+
+    team: () => req<{ team: ApiTeamMember[] }>("auth", "/team"),
   },
 
   products: {
@@ -515,10 +525,69 @@ export const api = {
     }) => req<{ game: ApiGame }>("games", "/games", "POST", data),
 
     bet: (game_id: string) =>
-      req<{ game: ApiGame }>("games", "/games/bet", "POST", { game_id }),
+      req<{ game: ApiGame; ticketNo: number }>("games", "/games/bet", "POST", { game_id }),
 
     cancel: (game_id: string) =>
       req<{ ok: boolean }>("games", "/games/cancel", "POST", { game_id }),
+  },
+
+  security: {
+    withdrawRequest: (data: {
+      amount: number;
+      currency: string;
+      requisite_type: string;
+      requisite_details: string;
+    }) =>
+      req<{ ticketId: string; maskedEmail: string }>(
+        "security",
+        "/withdraw/request",
+        "POST",
+        data,
+      ),
+
+    withdrawConfirm: (ticket_id: string, code: string) =>
+      req<{ id: string; to_receive: number }>(
+        "security",
+        "/withdraw/confirm",
+        "POST",
+        { ticket_id, code },
+      ),
+
+    spendRequest: () =>
+      req<{ ticketId: string; maskedEmail: string }>(
+        "security",
+        "/spend/request",
+        "POST",
+        {},
+      ),
+
+    spendConfirm: (ticket_id: string, code: string) =>
+      req<{ ok: boolean }>("security", "/spend/confirm", "POST", {
+        ticket_id,
+        code,
+      }),
+
+    adminLog: () =>
+      req<{ log: ApiSecurityLogItem[] }>("security", "/admin/log"),
+
+    adminBlockedIps: () =>
+      req<{ blockedIps: ApiBlockedIp[]; activeCount: number }>(
+        "security",
+        "/admin/blocked-ips",
+      ),
+
+    adminUnblockIp: (ip: string) =>
+      req<{ ok: boolean }>("security", "/admin/unblock-ip", "POST", { ip }),
+  },
+
+  aiSupport: {
+    respond: (ticket_id: string) =>
+      req<{ replied: boolean; text?: string; escalated?: boolean }>(
+        "ai-support",
+        "/respond",
+        "POST",
+        { ticket_id },
+      ),
   },
 };
 
@@ -788,7 +857,7 @@ export type ApiSupportMessage = {
   id: number;
   fromUser: string;
   fromUsername?: string;
-  role: "user" | "operator" | "system";
+  role: "user" | "operator" | "system" | "ai";
   text: string;
   time: string;
 };
@@ -850,6 +919,7 @@ export type ApiGameBet = {
   userId: string;
   username: string;
   amount: number;
+  ticketNo: number;
   createdAt: string;
 };
 
@@ -864,10 +934,38 @@ export type ApiGame = {
   winnerId?: string | null;
   winnerName?: string | null;
   winnerAmount?: number | null;
+  winnerTicketNo?: number | null;
   createdBy: string;
+  creatorName?: string | null;
+  creatorRole?: string | null;
   createdAt: string;
   expiresAt: string;
   finishedAt?: string | null;
   participantsCount: number;
   bets?: ApiGameBet[];
+};
+
+export type ApiTeamMember = {
+  id: string;
+  username: string;
+  role: string;
+  isOwner: boolean;
+  online: boolean;
+  lastSeen: string | null;
+};
+
+export type ApiSecurityLogItem = {
+  id: number;
+  userId: string;
+  username: string;
+  eventType: string;
+  ip: string | null;
+  time: string;
+};
+
+export type ApiBlockedIp = {
+  ip: string;
+  reason: string;
+  blockedUntil: string;
+  createdAt: string;
 };

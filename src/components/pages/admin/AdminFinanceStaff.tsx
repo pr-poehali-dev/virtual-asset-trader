@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   WITHDRAW_STATUS_MAP,
   DEPOSIT_STATUS_MAP,
-  PLATFORM_COMMISSION,
+  WITHDRAW_FEE_FIXED,
   StaffPermission,
 } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
@@ -25,7 +24,6 @@ const ALL_PERMISSIONS: { id: StaffPermission; label: string }[] = [
 
 export function AdminWithdrawalsTab() {
   const [withdrawals, setWithdrawals] = useState<ApiWithdrawal[]>([]);
-  const [withdrawCommission, setWithdrawCommission] = useState(PLATFORM_COMMISSION);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState("");
 
@@ -54,12 +52,9 @@ export function AdminWithdrawalsTab() {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <h2 className="font-display font-semibold text-base text-foreground">Заявки на вывод</h2>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Комиссия вывода:</span>
-          <div className="flex items-center gap-2">
-            <Input type="number" value={withdrawCommission} onChange={(e) => setWithdrawCommission(Number(e.target.value))}
-              className="bg-background border-border text-sm h-8 w-20 text-center" />
-            <span className="text-sm text-muted-foreground">%</span>
-          </div>
+          <span className="text-xs text-muted-foreground">
+            Комиссия вывода: <span className="text-foreground font-semibold">₽{WITHDRAW_FEE_FIXED} (фикс.)</span>
+          </span>
           <Button variant="outline" size="sm" className="border-border text-xs" onClick={load} disabled={loading}>
             <Icon name={loading ? "Loader" : "RefreshCw"} size={13} className={`mr-1.5 ${loading ? "animate-spin" : ""}`} />Обновить
           </Button>
