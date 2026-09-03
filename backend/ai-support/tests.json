@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Ответ бота без авторизации отклоняется",
+      "method": "POST",
+      "path": "/respond",
+      "body": {"ticket_id": "SUP-TEST"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

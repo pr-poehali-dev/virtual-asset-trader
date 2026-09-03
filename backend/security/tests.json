@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "Запрос кода вывода без авторизации отклоняется",
+      "method": "POST",
+      "path": "/withdraw/request",
+      "body": {"amount": 1000, "requisite_type": "sbp", "requisite_details": "+79990000000"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "unauthorized"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Журнал безопасности без прав отклоняется",
+      "method": "GET",
+      "path": "/admin/log",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
