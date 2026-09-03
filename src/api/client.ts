@@ -529,6 +529,11 @@ export const api = {
 
     cancel: (game_id: string) =>
       req<{ ok: boolean }>("games", "/games/cancel", "POST", { game_id }),
+
+    finishNow: (game_id: string) =>
+      req<{ game: ApiGame }>("games", "/games/finish-now", "POST", { game_id }),
+
+    history: () => req<{ games: ApiGame[] }>("games", "/games/history"),
   },
 
   security: {
@@ -867,6 +872,8 @@ export type ApiSupportTicket = {
   subject: string;
   status: "open" | "closed";
   operatorName?: string;
+  aiEnabled?: boolean;
+  escalated?: boolean;
   messages: ApiSupportMessage[];
 };
 

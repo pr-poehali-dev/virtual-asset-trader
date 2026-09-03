@@ -389,6 +389,29 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+        # ── POST /games/finish-now — досрочно закрыть игру и разыграть банк (только админ) ─
+        if method == "POST" and path.rstrip("/").endswith("/games/finish-now"):
+            if not is_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            game_id = body.get("game_id")
+            if not game_id:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
+
+            cur.execute(f"SELECT status FROM {SCHEMA}.games WHERE id=%s FOR UPDATE", (game_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            if row[0] != "active":
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
+
+            finish_game(cur, game_id)
+            conn.commit()
+
+            q, p = select_game_query("WHERE g.id=%s", (game_id,))
+            cur.execute(q, p)
+            game = game_row_to_dict(cur.fetchone())
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"game": game})}
+
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
     except Exception as e:

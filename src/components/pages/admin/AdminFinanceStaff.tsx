@@ -82,7 +82,7 @@ export function AdminWithdrawalsTab() {
         )}
         {withdrawals.map((w) => {
           const s = WITHDRAW_STATUS_MAP[w.status] ?? { label: w.status, color: "text-muted-foreground bg-muted/10 border-border" };
-          const toReceive = Math.round(w.amount * (1 - withdrawCommission / 100));
+          const toReceive = w.toReceive;
           return (
             <div key={w.id} className="bg-surface border border-border rounded-xl p-4">
               <div className="flex items-start justify-between flex-wrap gap-3 mb-2">
@@ -96,7 +96,7 @@ export function AdminWithdrawalsTab() {
                     {(w as ApiWithdrawal & { username?: string }).username ?? ""} · {w.requisiteType} · {w.requisiteDetails}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Дата: {w.date} · К выплате: <span className="text-foreground font-semibold">₽ {toReceive.toLocaleString("ru-RU")}</span> (комиссия {withdrawCommission}%)
+                    Дата: {w.date} · К выплате: <span className="text-foreground font-semibold">₽ {toReceive.toLocaleString("ru-RU")}</span> (комиссия ₽{w.commission})
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5 items-end">

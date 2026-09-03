@@ -74,6 +74,16 @@ export function AdminGamesTab() {
     }
   };
 
+  const handleFinishNow = async (id: string) => {
+    setActionError("");
+    try {
+      await api.games.finishNow(id);
+      load();
+    } catch (e) {
+      setActionError(apiErrorMessage(e));
+    }
+  };
+
   return (
     <div className="animate-fade-in space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -161,9 +171,14 @@ export function AdminGamesTab() {
                     {st.label}
                   </span>
                   {g.status === "active" && (
-                    <button onClick={() => handleCancel(g.id)} className="w-7 h-7 rounded-lg bg-red-400/10 border border-red-400/20 flex items-center justify-center text-red-400 hover:bg-red-400/20 transition-colors">
-                      <Icon name="X" size={12} />
-                    </button>
+                    <>
+                      <button onClick={() => handleFinishNow(g.id)} title="Завершить досрочно и разыграть банк" className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center text-gold hover:bg-gold/20 transition-colors">
+                        <Icon name="Flag" size={12} />
+                      </button>
+                      <button onClick={() => handleCancel(g.id)} title="Отменить игру и вернуть ставки" className="w-7 h-7 rounded-lg bg-red-400/10 border border-red-400/20 flex items-center justify-center text-red-400 hover:bg-red-400/20 transition-colors">
+                        <Icon name="X" size={12} />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

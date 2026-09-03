@@ -1,4 +1,5 @@
 import Icon from "@/components/ui/icon";
+import { PLATFORM_COMMISSION, WITHDRAW_FEE_FIXED } from "@/components/data/constants";
 
 export function EscrowPage() {
   return (

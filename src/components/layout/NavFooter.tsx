@@ -102,6 +102,17 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
               )}
             </div>
 
+            {/* Telegram link — desktop only */}
+            <a
+              href="https://t.me/GorantShopOffical"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Наш Telegram"
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-surface border border-border hover:border-[#26A5E4]/50 text-muted-foreground hover:text-[#26A5E4] transition-colors"
+            >
+              <Icon name="Send" size={14} />
+            </a>
+
             {/* Currency picker — desktop only */}
             <div className="relative hidden sm:block">
               <button onClick={() => { setShowCurrencyMenu((p) => !p); setShowLangMenu(false); }}
@@ -314,6 +325,17 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
                 <VkIcon size={16} />
                 <span>ВКонтакте</span>
               </a>
+              {/* Telegram link */}
+              <a
+                href="https://t.me/GorantShopOffical"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[#26A5E4] transition-colors"
+                title="Telegram"
+              >
+                <Icon name="Send" size={15} />
+                <span>Telegram</span>
+              </a>
             </div>
           </div>
           {[
@@ -348,6 +370,15 @@ export function Footer({ setActive }: { setActive: (s: string) => void }) {
             >
               <VkIcon size={14} />
               <span>VK</span>
+            </a>
+            <a
+              href="https://t.me/GorantShopOffical"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[#26A5E4] transition-colors"
+            >
+              <Icon name="Send" size={14} />
+              <span>Telegram</span>
             </a>
           </div>
         </div>

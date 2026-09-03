@@ -104,21 +104,24 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ticketId": ticket_id})}
 
-        # GET /support/ticket — получить активный тикет + историю
+        # GET /support/ticket — получить ТОЛЬКО открытый тикет + историю
+        # (закрытые тикеты сюда не попадают, иначе поллинг мешает открыть новое обращение)
         if method == "GET" and path.endswith("/support/ticket"):
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             cur.execute(
-                f"""SELECT t.id, t.subject, t.status, t.operator_id, u.username, t.created_at
+                f"""SELECT t.id, t.subject, t.status, t.operator_id, u.username, t.created_at,
+                           t.ai_enabled, t.escalated
                     FROM {SCHEMA}.support_tickets t
                     LEFT JOIN {SCHEMA}.users u ON u.id=t.operator_id
-                    WHERE t.user_id=%s ORDER BY t.created_at DESC LIMIT 1""",
+                    WHERE t.user_id=%s AND t.status='open'
+                    ORDER BY t.created_at DESC LIMIT 1""",
                 (user["id"],)
             )
             ticket_row = cur.fetchone()
             if not ticket_row:
                 return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ticket": None})}
-            tid, subject, status, op_id, op_name, created = ticket_row
+            tid, subject, status, op_id, op_name, created, ai_enabled, escalated = ticket_row
             cur.execute(
                 f"SELECT id, from_user, role, text, created_at FROM {SCHEMA}.support_messages WHERE ticket_id=%s ORDER BY created_at",
                 (tid,)
@@ -127,7 +130,8 @@ def handler(event: dict, context) -> dict:
                          "time": r[4].strftime("%H:%M")} for r in cur.fetchall()]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({
                 "ticket": {"id": tid, "subject": subject, "status": status,
-                           "operatorName": op_name, "messages": messages}
+                           "operatorName": op_name, "aiEnabled": ai_enabled,
+                           "escalated": escalated, "messages": messages}
             })}
 
         # POST /support/ticket/message — отправить сообщение в тикет (пользователь)

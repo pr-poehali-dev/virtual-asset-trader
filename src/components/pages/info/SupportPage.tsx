@@ -24,17 +24,13 @@ function SupportChat() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const msgCountRef = useRef<number>(0);
 
+  // Backend возвращает ТОЛЬКО открытый тикет — если пользователь только что закрыл
+  // тикет и открыл форму нового обращения, поллинг больше не перезапишет её закрытым тикетом.
   const loadTicket = useCallback(async () => {
     if (!user) return;
     try {
       const { ticket: t } = await api.support.getTicket();
       if (t) {
-        if (t.status === "closed" && ticket && ticket.status === "open") {
-          setTicket(null);
-          setMessages([]);
-          setLoading(false);
-          return;
-        }
         setTicket(t);
         setMessages((prev) => {
           const newMsgs = t.messages;
@@ -57,7 +53,7 @@ function SupportChat() {
       /* ignore */
     }
     setLoading(false);
-  }, [user, ticket]);
+  }, [user]);
 
   useEffect(() => {
     loadTicket();
@@ -178,7 +174,7 @@ function SupportChat() {
             onClick={() => {
               setTicket(null);
               setMessages([]);
-              setShowNew(false);
+              setShowNew(true);
             }}
             className="text-xs text-gold hover:text-gold/80 transition-colors font-semibold"
             title="Создать новое обращение"

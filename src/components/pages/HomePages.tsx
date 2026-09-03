@@ -14,6 +14,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import type { AppProduct } from "@/context/AuthContext";
 import { api } from "@/api/client";
 import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
+import { PublicTeamSection } from "@/components/pages/PublicTeam";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
@@ -209,6 +210,9 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
 
       {/* Live feed */}
       <LiveFeed />
+
+      {/* Team */}
+      <PublicTeamSection />
 
       {/* How it works */}
       <section className="py-14 sm:py-24 border-t border-border">
