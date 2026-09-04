@@ -237,6 +237,17 @@ export const api = {
         { enabled },
       ),
 
+    aiSupportStatus: () =>
+      req<{ aiSupportEnabled: boolean }>("finance", "/ai-support-status"),
+
+    setAiSupportStatus: (enabled: boolean) =>
+      req<{ ok: boolean; aiSupportEnabled: boolean }>(
+        "finance",
+        "/admin/ai-support-status",
+        "POST",
+        { enabled },
+      ),
+
     deposit: (amount: number, currency: string) =>
       req<{
         id: string;
@@ -728,6 +739,8 @@ export type ApiSeller = {
   verified: boolean;
   deals: number;
   joined: string;
+  role?: string;
+  isOwner?: boolean;
 };
 
 export type ApiReview = {

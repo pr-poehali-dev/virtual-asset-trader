@@ -191,7 +191,7 @@ def handler(event: dict, context) -> dict:
         if method == "GET" and "/seller/" in path:
             seller_id = path.split("/seller/")[-1].rstrip("/")
             cur.execute(
-                f"""SELECT id, account_id, username, verified, deals_count, joined_at
+                f"""SELECT id, account_id, username, verified, deals_count, joined_at, role, is_owner
                     FROM {SCHEMA}.users WHERE id=%s""",
                 (seller_id,)
             )
@@ -201,7 +201,8 @@ def handler(event: dict, context) -> dict:
             seller = {
                 "id": row[0], "accountId": row[1], "username": row[2],
                 "verified": row[3], "deals": row[4],
-                "joined": row[5].strftime("%d.%m.%Y") if row[5] else ""
+                "joined": row[5].strftime("%d.%m.%Y") if row[5] else "",
+                "role": row[6], "isOwner": row[7]
             }
 
             cur.execute(

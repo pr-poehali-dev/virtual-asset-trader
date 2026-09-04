@@ -85,6 +85,28 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "maintenance": enabled})}
 
+        # ── GET /finance/ai-support-status — глобальный статус ИИ в поддержке (публичный) ─
+        if method == "GET" and path.endswith("/ai-support-status"):
+            cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='ai_support_enabled'")
+            row = cur.fetchone()
+            is_on = not row or row[0] == "true"  # по умолчанию включён, если строки ещё нет
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"aiSupportEnabled": is_on})}
+
+        # ── POST /finance/admin/ai-support-status — включить/выключить ИИ в поддержке ─
+        if method == "POST" and path.endswith("/admin/ai-support-status"):
+            user = get_user_by_token(cur, token)
+            if not user or not (user["role"] in ("admin",) or user.get("is_owner")):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            enabled = body.get("enabled", True)
+            cur.execute(
+                f"""INSERT INTO {SCHEMA}.platform_settings (key, value, updated_at)
+                    VALUES ('ai_support_enabled', %s, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+                ("true" if enabled else "false",)
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "aiSupportEnabled": enabled})}
+
         # ── GET /finance/notifications ────────────────────────────────────────
         if method == "GET" and path.endswith("/notifications"):
             if not user:

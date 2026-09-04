@@ -171,9 +171,12 @@ export function AdminPage() {
   }, []);
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     api.finance.maintenance().then(({ maintenance: m }) => setMaintenance(m)).catch(() => {});
+    api.finance.aiSupportStatus().then(({ aiSupportEnabled }) => setAiEnabled(aiSupportEnabled)).catch(() => {});
   }, []);
 
   const toggleMaintenance = async () => {
@@ -183,6 +186,15 @@ export function AdminPage() {
       setMaintenance(m);
     } catch {/* ignore */}
     setMaintenanceLoading(false);
+  };
+
+  const toggleAi = async () => {
+    setAiLoading(true);
+    try {
+      const { aiSupportEnabled } = await api.finance.setAiSupportStatus(!aiEnabled);
+      setAiEnabled(aiSupportEnabled);
+    } catch {/* ignore */}
+    setAiLoading(false);
   };
 
   return (
@@ -216,6 +228,21 @@ export function AdminPage() {
           <Icon name={maintenanceLoading ? "Loader" : "Wrench"} size={16} className={maintenanceLoading ? "animate-spin" : ""} />
           {maintenance ? "Отключить тех. обслуживание" : "Тех. обслуживание"}
           {maintenance && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
+        </button>
+
+        {/* Кнопка вкл/выкл Gorant AI в поддержке */}
+        <button
+          onClick={toggleAi}
+          disabled={aiLoading}
+          title={aiEnabled ? "Отключить ИИ в чате поддержки" : "Включить ИИ в чате поддержки"}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-sm transition-all ${
+            aiEnabled
+              ? "bg-emerald-400/10 text-emerald-400 border-emerald-400/30 hover:bg-emerald-400/20"
+              : "bg-background text-muted-foreground border-border hover:border-red-400/40 hover:text-red-400"
+          }`}
+        >
+          <Icon name={aiLoading ? "Loader" : "Sparkles"} size={16} className={aiLoading ? "animate-spin" : ""} />
+          {aiEnabled ? "Gorant AI включён" : "Gorant AI отключён"}
         </button>
       </div>
 

@@ -92,6 +92,11 @@ def is_escalation_request(text: str) -> bool:
     t = text.lower().strip()
     return any(trigger in t for trigger in ESCALATION_TRIGGERS)
 
+def is_ai_globally_enabled(cur):
+    cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='ai_support_enabled'")
+    row = cur.fetchone()
+    return not row or row[0] == "true"  # по умолчанию включён, если настройки ещё нет
+
 def is_forbidden_action_request(text: str) -> bool:
     t = text.lower().strip()
     return any(trigger in t for trigger in FORBIDDEN_ACTION_TRIGGERS)
@@ -213,8 +218,8 @@ def handler(event: dict, context) -> dict:
             last_msg_row = cur.fetchone()
             last_text = last_msg_row[0] if last_msg_row else ""
 
-            # Если уже эскалировано или ИИ отключён — не отвечаем
-            if escalated or not ai_enabled:
+            # Если уже эскалировано, ИИ отключён на тикете или отключён глобально администратором — не отвечаем
+            if escalated or not ai_enabled or not is_ai_globally_enabled(cur):
                 return {"statusCode": 200, "headers": CORS, "body": json.dumps({"replied": False, "escalated": True})}
 
             # Проверяем фразу вызова администратора

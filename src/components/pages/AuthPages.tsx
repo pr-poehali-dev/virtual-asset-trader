@@ -1993,6 +1993,7 @@ export function SellerProfilePage({
               <h1 className="font-display font-bold text-2xl text-foreground">
                 {seller.username}
               </h1>
+              {(seller.role === "admin" || seller.isOwner) && <AdminBadge size="sm" />}
               {seller.verified ? (
                 <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded-full">
                   <Icon name="ShieldCheck" size={11} />

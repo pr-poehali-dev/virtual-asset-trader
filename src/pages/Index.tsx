@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
@@ -74,12 +75,39 @@ function ChatBannedSupportPage() {
   );
 }
 
+// Соответствие внутреннего id страницы ↔ реального URL в адресной строке.
+// У каждой страницы свой адрес, например /home, /catalog, /support — виден в браузере и им можно поделиться.
+function pageToPath(p: string): string {
+  if (p.startsWith("seller-")) return `/seller/${p.slice(7)}`;
+  if (p === "admin-login") return "/admin";
+  return `/${p}`;
+}
+
 function AppContent() {
-  const [page, setPage] = useState("home");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams<{ page?: string; sellerId?: string }>();
+  const page = params.sellerId
+    ? `seller-${params.sellerId}`
+    : location.pathname === "/"
+      ? "home"
+      : (params.page || "home");
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [frozenReason, setFrozenReason] = useState<string | undefined>();
   const [maintenance, setMaintenance] = useState(false);
   const { user, loading } = useAuth();
+
+  const setPage = useCallback((p: string) => {
+    navigate(pageToPath(p));
+  }, [navigate]);
+
+  // Показываем явный адрес /home в адресной строке вместо голого "/"
+  useEffect(() => {
+    if (location.pathname === "/") {
+      navigate("/home", { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     const checkMaintenance = () => {
@@ -96,6 +124,7 @@ function AppContent() {
     if (user && (page === "login" || page === "register")) {
       setPage("home");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading) {

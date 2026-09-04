@@ -18,8 +18,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/seller/:sellerId" element={<Index />} />
           <Route path="/auth/google/callback" element={<OAuthCallback />} />
           <Route path="/auth/vk/callback" element={<OAuthCallback />} />
+          <Route path="/:page" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

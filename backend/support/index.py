@@ -39,6 +39,11 @@ def get_user(cur, token):
 def is_staff(user):
     return user and (user["role"] in ("admin", "staff") or user["is_owner"])
 
+def is_ai_globally_enabled(cur):
+    cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='ai_support_enabled'")
+    row = cur.fetchone()
+    return not row or row[0] == "true"  # по умолчанию включён, если настройки ещё нет
+
 def add_notification(cur, user_id, ntype, title, text, shield=False):
     nid = secrets.token_hex(8)
     cur.execute(
@@ -84,20 +89,22 @@ def handler(event: dict, context) -> dict:
             if existing:
                 ticket_id = existing[0]
             else:
+                ai_on = is_ai_globally_enabled(cur)
                 ticket_id = "SUP-" + secrets.token_hex(4).upper()
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.support_tickets (id, user_id, subject) VALUES (%s,%s,%s)",
-                    (ticket_id, user["id"], subject)
+                    f"INSERT INTO {SCHEMA}.support_tickets (id, user_id, subject, ai_enabled) VALUES (%s,%s,%s,%s)",
+                    (ticket_id, user["id"], subject, ai_on)
                 )
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'system',%s)",
                     (ticket_id, "system", f"Тикет #{ticket_id} открыт. Оператор ответит в ближайшее время.")
                 )
-                # Gorant AI сразу приветствует пользователя в новом тикете
-                cur.execute(
-                    f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'ai',%s)",
-                    (ticket_id, "ai", f"Здравствуйте, {user['username']}! Чем могу вам помочь, я Gorant AI 🤖")
-                )
+                # Gorant AI сразу приветствует пользователя в новом тикете — только если ИИ включён глобально
+                if ai_on:
+                    cur.execute(
+                        f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'ai',%s)",
+                        (ticket_id, "ai", f"Здравствуйте, {user['username']}! Чем могу вам помочь, я Gorant AI 🤖")
+                    )
             if first_msg:
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'user',%s)",
