@@ -119,50 +119,49 @@
     background-size: 40px 40px;
   }
 
-  /* ── Анимированный фон сайта ── */
+  /* ── Анимированный фон сайта: живая картинка + цветные пятна поверх ── */
   .animated-bg {
     position: fixed;
     inset: 0;
     z-index: -1;
     overflow: hidden;
     pointer-events: none;
-    background:
-      radial-gradient(
-        circle at 1px 1px,
-        hsl(43 74% 56% / 0.06) 1px,
-        transparent 0
-      ),
-      hsl(var(--background));
-    background-size:
-      32px 32px,
-      auto;
+    background: hsl(var(--background));
   }
 
-  .animated-bg::before,
   .animated-bg::after {
     content: "";
     position: absolute;
-    border-radius: 9999px;
-    filter: blur(90px);
-    opacity: 0.18;
+    inset: -6%;
+    background-image: url("/backgrounds/bg-main.webp");
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: screen;
+    opacity: 1;
+    filter: saturate(1.4) brightness(1.9) contrast(1.1);
+    animation: bgDrift 50s ease-in-out infinite alternate;
   }
 
-  .animated-bg::before {
-    width: 55vw;
-    height: 55vw;
-    top: -15%;
-    left: -10%;
-    background: radial-gradient(circle, hsl(var(--gold)) 0%, transparent 70%);
-    animation: floatBlobA 22s ease-in-out infinite;
-  }
-
-  .animated-bg::after {
-    width: 45vw;
-    height: 45vw;
-    bottom: -15%;
-    right: -10%;
-    background: radial-gradient(circle, hsl(43 90% 65%) 0%, transparent 70%);
-    animation: floatBlobB 26s ease-in-out infinite;
+  /* Лёгкая виньетка поверх картинки — только чтобы текст оставался читаемым,
+     но сама картинка должна быть отчётливо видна */
+  .animated-bg-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(
+        circle at 1px 1px,
+        hsl(43 74% 56% / 0.05) 1px,
+        transparent 0
+      ),
+      linear-gradient(
+        180deg,
+        hsl(var(--background) / 0.15) 0%,
+        hsl(var(--background) / 0.3) 45%,
+        hsl(var(--background) / 0.5) 100%
+      );
+    background-size:
+      32px 32px,
+      auto;
   }
 
   .animated-bg-blob {
@@ -174,7 +173,7 @@
     border-radius: 9999px;
     background: radial-gradient(circle, hsl(43 70% 55%) 0%, transparent 70%);
     filter: blur(100px);
-    opacity: 0.1;
+    opacity: 0.14;
     animation: floatBlobC 30s ease-in-out infinite;
   }
 
@@ -187,11 +186,11 @@
     border-radius: 9999px;
     background: radial-gradient(circle, hsl(160 60% 45%) 0%, transparent 70%);
     filter: blur(110px);
-    opacity: 0.08;
+    opacity: 0.12;
     animation: floatBlobD 34s ease-in-out infinite;
   }
 
-  /* ── Тематический фон-акцент под категорию/игру (карточки) ── */
+  /* ── Тематический фон-картинка под категорию/игру (карточки) ── */
   .category-glow {
     position: relative;
     isolation: isolate;
@@ -200,15 +199,29 @@
   .category-glow::before {
     content: "";
     position: absolute;
-    inset: -20%;
+    inset: -15%;
+    z-index: -2;
+    background-image: var(--glow-image, none);
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    filter: saturate(1.6) brightness(1.6) contrast(1.1);
+    animation: bgDrift 26s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  .category-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
     z-index: -1;
-    background: radial-gradient(
-      circle at 30% 20%,
-      var(--glow-color, hsl(43 74% 56%)) 0%,
-      transparent 55%
-    );
-    opacity: 0.16;
-    filter: blur(30px);
+    background:
+      radial-gradient(
+        circle at 30% 20%,
+        var(--glow-color, hsl(43 74% 56%)) 0%,
+        transparent 65%
+      ),
+      hsl(var(--surface) / 0.25);
+    opacity: 0.55;
     pointer-events: none;
   }
 
@@ -296,6 +309,15 @@
   }
   50% {
     transform: translate(6vw, -5vh) scale(1.18);
+  }
+}
+
+@keyframes bgDrift {
+  0% {
+    transform: scale(1.06) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.14) translate(-2%, -2%);
   }
 }
 

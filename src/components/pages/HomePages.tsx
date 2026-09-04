@@ -12,6 +12,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import type { AppProduct } from "@/context/AuthContext";
 import { api } from "@/api/client";
 import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
+import { getCategoryGlow } from "@/components/data/backgroundPalette";
 import { PublicTeamSection } from "@/components/pages/PublicTeam";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
     <div className="animate-fade-in">
       {/* Hero */}
       <section className="relative min-h-[85vh] sm:min-h-screen flex items-center pt-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/80" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background/70 via-background/78 to-background/88" />
         <div className="absolute top-1/3 right-0 w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full bg-gold/5 blur-[80px] sm:blur-[120px] pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center py-10 sm:py-16 lg:py-20 w-full">
           <div className="animate-slide-up">
@@ -620,20 +621,6 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 
 // ─── CATALOG PAGE ─────────────────────────────────────────────────────────────
 
-// Тематический цвет фонового акцента карточки товара по категории —
-// делает превью живее, не завися от конкретного набора категорий (fallback — золотой)
-const CATEGORY_GLOW_COLORS: Record<string, string> = {
-  "CS2 скины": "hsl(270 70% 55%)",
-  "PUBG Mobile akk": "hsl(24 90% 55%)",
-  "Игровые аккаунты": "hsl(200 80% 55%)",
-  "Подарочные карты": "hsl(330 75% 55%)",
-  "Программное обеспечение": "hsl(160 60% 45%)",
-  "Прочее": "hsl(43 74% 56%)",
-};
-function getCategoryGlow(category: string): string {
-  return CATEGORY_GLOW_COLORS[category] ?? "hsl(43 74% 56%)";
-}
-
 type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
@@ -930,8 +917,11 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
 
                 {/* Thumbnail */}
                 <div
-                  className="category-glow h-36 bg-gradient-to-br from-secondary to-background flex items-center justify-center relative"
-                  style={{ "--glow-color": getCategoryGlow(p.category) } as CSSProperties}
+                  className="category-glow h-36 flex items-center justify-center relative"
+                  style={{
+                    "--glow-color": getCategoryGlow(p.category).color,
+                    "--glow-image": `url(${getCategoryGlow(p.category).image})`,
+                  } as CSSProperties}
                 >
                   <Icon
                     name={

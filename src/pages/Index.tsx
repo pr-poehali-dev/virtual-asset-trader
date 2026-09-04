@@ -215,8 +215,9 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <div className="animated-bg">
+        <div className="animated-bg-scrim" />
         <div className="animated-bg-blob" />
         <div className="animated-bg-blob-2" />
       </div>
