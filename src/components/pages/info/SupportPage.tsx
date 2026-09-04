@@ -150,7 +150,9 @@ function SupportChat() {
             <span className="text-xs text-emerald-400">
               {ticket?.operatorName
                 ? `Оператор: ${ticket.operatorName}`
-                : "Онлайн"}
+                : ticket?.escalated
+                  ? "Ожидание оператора"
+                  : "Отвечает Gorant AI"}
             </span>
           </div>
         </div>
@@ -251,7 +253,7 @@ function SupportChat() {
                 {m.role === "ai" && (
                   <p className="text-[10px] font-semibold mb-0.5 opacity-70 flex items-center gap-1">
                     <Icon name="Sparkles" size={10} />
-                    ИИ-ассистент
+                    Gorant AI
                   </p>
                 )}
                 <p className="text-sm leading-relaxed">{m.text}</p>

@@ -75,7 +75,7 @@ function ChatWindow({
                   {m.role === "ai" && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-80 flex items-center gap-1">
                       <Icon name="Sparkles" size={10} />
-                      ИИ-ассистент
+                      Gorant AI
                     </p>
                   )}
                   <p className="text-sm">{m.text}</p>

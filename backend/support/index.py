@@ -80,6 +80,7 @@ def handler(event: dict, context) -> dict:
                 (user["id"],)
             )
             existing = cur.fetchone()
+            is_new_ticket = not existing
             if existing:
                 ticket_id = existing[0]
             else:
@@ -91,6 +92,11 @@ def handler(event: dict, context) -> dict:
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'system',%s)",
                     (ticket_id, "system", f"Тикет #{ticket_id} открыт. Оператор ответит в ближайшее время.")
+                )
+                # Gorant AI сразу приветствует пользователя в новом тикете
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.support_messages (ticket_id, from_user, role, text) VALUES (%s,%s,'ai',%s)",
+                    (ticket_id, "ai", f"Здравствуйте, {user['username']}! Чем могу вам помочь, я Gorant AI 🤖")
                 )
             if first_msg:
                 cur.execute(
