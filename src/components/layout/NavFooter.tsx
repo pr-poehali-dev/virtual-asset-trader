@@ -30,7 +30,8 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
   const links = [
     { id: "home",    label: t("home"),    icon: "Home" },
     { id: "catalog", label: t("catalog"), icon: "ShoppingBag" },
-    { id: "deals",   label: t("deals"),   icon: "ArrowRightLeft" },
+    // "Сделки" видны только авторизованным — гостям нечего там смотреть
+    ...(user ? [{ id: "deals", label: t("deals"), icon: "ArrowRightLeft" }] : []),
     { id: "games",   label: t("games"),   icon: "Coins" },
     { id: "about",   label: t("about"),   icon: "Info" },
     { id: "support", label: t("support"), icon: "Headphones" },
@@ -266,7 +267,8 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
           {[
             { id: "home",    icon: "Home",             label: "Главная" },
             { id: "catalog", icon: "ShoppingBag",      label: "Каталог" },
-            { id: "deals",   icon: "ArrowRightLeft",   label: "Сделки" },
+            // "Сделки" видны только авторизованным
+            ...(user ? [{ id: "deals", icon: "ArrowRightLeft", label: "Сделки" }] : []),
             { id: "support", icon: "Headphones",       label: "Чат" },
             { id: user ? "cabinet" : "login", icon: user ? "User" : "LogIn", label: user ? "Профиль" : "Войти" },
           ].map((item) => (

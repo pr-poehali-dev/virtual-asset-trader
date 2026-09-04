@@ -69,7 +69,7 @@ type AuthContextType = {
 
   updateUsers: (users: AppUser[]) => void;
   addProduct: (product: AppProduct) => Promise<void>;
-  buyProduct: (product: AppProduct, _seller: AppUser) => Promise<"ok" | "no_balance" | "self" | "verify_required">;
+  buyProduct: (product: AppProduct, _seller: AppUser, quantity?: number) => Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock">;
   boostProduct: (productId: number) => Promise<"ok" | "no_balance">;
   addReview: (sellerId: string, review: Omit<AppReview, "id">) => Promise<"ok" | "not_buyer">;
   openDispute: (dealId: string) => Promise<void>;
@@ -202,25 +202,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUsers = (updated: AppUser[]) => setUsers(updated);
 
-  const addProduct = async (product: AppProduct) => {
+  const addProduct = async (product: AppProduct & { stock?: number }) => {
     try {
       await api.products.create({
         title: product.title,
         category: product.category,
         price: product.price,
         description: "",
+        stock: product.stock ?? 1,
       });
       setUser((prev) => prev ? { ...prev, products: [...prev.products, product] } : prev);
     } catch { /* ignore */ }
   };
 
-  const buyProduct = async (product: AppProduct, _seller: AppUser): Promise<"ok" | "no_balance" | "self" | "verify_required"> => {
+  const buyProduct = async (product: AppProduct, _seller: AppUser, quantity: number = 1): Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock"> => {
     try {
-      await api.deals.buy(product.id);
+      await api.deals.buy(product.id, quantity);
       // Обновляем баланс локально
       setUser((prev) => prev ? {
         ...prev,
-        balances: { ...prev.balances, RUB: Math.max(0, (prev.balances.RUB ?? 0) - product.price) },
+        balances: { ...prev.balances, RUB: Math.max(0, (prev.balances.RUB ?? 0) - product.price * quantity) },
         purchasedProductIds: [...prev.purchasedProductIds, product.id],
         deals: prev.deals + 1,
       } : prev);
@@ -231,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (err?.error === "no_balance") return "no_balance";
       if (err?.error === "self_buy") return "self";
       if (err?.error === "big_spend_verification_required") return "verify_required";
+      if (err?.error === "not_enough_stock") return "not_enough_stock";
       return "no_balance";
     }
   };

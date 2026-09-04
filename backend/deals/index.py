@@ -7,7 +7,6 @@ import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA") or "t_p38600009_virtual_asset_trader"
 PLATFORM_COMMISSION = 7
-HOLD_DAYS = {"CS2 скины": 8, "PUBG Mobile": 14}
 SUSPICIOUS_PATTERN = "http"
 BIG_SPEND_THRESHOLD = 3000
 
@@ -147,16 +146,27 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
 
             product_id = body.get("product_id")
+            try:
+                quantity = int(body.get("quantity") or 1)
+            except (TypeError, ValueError):
+                quantity = 1
+            if quantity <= 0:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_quantity"})}
+
             cur.execute(
-                f"SELECT id, seller_id, title, category, price FROM {SCHEMA}.products WHERE id=%s AND active=TRUE",
+                f"""SELECT id, seller_id, title, category, price, stock, unit_label
+                    FROM {SCHEMA}.products WHERE id=%s AND active=TRUE FOR UPDATE""",
                 (product_id,)
             )
             product = cur.fetchone()
             if not product:
                 return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "product_not_found"})}
 
-            pid, seller_id, title, category, price = product
-            price = float(price)
+            pid, seller_id, title, category, unit_price, stock, unit_label = product
+            unit_price = float(unit_price)
+            if quantity > stock:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "not_enough_stock"})}
+            price = round(unit_price * quantity, 2)
 
             if user["status"] in ("frozen", "blocked") or user.get("perma_banned"):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "account_restricted"})}
@@ -173,7 +183,11 @@ def handler(event: dict, context) -> dict:
                     return {"statusCode": 403, "headers": CORS,
                             "body": json.dumps({"error": "big_spend_verification_required"})}
 
-            hold_days = HOLD_DAYS.get(category)
+            # Срок холда берём из настроек категории в БД (админ управляет им в панели)
+            cur.execute(f"SELECT hold_days FROM {SCHEMA}.categories WHERE name=%s", (category,))
+            cat_row = cur.fetchone()
+            hold_days = cat_row[0] if cat_row and cat_row[0] else None
+
             seller_receives = round(price * (1 - PLATFORM_COMMISSION / 100), 2)
 
             hold_until = None
@@ -181,16 +195,23 @@ def handler(event: dict, context) -> dict:
                 hold_until = datetime.now() + timedelta(days=hold_days)
 
             deal_id = "TX-" + secrets.token_hex(3).upper()
-            status = "hold_cs2" if category == "CS2 скины" else \
-                     "hold_pubg" if category == "PUBG Mobile" else "escrow"
+            status = "hold" if hold_days else "escrow"
 
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.deals
                     (id, product_id, product_name, category, amount, status,
-                     buyer_id, seller_id, hold_days, hold_until)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                     buyer_id, seller_id, hold_days, hold_until, quantity, unit_label)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (deal_id, pid, title, category, price, status,
-                 user["id"], seller_id, hold_days, hold_until)
+                 user["id"], seller_id, hold_days, hold_until, quantity, unit_label)
+            )
+
+            # Списываем остаток товара у продавца, деактивируем при обнулении
+            cur.execute(
+                f"""UPDATE {SCHEMA}.products SET stock = stock - %s,
+                        active = CASE WHEN stock - %s <= 0 THEN FALSE ELSE active END
+                    WHERE id=%s""",
+                (quantity, quantity, pid)
             )
 
             # Списываем у покупателя
@@ -240,7 +261,8 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 f"""SELECT d.id, d.product_name, d.category, d.amount, d.status,
                            d.buyer_id, ub.username, d.seller_id, us.username,
-                           d.hold_days, d.hold_until, d.arbiter_id, d.created_at
+                           d.hold_days, d.hold_until, d.arbiter_id, d.created_at,
+                           d.quantity, d.unit_label
                     FROM {SCHEMA}.deals d
                     JOIN {SCHEMA}.users ub ON ub.id=d.buyer_id
                     JOIN {SCHEMA}.users us ON us.id=d.seller_id
@@ -260,6 +282,7 @@ def handler(event: dict, context) -> dict:
                     "holdUntil": r[10].strftime("%d.%m.%Y") if r[10] else None,
                     "arbiterId": r[11],
                     "date": r[12].strftime("%d.%m.%Y"),
+                    "quantity": r[13], "unitLabel": r[14],
                     "step": 3,
                     "disputeMessages": [],
                 })
@@ -394,7 +417,7 @@ def handler(event: dict, context) -> dict:
             # Только покупатель может подтвердить, и только из статусов escrow/hold_*
             if user["id"] != buyer_id:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
-            if status not in ("escrow", "hold_cs2", "hold_pubg"):
+            if status not in ("escrow", "hold", "hold_cs2", "hold_pubg"):
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
 
             seller_receives = round(amount * (1 - PLATFORM_COMMISSION / 100), 2)

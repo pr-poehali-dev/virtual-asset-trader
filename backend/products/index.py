@@ -34,6 +34,9 @@ def get_user_by_token(cur, token):
     return {"id": row[0], "username": row[1], "balance_rub": float(row[2]),
             "role": row[3], "is_owner": row[4], "verified": row[5]}
 
+def is_admin(user):
+    return bool(user) and (user.get("role") == "admin" or user.get("is_owner"))
+
 # ── DDoS-защита ────────────────────────────────────────────────────────────
 import datetime as _dt
 
@@ -89,6 +92,99 @@ def handler(event: dict, context) -> dict:
         if is_ip_blocked(cur, ip):
             return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "ip_blocked"})}
 
+        # ── GET /products/admin/categories — список ВСЕХ категорий (для админки) ─
+        # ВАЖНО: проверяем ДО общего /categories, иначе он никогда не будет достигнут
+        if method == "GET" and path.endswith("/admin/categories"):
+            user = get_user_by_token(cur, token)
+            if not is_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cur.execute(
+                f"""SELECT id, name, unit_label, hold_days, active, sort_order
+                    FROM {SCHEMA}.categories ORDER BY sort_order, name"""
+            )
+            categories = [{"id": r[0], "name": r[1], "unitLabel": r[2],
+                           "holdDays": r[3], "active": r[4], "sortOrder": r[5]} for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"categories": categories})}
+
+        # ── GET /products/categories — список активных категорий (публичный) ───
+        if method == "GET" and path.endswith("/categories"):
+            cur.execute(
+                f"""SELECT id, name, unit_label, hold_days, active
+                    FROM {SCHEMA}.categories
+                    WHERE active=TRUE ORDER BY sort_order, name"""
+            )
+            categories = [{"id": r[0], "name": r[1], "unitLabel": r[2],
+                           "holdDays": r[3], "active": r[4]} for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"categories": categories})}
+
+        # ── POST /products/admin/categories — создать категорию ────────────────
+        if method == "POST" and path.endswith("/admin/categories"):
+            user = get_user_by_token(cur, token)
+            if not is_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            name = (body.get("name") or "").strip()
+            unit_label = (body.get("unitLabel") or "шт").strip() or "шт"
+            hold_days = int(body.get("holdDays") or 0)
+            if not name:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            if hold_days < 0 or hold_days > 90:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            cur.execute(f"SELECT COALESCE(MAX(sort_order),0)+1 FROM {SCHEMA}.categories")
+            next_order = cur.fetchone()[0]
+            try:
+                cur.execute(
+                    f"""INSERT INTO {SCHEMA}.categories (name, unit_label, hold_days, sort_order)
+                        VALUES (%s,%s,%s,%s) RETURNING id""",
+                    (name, unit_label, hold_days, next_order)
+                )
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "category_exists"})}
+            cat_id = cur.fetchone()[0]
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "id": cat_id, "name": name, "unitLabel": unit_label, "holdDays": hold_days
+            })}
+
+        # ── POST /products/admin/categories/update — изменить категорию ────────
+        if method == "POST" and path.endswith("/admin/categories/update"):
+            user = get_user_by_token(cur, token)
+            if not is_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cat_id = body.get("id")
+            name = (body.get("name") or "").strip()
+            unit_label = (body.get("unitLabel") or "шт").strip() or "шт"
+            hold_days = int(body.get("holdDays") or 0)
+            active = bool(body.get("active", True))
+            if not cat_id or not name:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            if hold_days < 0 or hold_days > 90:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            try:
+                cur.execute(
+                    f"""UPDATE {SCHEMA}.categories
+                        SET name=%s, unit_label=%s, hold_days=%s, active=%s
+                        WHERE id=%s""",
+                    (name, unit_label, hold_days, active, cat_id)
+                )
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "category_exists"})}
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── POST /products/admin/categories/delete — удалить (скрыть) категорию ─
+        if method == "POST" and path.endswith("/admin/categories/delete"):
+            user = get_user_by_token(cur, token)
+            if not is_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cat_id = body.get("id")
+            if not cat_id:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+            cur.execute(f"UPDATE {SCHEMA}.categories SET active=FALSE WHERE id=%s", (cat_id,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
         # ── GET /products ─────────────────────────────────────────────────────
         if method == "GET" and (path.endswith("/products") or path.endswith("/products/")):
             category = params.get("category")
@@ -98,13 +194,13 @@ def handler(event: dict, context) -> dict:
             sql = f"""
                 SELECT p.id, p.seller_id, u.username, p.title, p.category,
                        p.price, p.description, p.active, p.boosted, p.boost_until,
-                       p.created_at,
+                       p.created_at, p.stock, p.unit_label,
                        COALESCE(AVG(r.rating),0) as avg_rating,
                        COUNT(r.id) as review_count
                 FROM {SCHEMA}.products p
                 JOIN {SCHEMA}.users u ON u.id=p.seller_id
                 LEFT JOIN {SCHEMA}.reviews r ON r.seller_id=p.seller_id
-                WHERE p.active=TRUE
+                WHERE p.active=TRUE AND p.stock > 0
             """
             args = []
             if category and category != "Все":
@@ -129,7 +225,8 @@ def handler(event: dict, context) -> dict:
                     "description": r[6], "active": r[7],
                     "boosted": r[8], "boostUntil": r[9].isoformat() if r[9] else None,
                     "createdAt": r[10].isoformat(),
-                    "rating": round(float(r[11]), 1), "reviews": r[12],
+                    "stock": r[11], "unitLabel": r[12],
+                    "rating": round(float(r[13]), 1), "reviews": r[14],
                     "badge": None, "verified": False,
                 })
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"products": products})}
@@ -147,20 +244,32 @@ def handler(event: dict, context) -> dict:
             category = body.get("category") or ""
             price    = float(body.get("price") or 0)
             desc     = (body.get("description") or "").strip()
+            try:
+                stock = int(body.get("stock") or 1)
+            except (TypeError, ValueError):
+                stock = 1
 
-            if not title or not category or price <= 0:
+            if not title or not category or price <= 0 or stock <= 0:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
 
+            # Единица измерения берётся из категории (например "UC" для PUBG Mobile)
+            cur.execute(f"SELECT unit_label FROM {SCHEMA}.categories WHERE name=%s AND active=TRUE", (category,))
+            cat_row = cur.fetchone()
+            if not cat_row:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_category"})}
+            unit_label = cat_row[0]
+
             cur.execute(
-                f"""INSERT INTO {SCHEMA}.products (seller_id, title, category, price, description)
-                    VALUES (%s,%s,%s,%s,%s) RETURNING id""",
-                (user["id"], title, category, price, desc)
+                f"""INSERT INTO {SCHEMA}.products (seller_id, title, category, price, description, stock, unit_label)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (user["id"], title, category, price, desc, stock, unit_label)
             )
             product_id = cur.fetchone()[0]
             conn.commit()
             return {"statusCode": 200, "headers": CORS,
                     "body": json.dumps({"id": product_id, "title": title, "category": category,
-                                        "price": price, "sellerId": user["id"], "sellerName": user["username"]})}
+                                        "price": price, "stock": stock, "unitLabel": unit_label,
+                                        "sellerId": user["id"], "sellerName": user["username"]})}
 
         # ── POST /products/boost ──────────────────────────────────────────────
         if method == "POST" and path.endswith("/boost"):
@@ -206,12 +315,13 @@ def handler(event: dict, context) -> dict:
             }
 
             cur.execute(
-                f"""SELECT p.id, p.title, p.category, p.price, p.boosted
-                    FROM {SCHEMA}.products p WHERE p.seller_id=%s AND p.active=TRUE""",
+                f"""SELECT p.id, p.title, p.category, p.price, p.boosted, p.stock, p.unit_label
+                    FROM {SCHEMA}.products p WHERE p.seller_id=%s AND p.active=TRUE AND p.stock > 0""",
                 (seller_id,)
             )
             products = [{"id": r[0], "title": r[1], "category": r[2],
-                         "price": float(r[3]), "boosted": r[4]} for r in cur.fetchall()]
+                         "price": float(r[3]), "boosted": r[4],
+                         "stock": r[5], "unitLabel": r[6]} for r in cur.fetchall()]
 
             cur.execute(
                 f"""SELECT r.id, u.username, r.rating, r.text, r.created_at
@@ -253,14 +363,16 @@ def handler(event: dict, context) -> dict:
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             cur.execute(
-                f"""SELECT p.id, p.title, p.category, p.price, p.boosted, p.boost_until, p.created_at
+                f"""SELECT p.id, p.title, p.category, p.price, p.boosted, p.boost_until, p.created_at,
+                           p.stock, p.unit_label
                     FROM {SCHEMA}.products p WHERE p.seller_id=%s AND p.active=TRUE
                     ORDER BY p.created_at DESC""",
                 (user["id"],)
             )
             products = [{"id": r[0], "title": r[1], "category": r[2], "price": float(r[3]),
                          "boosted": r[4], "boostUntil": r[5].isoformat() if r[5] else None,
-                         "createdAt": r[6].isoformat()} for r in cur.fetchall()]
+                         "createdAt": r[6].isoformat(),
+                         "stock": r[7], "unitLabel": r[8]} for r in cur.fetchall()]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"products": products})}
 
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}

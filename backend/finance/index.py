@@ -407,7 +407,7 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 f"""SELECT id FROM {SCHEMA}.deals
                     WHERE buyer_id=%s AND seller_id=%s
-                    AND status IN ('completed','hold_cs2','hold_pubg','refunded')
+                    AND status IN ('completed','hold','hold_cs2','hold_pubg','refunded')
                     LIMIT 1""",
                 (user["id"], seller_id)
             )
@@ -504,8 +504,8 @@ def handler(event: dict, context) -> dict:
             # ── Сделки: всего, объём, открытые ───────────────────────────────
             cur.execute(
                 f"""SELECT
-                    COUNT(*) FILTER (WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')) AS total_deals,
-                    COALESCE(SUM(amount) FILTER (WHERE status IN ('completed','refunded','hold_cs2','hold_pubg')), 0) AS total_volume,
+                    COUNT(*) FILTER (WHERE status IN ('completed','refunded','hold','hold_cs2','hold_pubg')) AS total_deals,
+                    COALESCE(SUM(amount) FILTER (WHERE status IN ('completed','refunded','hold','hold_cs2','hold_pubg')), 0) AS total_volume,
                     COUNT(*) FILTER (WHERE status = 'escrow') AS open_deals,
                     COALESCE(SUM(amount) FILTER (WHERE status = 'escrow'), 0) AS open_volume,
                     COUNT(*) FILTER (WHERE status = 'completed') AS completed_deals

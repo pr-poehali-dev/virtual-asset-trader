@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CATEGORIES,
-  HOLD_CATEGORIES,
   PLATFORM_COMMISSION,
   BOOST_PRICE,
   SUSPICIOUS_URL_PATTERN,
@@ -121,7 +119,7 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
     { icon: "Monitor", label: "Программное обеспечение" },
     { icon: "Gift", label: "Подарочные карты" },
     { icon: "Sword", label: "CS2 скины" },
-    { icon: "Crosshair", label: "PUBG Mobile" },
+    { icon: "Crosshair", label: "PUBG Mobile akk" },
     { icon: "Star", label: "Прочее" },
     { icon: "Plus", label: "Добавить товар", action: "add-product" },
   ];
@@ -370,12 +368,21 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
 
 export function AddProductPage({ setActive }: { setActive: (s: string) => void }) {
   const { user, addProduct } = useAuth();
+  const [categories, setCategories] = useState<{ name: string; unitLabel: string; holdDays: number }[]>([]);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[1]);
+  const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("1");
   const [desc, setDesc] = useState("");
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.products.categories().then(({ categories: list }) => {
+      setCategories(list);
+      if (list.length > 0) setCategory((prev) => prev || list[0].name);
+    }).catch(() => {});
+  }, []);
 
   if (!user) {
     return (
@@ -392,7 +399,9 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
     );
   }
 
-  const holdDays = HOLD_CATEGORIES[category];
+  const currentCat = categories.find((c) => c.name === category);
+  const holdDays = currentCat?.holdDays ?? 0;
+  const unitLabel = currentCat?.unitLabel ?? "шт";
 
   const handleSubmit = () => {
     setError("");
@@ -405,22 +414,30 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
       setError("Введите корректную цену");
       return;
     }
-    const p: Product = {
+    const stockNum = parseInt(stock, 10);
+    if (!stock || isNaN(stockNum) || stockNum <= 0) {
+      setError("Введите корректное количество в наличии");
+      return;
+    }
+    const p: AppProduct & { stock: number } = {
       id: Date.now(),
       title: title.trim(),
       category,
       price: Math.round(priceNum),
+      stock: stockNum,
       rating: 0,
       reviews: 0,
       sellerId: user.id,
       sellerName: user.username,
       badge: null,
+      boosted: false,
       verified: user.verified,
     };
     addProduct(p);
     setSuccess(true);
     setTitle("");
     setPrice("");
+    setStock("1");
     setDesc("");
   };
 
@@ -481,14 +498,14 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
               }}
               className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
             >
-              {CATEGORIES.slice(1).map((c) => (
-                <option key={c}>{c}</option>
+              {categories.map((c) => (
+                <option key={c.name} value={c.name}>{c.name}</option>
               ))}
             </select>
           </div>
           <div>
             <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
-              Цена (₽) *
+              Цена за {unitLabel} (₽) *
             </label>
             <Input
               placeholder="5000"
@@ -507,6 +524,27 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 
         <div>
           <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+            Количество в наличии ({unitLabel}) *
+          </label>
+          <Input
+            placeholder="Например: 100"
+            value={stock}
+            onChange={(e) => {
+              setStock(e.target.value);
+              setSuccess(false);
+              setError("");
+            }}
+            type="number"
+            min="1"
+            className="bg-background border-border text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Покупатель сможет указать, сколько {unitLabel} он хочет купить — не больше, чем есть в наличии.
+          </p>
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
             Описание
           </label>
           <textarea
@@ -517,24 +555,14 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
           />
         </div>
 
-        {/* Hold warnings */}
-        {category === "CS2 скины" && (
+        {/* Hold warning */}
+        {holdDays > 0 && (
           <div className="bg-purple-400/10 border border-purple-400/20 rounded-xl p-4 flex items-start gap-3">
             <Icon name="Clock" size={16} className="text-purple-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-purple-400">
-              <span className="font-bold">Холд 8 дней: </span>
-              После подтверждения передачи скина обеими сторонами средства будут удержаны на 8 дней
+              <span className="font-bold">Холд {holdDays} дней: </span>
+              После подтверждения передачи товара обеими сторонами средства будут удержаны на {holdDays} дней
               перед выплатой продавцу.
-            </p>
-          </div>
-        )}
-        {category === "PUBG Mobile" && (
-          <div className="bg-orange-400/10 border border-orange-400/20 rounded-xl p-4 flex items-start gap-3">
-            <Icon name="Clock" size={16} className="text-orange-400 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-orange-400">
-              <span className="font-bold">Холд 14 дней: </span>
-              Для товаров PUBG Mobile применяется период удержания 14 дней после подтверждения
-              обеими сторонами.
             </p>
           </div>
         )}
@@ -592,7 +620,21 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 
 // ─── CATALOG PAGE ─────────────────────────────────────────────────────────────
 
-type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | null;
+// Тематический цвет фонового акцента карточки товара по категории —
+// делает превью живее, не завися от конкретного набора категорий (fallback — золотой)
+const CATEGORY_GLOW_COLORS: Record<string, string> = {
+  "CS2 скины": "hsl(270 70% 55%)",
+  "PUBG Mobile akk": "hsl(24 90% 55%)",
+  "Игровые аккаунты": "hsl(200 80% 55%)",
+  "Подарочные карты": "hsl(330 75% 55%)",
+  "Программное обеспечение": "hsl(160 60% 45%)",
+  "Прочее": "hsl(43 74% 56%)",
+};
+function getCategoryGlow(category: string): string {
+  return CATEGORY_GLOW_COLORS[category] ?? "hsl(43 74% 56%)";
+}
+
+type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const { user: me, buyProduct, boostProduct } = useAuth();
@@ -603,6 +645,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const [priceMax, setPriceMax] = useState("");
   const [allProducts, setAllProducts] = useState<AppProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [categories, setCategories] = useState<{ name: string; unitLabel: string; holdDays: number }[]>([]);
 
   // AI bot state
   const [botWarning, setBotWarning] = useState(false);
@@ -612,14 +655,16 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const [buyResult, setBuyResult] = useState<Record<number, BuyResult>>({});
   const [boostResult, setBoostResult] = useState<Record<number, string>>({});
   const [pendingBuy, setPendingBuy] = useState<AppProduct | null>(null);
+  const [buyQuantity, setBuyQuantity] = useState<Record<number, number>>({});
 
-  // Загружаем товары из API
+  // Загружаем товары и категории из API
   useEffect(() => {
     setLoadingProducts(true);
     api.products.list()
       .then(({ products }) => setAllProducts(products as AppProduct[]))
       .catch(() => setAllProducts([]))
       .finally(() => setLoadingProducts(false));
+    api.products.categories().then(({ categories: list }) => setCategories(list)).catch(() => {});
   }, []);
 
   const filtered = allProducts
@@ -627,10 +672,10 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
     .filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()))
     .filter((p) => !priceMax || p.price <= parseFloat(priceMax));
 
-  // Top categories by product count (exclude "Все")
-  const categoryCounts = CATEGORIES.slice(1).map((cat) => ({
-    cat,
-    count: allProducts.filter((p) => p.category === cat).length,
+  // Top categories by product count
+  const categoryCounts = categories.map((c) => ({
+    cat: c.name,
+    count: allProducts.filter((p) => p.category === c.name).length,
   }));
   const topCategories = [...categoryCounts].sort((a, b) => b.count - a.count).slice(0, 4);
 
@@ -645,8 +690,9 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
       setActive("login");
       return;
     }
+    const quantity = Math.max(1, buyQuantity[product.id] ?? 1);
     const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
-    const result = await buyProduct(product, fakeSellerUser);
+    const result = await buyProduct(product, fakeSellerUser, quantity);
     if (result === "verify_required") {
       setPendingBuy(product);
       return;
@@ -678,7 +724,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
       "Программное обеспечение": "Monitor",
       "Подарочные карты": "Gift",
       "CS2 скины": "Sword",
-      "PUBG Mobile": "Crosshair",
+      "PUBG Mobile akk": "Crosshair",
       "Прочее": "Star",
     };
     return map[cat] ?? "Package";
@@ -689,6 +735,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
     if (result === "ok") return { text: "Куплено! Сделка создана.", color: "text-emerald-400" };
     if (result === "no_balance") return { text: "Недостаточно средств", color: "text-red-400" };
     if (result === "self") return { text: "Нельзя купить свой товар", color: "text-amber-400" };
+    if (result === "not_enough_stock") return { text: "Недостаточно товара в наличии", color: "text-red-400" };
     return null;
   };
 
@@ -814,7 +861,7 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
       {/* Category buttons */}
       <div className="overflow-x-auto pb-1 -mx-1 px-1 mb-6 sm:mb-8">
         <div className="flex gap-2 w-max sm:flex-wrap sm:w-auto">
-        {CATEGORIES.map((c) => (
+        {["Все", ...categories.map((c) => c.name)].map((c) => (
           <button
             key={c}
             onClick={(e) => { e.preventDefault(); setCategory(c); }}
@@ -854,11 +901,14 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {filtered.map((p) => {
             const isMyProduct = me?.id === p.sellerId;
-            const pHoldDays = HOLD_CATEGORIES[p.category];
+            const pHoldDays = categories.find((c) => c.name === p.category)?.holdDays ?? 0;
             const sellerReceives = Math.round(p.price * (1 - PLATFORM_COMMISSION / 100));
             const result = buyResult[p.id];
             const buyFeedback = getBuyLabel(result);
             const bResult = boostResult[p.id];
+            const stock = p.stock ?? 1;
+            const unitLabel = p.unitLabel ?? "шт";
+            const qty = Math.min(Math.max(1, buyQuantity[p.id] ?? 1), stock);
 
             return (
               <div
@@ -879,12 +929,15 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
                 )}
 
                 {/* Thumbnail */}
-                <div className="h-36 bg-gradient-to-br from-secondary to-background flex items-center justify-center relative">
+                <div
+                  className="category-glow h-36 bg-gradient-to-br from-secondary to-background flex items-center justify-center relative"
+                  style={{ "--glow-color": getCategoryGlow(p.category) } as CSSProperties}
+                >
                   <Icon
                     name={
                       p.category === "CS2 скины"
                         ? "Sword"
-                        : p.category === "PUBG Mobile"
+                        : p.category === "PUBG Mobile akk"
                         ? "Crosshair"
                         : p.category === "Игровые аккаунты"
                         ? "Gamepad2"
@@ -937,19 +990,21 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
                     </p>
                   )}
 
-                  {/* Hold tags */}
-                  {p.category === "CS2 скины" && (
-                    <span className="text-[10px] text-purple-400 flex items-center gap-1 bg-purple-400/10 border border-purple-400/20 rounded-md px-2 py-0.5 w-fit">
-                      <Icon name="Clock" size={9} />
-                      Холд 8 дней
-                    </span>
-                  )}
-                  {p.category === "PUBG Mobile" && (
-                    <span className="text-[10px] text-orange-400 flex items-center gap-1 bg-orange-400/10 border border-orange-400/20 rounded-md px-2 py-0.5 w-fit">
-                      <Icon name="Clock" size={9} />
-                      Холд 14 дней
-                    </span>
-                  )}
+                  {/* Hold + stock tags */}
+                  <div className="flex flex-wrap gap-1">
+                    {pHoldDays > 0 && (
+                      <span className="text-[10px] text-purple-400 flex items-center gap-1 bg-purple-400/10 border border-purple-400/20 rounded-md px-2 py-0.5 w-fit">
+                        <Icon name="Clock" size={9} />
+                        Холд {pHoldDays} дн.
+                      </span>
+                    )}
+                    {!isMyProduct && (
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 bg-background border border-border rounded-md px-2 py-0.5 w-fit">
+                        <Icon name="Package" size={9} />
+                        В наличии: {stock} {unitLabel}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="mt-auto pt-2 space-y-2">
                     {/* Buy feedback */}
@@ -999,23 +1054,47 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
                         )}
                       </div>
                     ) : (
-                      <Button
-                        size="sm"
-                        className="w-full bg-gold text-background hover:bg-gold/90 font-bold text-xs h-8"
-                        onClick={() => handleBuy(p)}
-                      >
-                        {pHoldDays ? (
-                          <>
-                            <Icon name="ShoppingCart" size={12} className="mr-1" />
-                            Купить (холд {pHoldDays}д)
-                          </>
-                        ) : (
-                          <>
-                            <Icon name="ShoppingCart" size={12} className="mr-1" />
-                            Купить
-                          </>
+                      <div className="space-y-1.5">
+                        {stock > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setBuyQuantity((prev) => ({ ...prev, [p.id]: Math.max(1, qty - 1) }))}
+                              className="w-6 h-6 rounded border border-border text-muted-foreground hover:text-foreground hover:border-gold/40 flex items-center justify-center text-xs shrink-0"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              max={stock}
+                              value={qty}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                setBuyQuantity((prev) => ({ ...prev, [p.id]: isNaN(v) ? 1 : Math.min(Math.max(1, v), stock) }));
+                              }}
+                              className="w-12 h-6 text-center text-xs bg-background border border-border rounded text-foreground"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setBuyQuantity((prev) => ({ ...prev, [p.id]: Math.min(stock, qty + 1) }))}
+                              className="w-6 h-6 rounded border border-border text-muted-foreground hover:text-foreground hover:border-gold/40 flex items-center justify-center text-xs shrink-0"
+                            >
+                              +
+                            </button>
+                            <span className="text-[10px] text-muted-foreground">{unitLabel}</span>
+                          </div>
                         )}
-                      </Button>
+                        <Button
+                          size="sm"
+                          className="w-full bg-gold text-background hover:bg-gold/90 font-bold text-xs h-8"
+                          onClick={() => handleBuy(p)}
+                        >
+                          <Icon name="ShoppingCart" size={12} className="mr-1" />
+                          Купить{stock > 1 ? ` ${qty} ${unitLabel}` : ""}
+                          {pHoldDays > 0 ? ` (холд ${pHoldDays}д)` : ""}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

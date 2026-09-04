@@ -171,6 +171,7 @@ export const api = {
       category: string;
       price: number;
       description?: string;
+      stock?: number;
     }) => req<ApiProduct>("products", "/products", "POST", data),
 
     boost: (product_id: number) =>
@@ -188,6 +189,21 @@ export const api = {
         reviews: ApiReview[];
         avgRating: number;
       }>("products", `/products/seller/${id}`),
+
+    categories: () =>
+      req<{ categories: ApiCategory[] }>("products", "/products/categories"),
+
+    adminCategories: () =>
+      req<{ categories: ApiCategory[] }>("products", "/products/admin/categories"),
+
+    createCategory: (data: { name: string; unitLabel: string; holdDays: number }) =>
+      req<ApiCategory>("products", "/products/admin/categories", "POST", data),
+
+    updateCategory: (data: { id: number; name: string; unitLabel: string; holdDays: number; active: boolean }) =>
+      req<{ ok: boolean }>("products", "/products/admin/categories/update", "POST", data),
+
+    deleteCategory: (id: number) =>
+      req<{ ok: boolean }>("products", "/products/admin/categories/delete", "POST", { id }),
   },
 
   emailVerify: {
@@ -203,9 +219,10 @@ export const api = {
   },
 
   deals: {
-    buy: (product_id: number) =>
+    buy: (product_id: number, quantity: number = 1) =>
       req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", {
         product_id,
+        quantity,
       }),
 
     list: () => req<{ deals: ApiDeal[] }>("deals", "/deals"),
@@ -669,10 +686,21 @@ export type ApiProduct = {
   active?: boolean;
   boosted: boolean;
   boostUntil?: string;
+  stock?: number;
+  unitLabel?: string;
   rating?: number;
   reviews?: number;
   badge?: string | null;
   verified?: boolean;
+};
+
+export type ApiCategory = {
+  id: number;
+  name: string;
+  unitLabel: string;
+  holdDays: number;
+  active: boolean;
+  sortOrder?: number;
 };
 
 export type ApiDeal = {
@@ -690,6 +718,8 @@ export type ApiDeal = {
   arbiterId?: string;
   date: string;
   step: number;
+  quantity?: number;
+  unitLabel?: string;
   disputeMessages: {
     from: string;
     role: string;

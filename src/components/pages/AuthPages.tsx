@@ -14,7 +14,6 @@ import {
   WITHDRAW_STATUS_MAP,
   WithdrawRequest,
   WITHDRAW_FEE_FIXED,
-  HOLD_CATEGORIES,
 } from "@/components/data/constants";
 
 // ─── FROZEN PAGE ──────────────────────────────────────────────────────────────
@@ -1885,12 +1884,15 @@ export function SellerProfilePage({
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [buyError, setBuyError] = useState<Record<number, string>>({});
   const [buySuccess, setBuySuccess] = useState<Record<number, boolean>>({});
+  const [categories, setCategories] = useState<{ name: string; holdDays: number }[]>([]);
+  const [buyQty, setBuyQty] = useState<Record<number, number>>({});
 
   useEffect(() => {
     api.products
       .seller(sellerId)
       .then(setData)
       .catch(() => setLoadError("Не удалось загрузить профиль продавца"));
+    api.products.categories().then(({ categories: list }) => setCategories(list)).catch(() => {});
   }, [sellerId]);
 
   if (loadError) {
@@ -1923,8 +1925,8 @@ export function SellerProfilePage({
       ? seller.accountId.slice(0, 8) + "*".repeat(seller.accountId.length - 8)
       : seller.accountId;
 
-  const hasHold = (category: string) => !!HOLD_CATEGORIES[category];
-  const holdDays = (category: string) => HOLD_CATEGORIES[category];
+  const hasHold = (category: string) => (categories.find((c) => c.name === category)?.holdDays ?? 0) > 0;
+  const holdDays = (category: string) => categories.find((c) => c.name === category)?.holdDays ?? 0;
 
   const handleReview = async () => {
     setReviewError("");
@@ -1952,9 +1954,11 @@ export function SellerProfilePage({
       setBuyError((prev) => ({ ...prev, [p.id]: "Войдите в аккаунт" }));
       return;
     }
+    const qty = Math.max(1, buyQty[p.id] ?? 1);
     const result = await buyProduct(
       p as unknown as import("@/context/AuthContext").AppProduct,
       me,
+      qty,
     );
     if (result === "ok") {
       setBuySuccess((prev) => ({ ...prev, [p.id]: true }));
@@ -1968,6 +1972,11 @@ export function SellerProfilePage({
       setBuyError((prev) => ({
         ...prev,
         [p.id]: "Нельзя купить собственный товар",
+      }));
+    } else if (result === "not_enough_stock") {
+      setBuyError((prev) => ({
+        ...prev,
+        [p.id]: "Недостаточно товара в наличии",
       }));
     }
   };
@@ -2077,6 +2086,11 @@ export function SellerProfilePage({
                         Холд {holdDays(p.category)} дней после покупки
                       </div>
                     )}
+                    {(p.stock ?? 1) > 1 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        В наличии: {p.stock} {p.unitLabel ?? "шт"}
+                      </p>
+                    )}
                     {buySuccess[p.id] ? (
                       <div className="text-xs text-emerald-400 flex items-center gap-1 mt-1">
                         <Icon name="CheckCircle" size={12} />
@@ -2094,6 +2108,22 @@ export function SellerProfilePage({
                             <Icon name="AlertCircle" size={11} />
                             {buyError[p.id]}
                           </p>
+                        )}
+                        {(p.stock ?? 1) > 1 && (
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              min={1}
+                              max={p.stock}
+                              value={buyQty[p.id] ?? 1}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                setBuyQty((prev) => ({ ...prev, [p.id]: isNaN(v) ? 1 : Math.min(Math.max(1, v), p.stock ?? 1) }));
+                              }}
+                              className="w-16 h-7 text-xs bg-background border-border"
+                            />
+                            <span className="text-[10px] text-muted-foreground">{p.unitLabel ?? "шт"}</span>
+                          </div>
                         )}
                         <Button
                           size="sm"

@@ -19,6 +19,7 @@ import { AdminMonitorTab } from "@/components/pages/admin/AdminMonitor";
 import { AdminGamesTab } from "@/components/pages/admin/AdminGames";
 import { AdminTeamTab } from "@/components/pages/admin/AdminTeam";
 import { AdminSecurityTab } from "@/components/pages/admin/AdminSecurity";
+import { AdminCategoriesTab } from "@/components/pages/admin/AdminCategories";
 
 const ADMIN_SESSION_KEY = "gs_admin_session";
 
@@ -125,6 +126,7 @@ type AdminTab =
   | "users"
   | "deals"
   | "games"
+  | "categories"
   | "disputes"
   | "support-chat"
   | "requisites"
@@ -144,6 +146,7 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
   { id: "games", label: "Ставки", icon: "Coins" },
+  { id: "categories", label: "Категории", icon: "Tags" },
   { id: "disputes", label: "Споры", icon: "AlertTriangle" },
   { id: "support-chat", label: "Поддержка", icon: "Headphones" },
   { id: "requisites", label: "Реквизиты вывода", icon: "CreditCard" },
@@ -275,6 +278,7 @@ export function AdminPage() {
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}
       {tab === "games" && <AdminGamesTab />}
+      {tab === "categories" && <AdminCategoriesTab />}
       {tab === "disputes" && <AdminDisputesTab />}
       {tab === "support-chat" && <AdminSupportTab />}
       {tab === "requisites" && <AdminRequisitesTab />}

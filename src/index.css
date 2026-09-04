@@ -126,7 +126,16 @@
     z-index: -1;
     overflow: hidden;
     pointer-events: none;
-    background: hsl(var(--background));
+    background:
+      radial-gradient(
+        circle at 1px 1px,
+        hsl(43 74% 56% / 0.06) 1px,
+        transparent 0
+      ),
+      hsl(var(--background));
+    background-size:
+      32px 32px,
+      auto;
   }
 
   .animated-bg::before,
@@ -135,7 +144,7 @@
     position: absolute;
     border-radius: 9999px;
     filter: blur(90px);
-    opacity: 0.16;
+    opacity: 0.18;
   }
 
   .animated-bg::before {
@@ -167,6 +176,40 @@
     filter: blur(100px);
     opacity: 0.1;
     animation: floatBlobC 30s ease-in-out infinite;
+  }
+
+  .animated-bg-blob-2 {
+    position: absolute;
+    width: 30vw;
+    height: 30vw;
+    bottom: 8%;
+    left: 8%;
+    border-radius: 9999px;
+    background: radial-gradient(circle, hsl(160 60% 45%) 0%, transparent 70%);
+    filter: blur(110px);
+    opacity: 0.08;
+    animation: floatBlobD 34s ease-in-out infinite;
+  }
+
+  /* ── Тематический фон-акцент под категорию/игру (карточки) ── */
+  .category-glow {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .category-glow::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    z-index: -1;
+    background: radial-gradient(
+      circle at 30% 20%,
+      var(--glow-color, hsl(43 74% 56%)) 0%,
+      transparent 55%
+    );
+    opacity: 0.16;
+    filter: blur(30px);
+    pointer-events: none;
   }
 
   /* ── Радужный переливающийся текст ── */
@@ -243,6 +286,16 @@
   }
   50% {
     transform: translate(-40%, -55%) scale(1.25);
+  }
+}
+
+@keyframes floatBlobD {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(6vw, -5vh) scale(1.18);
   }
 }
 

@@ -1,10 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { api, apiErrorMessage, isApiError, type ApiGame } from "@/api/client";
 import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
+
+// Каждой игре — свой тематический фоновый акцент, стабильный для её id
+// (не завязан на конкретное название, поэтому работает для любых будущих игр)
+const GAME_GLOW_PALETTE = [
+  "hsl(43 74% 56%)", "hsl(270 70% 55%)", "hsl(200 80% 55%)",
+  "hsl(330 75% 55%)", "hsl(160 60% 45%)", "hsl(24 90% 55%)",
+];
+function getGameGlow(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return GAME_GLOW_PALETTE[hash % GAME_GLOW_PALETTE.length];
+}
 
 // ─── ТАЙМЕР ОБРАТНОГО ОТСЧЁТА ─────────────────────────────────────────────────
 
@@ -81,9 +93,12 @@ function GameCard({ game, onUpdate }: { game: ApiGame; onUpdate: (g: ApiGame) =>
   };
 
   return (
-    <div className={`bg-surface border rounded-2xl p-5 sm:p-6 transition-colors ${
-      isFinished ? "border-border opacity-80" : "border-gold/20"
-    }`}>
+    <div
+      className={`category-glow bg-surface border rounded-2xl p-5 sm:p-6 transition-colors ${
+        isFinished ? "border-border opacity-80" : "border-gold/20"
+      }`}
+      style={{ "--glow-color": getGameGlow(game.id) } as CSSProperties}
+    >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
           <h3 className="font-display font-bold text-lg text-foreground">{game.title}</h3>

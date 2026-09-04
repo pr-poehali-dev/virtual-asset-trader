@@ -81,6 +81,18 @@ export function DealsPage() {
     await refreshDeals();
   };
 
+  if (!user) {
+    return (
+      <div className="max-w-lg mx-auto px-6 py-20 text-center animate-fade-in">
+        <Icon name="Lock" size={40} className="mx-auto mb-4 text-muted-foreground opacity-30" />
+        <h2 className="font-display font-bold text-xl text-foreground mb-2">Войдите в аккаунт</h2>
+        <p className="text-muted-foreground mb-4 text-sm">
+          История сделок доступна только авторизованным пользователям
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 animate-fade-in">
       <div className="flex items-center justify-between mb-2 flex-wrap gap-3">

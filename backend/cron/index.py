@@ -46,10 +46,10 @@ def handler(event: dict, context) -> dict:
     try:
         cur = conn.cursor()
 
-        # ── 1. Снимаем холд с истёкших CS2/PUBG сделок ───────────────────────
+        # ── 1. Снимаем холд с истёкших сделок (срок задан категорией в админке) ─
         cur.execute(
             f"""SELECT id, seller_id, amount FROM {SCHEMA}.deals
-                WHERE status IN ('hold_cs2', 'hold_pubg')
+                WHERE status IN ('hold', 'hold_cs2', 'hold_pubg')
                 AND hold_until IS NOT NULL
                 AND hold_until <= NOW()"""
         )
