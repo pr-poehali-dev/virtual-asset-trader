@@ -146,12 +146,15 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
 
             product_id = body.get("product_id")
+            buyer_contact = (body.get("buyer_contact") or "").strip()[:500]
             try:
                 quantity = int(body.get("quantity") or 1)
             except (TypeError, ValueError):
                 quantity = 1
-            if quantity <= 0:
+            if quantity <= 0 or quantity > 100000:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_quantity"})}
+            if not buyer_contact:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "buyer_contact_required"})}
 
             cur.execute(
                 f"""SELECT id, seller_id, title, category, price, stock, unit_label
@@ -178,7 +181,8 @@ def handler(event: dict, context) -> dict:
             if price > BIG_SPEND_THRESHOLD:
                 month_key = datetime.now().strftime("%Y-%m")
                 cur.execute(f"SELECT big_spend_verified_month FROM {SCHEMA}.users WHERE id=%s", (user["id"],))
-                verified_month = cur.fetchone()[0]
+                row_bs = cur.fetchone()
+                verified_month = row_bs[0] if row_bs else None
                 if verified_month != month_key:
                     return {"statusCode": 403, "headers": CORS,
                             "body": json.dumps({"error": "big_spend_verification_required"})}
@@ -200,10 +204,10 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.deals
                     (id, product_id, product_name, category, amount, status,
-                     buyer_id, seller_id, hold_days, hold_until, quantity, unit_label)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                     buyer_id, seller_id, hold_days, hold_until, quantity, unit_label, buyer_contact)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (deal_id, pid, title, category, price, status,
-                 user["id"], seller_id, hold_days, hold_until, quantity, unit_label)
+                 user["id"], seller_id, hold_days, hold_until, quantity, unit_label, buyer_contact)
             )
 
             # Списываем остаток товара у продавца, деактивируем при обнулении
@@ -262,7 +266,8 @@ def handler(event: dict, context) -> dict:
                 f"""SELECT d.id, d.product_name, d.category, d.amount, d.status,
                            d.buyer_id, ub.username, d.seller_id, us.username,
                            d.hold_days, d.hold_until, d.arbiter_id, d.created_at,
-                           d.quantity, d.unit_label
+                           d.quantity, d.unit_label, d.buyer_contact, d.seller_shipped,
+                           d.seller_shipped_at, d.cancel_reason
                     FROM {SCHEMA}.deals d
                     JOIN {SCHEMA}.users ub ON ub.id=d.buyer_id
                     JOIN {SCHEMA}.users us ON us.id=d.seller_id
@@ -283,6 +288,9 @@ def handler(event: dict, context) -> dict:
                     "arbiterId": r[11],
                     "date": r[12].strftime("%d.%m.%Y"),
                     "quantity": r[13], "unitLabel": r[14],
+                    "buyerContact": r[15], "sellerShipped": r[16],
+                    "sellerShippedAt": r[17].strftime("%d.%m.%Y %H:%M") if r[17] else None,
+                    "cancelReason": r[18],
                     "step": 3,
                     "disputeMessages": [],
                 })
@@ -297,9 +305,13 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "account_restricted"})}
             deal_id = body.get("deal_id")
             cur.execute(
-                f"UPDATE {SCHEMA}.deals SET status='dispute', updated_at=NOW() WHERE id=%s AND (buyer_id=%s OR seller_id=%s)",
+                f"""UPDATE {SCHEMA}.deals SET status='dispute', updated_at=NOW()
+                    WHERE id=%s AND (buyer_id=%s OR seller_id=%s)
+                    AND status IN ('escrow','hold','hold_cs2','hold_pubg')""",
                 (deal_id, user["id"], user["id"])
             )
+            if cur.rowcount == 0:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "cannot_open_dispute"})}
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.dispute_messages (deal_id, from_user, role, text, is_system)
                     VALUES (%s,%s,'buyer',%s,TRUE)""",
@@ -335,6 +347,9 @@ def handler(event: dict, context) -> dict:
             if not row:
                 return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
             buyer_id, seller_id, arbiter_id = row
+            is_staff = user.get("role") in ("admin", "staff") or user.get("is_owner")
+            if user["id"] not in (buyer_id, seller_id, arbiter_id) and not is_staff:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             role = "arbiter" if user["id"] == arbiter_id else \
                    "buyer" if user["id"] == buyer_id else "seller"
 
@@ -443,6 +458,156 @@ def handler(event: dict, context) -> dict:
 
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "seller_receives": seller_receives})}
+
+        # ── POST /deals/ship — продавец подтверждает, что отправил товар ───────
+        if method == "POST" and path.endswith("/ship"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+
+            deal_id = body.get("deal_id")
+            cur.execute(
+                f"SELECT buyer_id, seller_id, status FROM {SCHEMA}.deals WHERE id=%s",
+                (deal_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            buyer_id, seller_id, status = row
+
+            if user["id"] != seller_id:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            if status not in ("escrow", "hold", "hold_cs2", "hold_pubg"):
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
+
+            cur.execute(
+                f"UPDATE {SCHEMA}.deals SET seller_shipped=TRUE, seller_shipped_at=NOW() WHERE id=%s",
+                (deal_id,)
+            )
+            add_notification(cur, buyer_id, "deal_bought",
+                "Продавец отправил товар",
+                f"Продавец подтвердил передачу по сделке {deal_id}. Проверьте и подтвердите получение.")
+
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── POST /deals/cancel — продавец отменяет сделку до подтверждения ─────
+        # Покупателю возвращается полная сумма, сделка не учитывается в статистике админа
+        # (статус 'cancelled' исключён из всех агрегатов admin/stats)
+        if method == "POST" and path.endswith("/cancel"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+
+            deal_id = body.get("deal_id")
+            reason  = (body.get("reason") or "").strip()[:300]
+            cur.execute(
+                f"""SELECT buyer_id, seller_id, amount, status, product_id, quantity
+                    FROM {SCHEMA}.deals WHERE id=%s FOR UPDATE""",
+                (deal_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            buyer_id, seller_id, amount, status, product_id, quantity = row
+            amount = float(amount)
+
+            # Только продавец (или админ/владелец) может отменить, и только пока сделка не завершена
+            is_staff = user.get("role") in ("admin", "staff") or user.get("is_owner")
+            if user["id"] != seller_id and not is_staff:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            if status not in ("escrow", "hold", "hold_cs2", "hold_pubg"):
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "wrong_status"})}
+
+            seller_would_receive = round(amount * (1 - PLATFORM_COMMISSION / 100), 2)
+
+            cur.execute(
+                f"UPDATE {SCHEMA}.deals SET status='cancelled', cancel_reason=%s, updated_at=NOW() WHERE id=%s",
+                (reason or "Отменено продавцом", deal_id)
+            )
+            # Полный возврат покупателю
+            cur.execute(f"UPDATE {SCHEMA}.users SET balance_rub=balance_rub+%s WHERE id=%s", (amount, buyer_id))
+            # Снимаем удержанные (locked) средства у продавца — они не были ему выплачены
+            cur.execute(
+                f"UPDATE {SCHEMA}.users SET locked_rub=GREATEST(0,locked_rub-%s) WHERE id=%s",
+                (seller_would_receive, seller_id)
+            )
+            # Возвращаем товар на склад продавца
+            if product_id:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.products SET stock=stock+%s, active=TRUE WHERE id=%s",
+                    (quantity, product_id)
+                )
+
+            add_notification(cur, buyer_id, "deal_bought",
+                "Сделка отменена продавцом",
+                f"Продавец отменил сделку {deal_id}. Средства ₽{amount:,.0f} возвращены на ваш баланс.",
+                shield=True)
+            add_notification(cur, seller_id, "deal_sold",
+                "Сделка отменена",
+                f"Вы отменили сделку {deal_id}. Товар возвращён на склад.")
+
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── GET /deals/chat?deal_id=... — переписка покупателя и продавца ──────
+        if method == "GET" and path.endswith("/chat"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            deal_id = _qs.get("deal_id")
+            cur.execute(f"SELECT buyer_id, seller_id FROM {SCHEMA}.deals WHERE id=%s", (deal_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            buyer_id, seller_id = row
+            if user["id"] not in (buyer_id, seller_id):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            cur.execute(
+                f"""SELECT id, from_user_id, role, text, created_at
+                    FROM {SCHEMA}.deal_chat_messages WHERE deal_id=%s ORDER BY created_at""",
+                (deal_id,)
+            )
+            messages = [{"id": r[0], "fromUserId": r[1], "role": r[2], "text": r[3],
+                         "time": r[4].strftime("%d.%m.%Y %H:%M")} for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"messages": messages})}
+
+        # ── POST /deals/chat — отправить сообщение в чат по сделке ─────────────
+        if method == "POST" and path.endswith("/chat"):
+            user = get_user_by_token(cur, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
+            if user["status"] in ("frozen", "blocked") or user.get("perma_banned"):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "account_restricted"})}
+            if check_rate_limit(cur, ip, "deal_chat", window_sec=30, max_hits=20, block_minutes=5):
+                conn.commit()
+                return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
+
+            deal_id = body.get("deal_id")
+            text    = (body.get("text") or "").strip()[:2000]
+            if not text:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "empty_message"})}
+
+            cur.execute(f"SELECT buyer_id, seller_id FROM {SCHEMA}.deals WHERE id=%s", (deal_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            buyer_id, seller_id = row
+            if user["id"] not in (buyer_id, seller_id):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            role = "buyer" if user["id"] == buyer_id else "seller"
+            other_id = seller_id if role == "buyer" else buyer_id
+
+            cur.execute(
+                f"""INSERT INTO {SCHEMA}.deal_chat_messages (deal_id, from_user_id, role, text)
+                    VALUES (%s,%s,%s,%s)""",
+                (deal_id, user["id"], role, text)
+            )
+            add_notification(cur, other_id, "system",
+                "Новое сообщение по сделке",
+                f"{user['username']} написал(а) вам по сделке {deal_id}.")
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 

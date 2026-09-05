@@ -4,7 +4,6 @@ export const SITE_URL = "https://gorant.shop";
 export const PLATFORM_COMMISSION = 7; // % — комиссия с продаж/сделок
 export const WITHDRAW_FEE_FIXED = 50; // ₽ — фиксированная комиссия за вывод средств
 export const BOOST_PRICE = 50; // RUB
-export const ADMIN_PASSWORD = "As53FlmMs";
 export const SUSPICIOUS_URL_PATTERN = /https?:\/\/(?!gorant\.shop)[^\s]+/gi;
 
 // ─── CATEGORIES ───────────────────────────────────────────────────────────────
@@ -93,6 +92,10 @@ export const STATUS_MAP: Record<string, { label: string; color: string }> = {
     label: "Спор открыт",
     color: "text-red-400 bg-red-400/10 border-red-400/30",
   },
+  hold: {
+    label: "Холд после продажи",
+    color: "text-purple-400 bg-purple-400/10 border-purple-400/30",
+  },
   hold_cs2: {
     label: "Холд CS2 (8 дней)",
     color: "text-purple-400 bg-purple-400/10 border-purple-400/30",
@@ -104,6 +107,10 @@ export const STATUS_MAP: Record<string, { label: string; color: string }> = {
   refunded: {
     label: "Возврат выполнен",
     color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+  },
+  cancelled: {
+    label: "Отменена продавцом",
+    color: "text-muted-foreground bg-secondary border-border",
   },
 };
 

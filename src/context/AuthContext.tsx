@@ -69,7 +69,7 @@ type AuthContextType = {
 
   updateUsers: (users: AppUser[]) => void;
   addProduct: (product: AppProduct) => Promise<void>;
-  buyProduct: (product: AppProduct, _seller: AppUser, quantity?: number) => Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock">;
+  buyProduct: (product: AppProduct, _seller: AppUser, quantity?: number, buyerContact?: string) => Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | "contact_required">;
   boostProduct: (productId: number) => Promise<"ok" | "no_balance">;
   addReview: (sellerId: string, review: Omit<AppReview, "id">) => Promise<"ok" | "not_buyer">;
   openDispute: (dealId: string) => Promise<void>;
@@ -215,9 +215,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
-  const buyProduct = async (product: AppProduct, _seller: AppUser, quantity: number = 1): Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock"> => {
+  const buyProduct = async (product: AppProduct, _seller: AppUser, quantity: number = 1, buyerContact: string = ""): Promise<"ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | "contact_required"> => {
     try {
-      await api.deals.buy(product.id, quantity);
+      await api.deals.buy(product.id, quantity, buyerContact);
       // Обновляем баланс локально
       setUser((prev) => prev ? {
         ...prev,
@@ -233,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (err?.error === "self_buy") return "self";
       if (err?.error === "big_spend_verification_required") return "verify_required";
       if (err?.error === "not_enough_stock") return "not_enough_stock";
+      if (err?.error === "buyer_contact_required") return "contact_required";
       return "no_balance";
     }
   };

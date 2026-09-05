@@ -12,6 +12,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import type { AppProduct } from "@/context/AuthContext";
 import { api } from "@/api/client";
 import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
+import { BuyContactModal } from "@/components/ui/buy-contact-modal";
 import { getCategoryGlow } from "@/components/data/backgroundPalette";
 import { PublicTeamSection } from "@/components/pages/PublicTeam";
 
@@ -145,7 +146,7 @@ export function HomePage({ setActive }: { setActive: (s: string) => void }) {
               ценностей
             </h1>
             <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-7 sm:mb-10 max-w-lg">
-              Мы удерживаем средства до подтверждения сделки обеими сторонами.
+              Мы удерживаем средства до подтверждения получения покупателем или 72 часа.
               Комиссия — {PLATFORM_COMMISSION}%.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -562,8 +563,8 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
             <Icon name="Clock" size={16} className="text-purple-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-purple-400">
               <span className="font-bold">Холд {holdDays} дней: </span>
-              После подтверждения передачи товара обеими сторонами средства будут удержаны на {holdDays} дней
-              перед выплатой продавцу.
+              Сразу после покупки этой категории средства будут удержаны на {holdDays} дней
+              перед выплатой продавцу — независимо от подтверждения получения.
             </p>
           </div>
         )}
@@ -621,7 +622,7 @@ export function AddProductPage({ setActive }: { setActive: (s: string) => void }
 
 // ─── CATALOG PAGE ─────────────────────────────────────────────────────────────
 
-type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | null;
+type BuyResult = "ok" | "no_balance" | "self" | "verify_required" | "not_enough_stock" | "contact_required" | null;
 
 export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const { user: me, buyProduct, boostProduct } = useAuth();
@@ -643,6 +644,10 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
   const [boostResult, setBoostResult] = useState<Record<number, string>>({});
   const [pendingBuy, setPendingBuy] = useState<AppProduct | null>(null);
   const [buyQuantity, setBuyQuantity] = useState<Record<number, number>>({});
+  const [contactModalProduct, setContactModalProduct] = useState<AppProduct | null>(null);
+  const [contactModalLoading, setContactModalLoading] = useState(false);
+  const [contactModalError, setContactModalError] = useState("");
+  const [pendingBuyContact, setPendingBuyContact] = useState("");
 
   // Загружаем товары и категории из API
   useEffect(() => {
@@ -672,18 +677,35 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
     setBotWarning(SUSPICIOUS_URL_PATTERN.test(val));
   };
 
-  const handleBuy = async (product: AppProduct) => {
+  const handleBuy = (product: AppProduct) => {
     if (!me) {
       setActive("login");
       return;
     }
+    setContactModalError("");
+    setContactModalProduct(product);
+  };
+
+  const handleConfirmBuy = async (contact: string) => {
+    const product = contactModalProduct;
+    if (!product) return;
+    setContactModalLoading(true);
+    setContactModalError("");
     const quantity = Math.max(1, buyQuantity[product.id] ?? 1);
     const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
-    const result = await buyProduct(product, fakeSellerUser, quantity);
+    const result = await buyProduct(product, fakeSellerUser, quantity, contact);
+    setContactModalLoading(false);
     if (result === "verify_required") {
+      setContactModalProduct(null);
+      setPendingBuyContact(contact);
       setPendingBuy(product);
       return;
     }
+    if (result === "contact_required") {
+      setContactModalError("Укажите контакт для передачи товара");
+      return;
+    }
+    setContactModalProduct(null);
     setBuyResult((prev) => ({ ...prev, [product.id]: result }));
     setTimeout(() => {
       setBuyResult((prev) => ({ ...prev, [product.id]: null }));
@@ -1094,14 +1116,28 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
         </div>
       )}
 
+      {contactModalProduct && (
+        <BuyContactModal
+          productTitle={contactModalProduct.title}
+          quantity={Math.max(1, buyQuantity[contactModalProduct.id] ?? 1)}
+          unitLabel={contactModalProduct.unitLabel ?? "шт"}
+          totalPrice={format(contactModalProduct.price * Math.max(1, buyQuantity[contactModalProduct.id] ?? 1))}
+          loading={contactModalLoading}
+          error={contactModalError}
+          onClose={() => setContactModalProduct(null)}
+          onConfirm={handleConfirmBuy}
+        />
+      )}
+
       {pendingBuy && (
         <BigSpendVerifyModal
           onClose={() => setPendingBuy(null)}
           onConfirmed={async () => {
             const product = pendingBuy;
             setPendingBuy(null);
+            const quantity = Math.max(1, buyQuantity[product.id] ?? 1);
             const fakeSellerUser = { id: product.sellerId } as import("@/context/AuthContext").AppUser;
-            const result = await buyProduct(product, fakeSellerUser);
+            const result = await buyProduct(product, fakeSellerUser, quantity, pendingBuyContact);
             setBuyResult((prev) => ({ ...prev, [product.id]: result }));
             setTimeout(() => {
               setBuyResult((prev) => ({ ...prev, [product.id]: null }));

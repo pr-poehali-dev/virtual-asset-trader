@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STEPS, STATUS_MAP } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
+import { api, type ApiDealChatMessage } from "@/api/client";
 
-const TERMINAL = ["completed", "refunded"];
+const TERMINAL = ["completed", "refunded", "cancelled"];
+const ACTIVE_STATUSES = ["escrow", "hold", "hold_cs2", "hold_pubg"];
 
 export function DealsPage() {
   const { deals, user, openDispute, sendDisputeMessage, refreshDeals } = useAuth();
@@ -16,6 +18,13 @@ export function DealsPage() {
   const [disputeInput, setDisputeInput] = useState("");
   const [showDisputeChat, setShowDisputeChat] = useState(false);
   const [prevStatuses, setPrevStatuses] = useState<Record<string, string>>({});
+
+  // Чат покупатель-продавец по сделке
+  const [dealChat, setDealChat] = useState<ApiDealChatMessage[]>([]);
+  const [dealChatInput, setDealChatInput] = useState("");
+  const [dealChatLoading, setDealChatLoading] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [showCancelForm, setShowCancelForm] = useState(false);
 
   const userDeals = user ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id) : deals;
   const activeDeals = userDeals.filter((d) => !TERMINAL.includes(d.status));
@@ -29,6 +38,14 @@ export function DealsPage() {
     const interval = setInterval(() => { refreshDeals(); }, 15000);
     return () => clearInterval(interval);
   }, [refreshDeals]);
+
+  // Авто-обновление чата по выбранной сделке
+  useEffect(() => {
+    if (!selected) return;
+    const interval = setInterval(() => { loadDealChat(selected.id); }, 8000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   // Если выбранная сделка перешла в terminal — убираем выделение
   useEffect(() => {
@@ -46,14 +63,7 @@ export function DealsPage() {
   const handleConfirm = async (dealId: string) => {
     setActionLoading(true);
     try {
-      await fetch(
-        `https://functions.poehali.dev/60ecf7a0-0dce-4f8b-8f6a-6ad16f76e69d/deals/confirm`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Session-Token": localStorage.getItem("gs_session_token") ?? "" },
-          body: JSON.stringify({ deal_id: dealId }),
-        }
-      );
+      await api.deals.confirm(dealId);
       await refreshDeals();
       setActionDone("Получение подтверждено! Средства переведены.");
     } catch {
@@ -62,6 +72,54 @@ export function DealsPage() {
       setActionLoading(false);
       setTimeout(() => setActionDone(null), 4000);
     }
+  };
+
+  const handleShip = async (dealId: string) => {
+    setActionLoading(true);
+    try {
+      await api.deals.ship(dealId);
+      await refreshDeals();
+      setActionDone("Отправка подтверждена! Покупатель уведомлён.");
+    } catch {
+      setActionDone("Ошибка. Попробуйте позже.");
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setActionDone(null), 4000);
+    }
+  };
+
+  const handleCancel = async (dealId: string) => {
+    setActionLoading(true);
+    try {
+      await api.deals.cancel(dealId, cancelReason.trim() || undefined);
+      await refreshDeals();
+      setShowCancelForm(false);
+      setCancelReason("");
+      setActionDone("Сделка отменена, средства возвращены покупателю.");
+    } catch {
+      setActionDone("Ошибка отмены. Попробуйте позже.");
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setActionDone(null), 4000);
+    }
+  };
+
+  const loadDealChat = async (dealId: string) => {
+    try {
+      const { messages } = await api.deals.chatList(dealId);
+      setDealChat(messages);
+    } catch { /* ignore */ }
+  };
+
+  const handleSendDealChat = async (dealId: string) => {
+    if (!dealChatInput.trim()) return;
+    setDealChatLoading(true);
+    try {
+      await api.deals.chatSend(dealId, dealChatInput.trim());
+      setDealChatInput("");
+      await loadDealChat(dealId);
+    } catch { /* ignore */ }
+    setDealChatLoading(false);
   };
 
   const handleDispute = async (dealId: string) => {
@@ -134,7 +192,7 @@ export function DealsPage() {
             const s = STATUS_MAP[d.status] ?? { label: d.status, color: "text-muted-foreground bg-secondary border-border" };
             const isBuyer = user?.id === d.buyerId;
             return (
-              <div key={d.id} onClick={() => { setSelected(d); setShowDisputeChat(d.status === "dispute"); }}
+              <div key={d.id} onClick={() => { setSelected(d); setShowDisputeChat(d.status === "dispute"); setShowCancelForm(false); loadDealChat(d.id); }}
                 className={`bg-surface border rounded-xl p-5 cursor-pointer transition-all hover-scale ${selectedFresh?.id === d.id ? "border-gold/50 bg-gold/5" : "border-border hover:border-border/80"}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -197,6 +255,14 @@ export function DealsPage() {
                 ))}
               </div>
 
+              {/* Контакт покупателя виден только продавцу — куда передать товар */}
+              {user?.id === selectedFresh.sellerId && selectedFresh.buyerContact && (
+                <div className="bg-background border border-gold/20 rounded-lg p-3">
+                  <p className="text-[11px] text-muted-foreground mb-1">Игровой ID / трейд-ссылка покупателя</p>
+                  <p className="text-sm text-foreground font-medium break-all">{selectedFresh.buyerContact}</p>
+                </div>
+              )}
+
               {actionDone && (
                 <div className={`text-xs rounded-lg px-3 py-2 flex items-center gap-2 ${actionDone.includes("Ошибка") ? "bg-red-400/10 text-red-400" : "bg-emerald-400/10 text-emerald-400"}`}>
                   <Icon name={actionDone.includes("Ошибка") ? "AlertCircle" : "CheckCircle"} size={13} />
@@ -204,7 +270,25 @@ export function DealsPage() {
                 </div>
               )}
 
-              {user?.id === selectedFresh.buyerId && selectedFresh.status === "escrow" && (
+              {/* Продавец подтверждает отправку товара */}
+              {user?.id === selectedFresh.sellerId && ACTIVE_STATUSES.includes(selectedFresh.status) && !selectedFresh.sellerShipped && (
+                <Button
+                  className="w-full bg-gold text-background hover:bg-gold/90 font-semibold text-sm"
+                  disabled={actionLoading}
+                  onClick={() => handleShip(selectedFresh.id)}
+                >
+                  {actionLoading ? <Icon name="Loader" size={15} className="animate-spin mr-2" /> : <Icon name="Send" size={15} className="mr-2" />}
+                  Подтвердить отправку товара
+                </Button>
+              )}
+              {user?.id === selectedFresh.sellerId && selectedFresh.sellerShipped && ACTIVE_STATUSES.includes(selectedFresh.status) && (
+                <div className="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-3 text-xs text-emerald-400 flex items-center gap-2">
+                  <Icon name="CheckCircle" size={13} />Вы подтвердили отправку {selectedFresh.sellerShippedAt}. Ожидаем подтверждения покупателя.
+                </div>
+              )}
+
+              {/* Покупатель подтверждает получение */}
+              {user?.id === selectedFresh.buyerId && ACTIVE_STATUSES.includes(selectedFresh.status) && (
                 <Button
                   className="w-full bg-gold text-background hover:bg-gold/90 font-semibold text-sm"
                   disabled={actionLoading}
@@ -214,8 +298,11 @@ export function DealsPage() {
                   Подтвердить получение
                 </Button>
               )}
+              {user?.id === selectedFresh.buyerId && !selectedFresh.sellerShipped && ACTIVE_STATUSES.includes(selectedFresh.status) && (
+                <p className="text-[11px] text-muted-foreground text-center -mt-2">Продавец ещё не подтвердил отправку</p>
+              )}
 
-              {["hold_cs2", "hold_pubg"].includes(selectedFresh.status) && (
+              {["hold_cs2", "hold_pubg", "hold"].includes(selectedFresh.status) && (
                 <div className="bg-purple-400/10 border border-purple-400/20 rounded-lg p-3 text-xs text-purple-400 flex items-start gap-2">
                   <Icon name="Lock" size={13} className="mt-0.5 flex-shrink-0" />
                   <span>Средства в холде до {selectedFresh.holdUntil}. После истечения холда они поступят продавцу.</span>
@@ -232,8 +319,14 @@ export function DealsPage() {
                   <Icon name="RotateCcw" size={13} />Средства возвращены покупателю
                 </div>
               )}
+              {selectedFresh.status === "cancelled" && (
+                <div className="bg-muted/10 border border-border rounded-lg p-3 text-xs text-muted-foreground flex items-start gap-2">
+                  <Icon name="XCircle" size={13} className="mt-0.5 flex-shrink-0" />
+                  <span>Сделка отменена продавцом. Средства возвращены покупателю.{selectedFresh.cancelReason ? ` Причина: ${selectedFresh.cancelReason}` : ""}</span>
+                </div>
+              )}
 
-              {selectedFresh.status === "escrow" && user?.id === selectedFresh.buyerId && (
+              {ACTIVE_STATUSES.includes(selectedFresh.status) && user?.id === selectedFresh.buyerId && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -244,6 +337,41 @@ export function DealsPage() {
                   <Icon name="AlertTriangle" size={12} className="mr-1.5" />
                   Открыть спор
                 </Button>
+              )}
+
+              {/* Продавец может отменить сделку до её завершения — покупателю полный возврат */}
+              {ACTIVE_STATUSES.includes(selectedFresh.status) && user?.id === selectedFresh.sellerId && (
+                showCancelForm ? (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Причина отмены (необязательно)"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="bg-background border-border text-xs h-8"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-red-400/30 text-red-400 hover:bg-red-400/10 text-xs"
+                        disabled={actionLoading}
+                        onClick={() => handleCancel(selectedFresh.id)}
+                      >
+                        Подтвердить отмену
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowCancelForm(false)}>
+                        Назад
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCancelForm(true)}
+                    className="text-xs text-muted-foreground hover:text-red-400 transition-colors w-full text-center"
+                  >
+                    Отменить сделку (полный возврат покупателю)
+                  </button>
+                )
               )}
 
               {selectedFresh.status === "dispute" && showDisputeChat && (
@@ -267,6 +395,47 @@ export function DealsPage() {
                     />
                     <Button size="sm" className="bg-gold text-background hover:bg-gold/90 h-8 px-3" onClick={() => handleSendMessage(selectedFresh.id)}>
                       <Icon name="Send" size={13} />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Чат покупателя и продавца по сделке — доступен пока сделка не отменена/не в споре */}
+              {selectedFresh.status !== "dispute" && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+                    <Icon name="MessageCircle" size={12} />
+                    Чат со {user?.id === selectedFresh.buyerId ? "продавцом" : "покупателем"}
+                  </p>
+                  <div className="bg-background border border-border rounded-lg p-3 max-h-40 overflow-y-auto space-y-1.5">
+                    {dealChat.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-2">Сообщений пока нет</p>
+                    ) : (
+                      dealChat.map((m) => (
+                        <div key={m.id} className={`text-xs ${m.fromUserId === user?.id ? "text-right" : ""}`}>
+                          <span className="font-semibold text-foreground">
+                            {m.fromUserId === user?.id ? "Вы" : (m.role === "buyer" ? selectedFresh.buyerName : selectedFresh.sellerName)}:{" "}
+                          </span>
+                          <span className="text-muted-foreground">{m.text}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Сообщение..."
+                      value={dealChatInput}
+                      onChange={(e) => setDealChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSendDealChat(selectedFresh.id)}
+                      className="bg-background border-border text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      className="bg-gold text-background hover:bg-gold/90 h-8 px-3"
+                      disabled={dealChatLoading}
+                      onClick={() => handleSendDealChat(selectedFresh.id)}
+                    >
+                      <Icon name={dealChatLoading ? "Loader" : "Send"} size={13} className={dealChatLoading ? "animate-spin" : ""} />
                     </Button>
                   </div>
                 </div>

@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
-import { api, apiErrorMessage, type ApiDepositRequisite } from "@/api/client";
+import { api, apiErrorMessage, type ApiDepositRequisite, type ApiProduct, type ApiSeller, type ApiReview } from "@/api/client";
 import { WithdrawalRequisitesTab } from "@/components/pages/WithdrawalRequisites";
 import { PartnerPage as PartnerPageInline } from "@/components/pages/PartnerPage";
 import { AdminBadge, AdminAvatar } from "@/components/ui/admin-badge";
+import { BuyContactModal } from "@/components/ui/buy-contact-modal";
 import {
   INITIAL_REQUISITES,
   INITIAL_WITHDRAWALS,
@@ -1330,9 +1331,7 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
                 <span className="font-semibold">
                   Заморожено ₽ {lockedRUB.toLocaleString("ru-RU")}.
                 </span>{" "}
-                {user.verified
-                  ? "Верифицированные продавцы получают средства сразу после продажи, кроме CS2/PUBG товаров (холд до окончания периода удержания)."
-                  : "Не верифицированные пользователи получают средства через 2 дня после продажи. CS2/PUBG — после окончания периода холда."}
+                Средства поступят на баланс после подтверждения получения покупателем или автоматически через 72 часа с момента покупки. Для отдельных категорий (например CS2/PUBG) действует дополнительный холд.
               </div>
             </div>
           )}
@@ -1485,24 +1484,10 @@ export function CabinetPage({ setActive }: { setActive: (s: string) => void }) {
           <div className="bg-surface border border-border rounded-xl p-4 mb-5 text-xs text-muted-foreground flex items-start gap-2">
             <Icon name="Info" size={14} className="mt-0.5 shrink-0 text-gold" />
             <div>
-              {user.verified ? (
-                <>
-                  <span className="font-semibold text-foreground">
-                    Верифицированный аккаунт:
-                  </span>{" "}
-                  вывод доступен сразу после зачисления средств от продажи
-                  (кроме CS2/PUBG — после окончания холда).
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-foreground">
-                    Не верифицирован:
-                  </span>{" "}
-                  вывод доступен через 2 дня после продажи. Товары CS2/PUBG —
-                  после окончания периода удержания. Пройдите верификацию для
-                  вывода без ожидания.
-                </>
-              )}
+              <span className="font-semibold text-foreground">Вывод средств:</span>{" "}
+              доступен сразу после зачисления средств на баланс (после подтверждения покупателем
+              или автоматически через 72 часа с момента продажи; для отдельных категорий действует
+              дополнительный холд).
             </div>
           </div>
 
@@ -1886,6 +1871,9 @@ export function SellerProfilePage({
   const [buySuccess, setBuySuccess] = useState<Record<number, boolean>>({});
   const [categories, setCategories] = useState<{ name: string; holdDays: number }[]>([]);
   const [buyQty, setBuyQty] = useState<Record<number, number>>({});
+  const [contactModalProduct, setContactModalProduct] = useState<ApiProduct | null>(null);
+  const [contactModalLoading, setContactModalLoading] = useState(false);
+  const [contactModalError, setContactModalError] = useState("");
 
   useEffect(() => {
     api.products
@@ -1949,17 +1937,32 @@ export function SellerProfilePage({
     }
   };
 
-  const handleBuy = async (p: ApiProduct) => {
+  const handleBuy = (p: ApiProduct) => {
     if (!me) {
       setBuyError((prev) => ({ ...prev, [p.id]: "Войдите в аккаунт" }));
       return;
     }
+    setContactModalError("");
+    setContactModalProduct(p);
+  };
+
+  const handleConfirmBuy = async (contact: string) => {
+    const p = contactModalProduct;
+    if (!p || !me) return;
+    setContactModalLoading(true);
     const qty = Math.max(1, buyQty[p.id] ?? 1);
     const result = await buyProduct(
       p as unknown as import("@/context/AuthContext").AppProduct,
       me,
       qty,
+      contact,
     );
+    setContactModalLoading(false);
+    if (result === "contact_required") {
+      setContactModalError("Укажите контакт для передачи товара");
+      return;
+    }
+    setContactModalProduct(null);
     if (result === "ok") {
       setBuySuccess((prev) => ({ ...prev, [p.id]: true }));
       setBuyError((prev) => ({ ...prev, [p.id]: "" }));
@@ -2287,6 +2290,19 @@ export function SellerProfilePage({
           </div>
         </div>
       </div>
+
+      {contactModalProduct && (
+        <BuyContactModal
+          productTitle={contactModalProduct.title}
+          quantity={Math.max(1, buyQty[contactModalProduct.id] ?? 1)}
+          unitLabel={contactModalProduct.unitLabel ?? "шт"}
+          totalPrice={format(contactModalProduct.price * Math.max(1, buyQty[contactModalProduct.id] ?? 1))}
+          loading={contactModalLoading}
+          error={contactModalError}
+          onClose={() => setContactModalProduct(null)}
+          onConfirm={handleConfirmBuy}
+        />
+      )}
     </div>
   );
 }

@@ -49,9 +49,19 @@ def check_rate_limit(cur, ip, bucket, window_sec=60, max_hits=20, block_minutes=
         return True
     return False
 
-def hash_password(pw: str) -> str:
-    salt = "gorant_salt_2024"
+LEGACY_SALT = "gorant_salt_2024"
+
+def hash_password_legacy(pw: str) -> str:
+    """Старая схема — общая соль для всех. Оставлена только для проверки при входе
+    существующих пользователей, чтобы затем сразу мигрировать их на новую схему."""
+    return hashlib.sha256((LEGACY_SALT + pw).encode()).hexdigest()
+
+def hash_password(pw: str, salt: str) -> str:
+    """Текущая схема — уникальная случайная соль на каждого пользователя."""
     return hashlib.sha256((salt + pw).encode()).hexdigest()
+
+def make_salt() -> str:
+    return secrets.token_hex(16)
 
 def make_token():
     return secrets.token_hex(32)
@@ -132,12 +142,13 @@ def handler(event: dict, context) -> dict:
 
             uid = make_user_id(conn)
             acc_id = make_account_id()
-            pw_hash = hash_password(password)
+            salt = make_salt()
+            pw_hash = hash_password(password, salt)
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.users
-                    (id, account_id, username, email, password_hash, role, verified, balance_rub)
-                    VALUES (%s,%s,%s,%s,%s,'user',FALSE,0)""",
-                (uid, acc_id, username, email, pw_hash)
+                    (id, account_id, username, email, password_hash, password_salt, role, verified, balance_rub)
+                    VALUES (%s,%s,%s,%s,%s,%s,'user',FALSE,0)""",
+                (uid, acc_id, username, email, pw_hash, salt)
             )
             token = make_token()
             cur.execute(
@@ -163,18 +174,38 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 429, "headers": CORS, "body": json.dumps({"error": "rate_limited"})}
             login    = (body.get("login") or "").strip().lower()
             password = body.get("password") or ""
-            pw_hash  = hash_password(password)
 
             cur.execute(
                 f"""SELECT id,account_id,username,email,role,is_owner,staff_perms,
                            status,freeze_reason,block_reason,verified,
-                           balance_rub,locked_rub,deals_count,joined_at
+                           balance_rub,locked_rub,deals_count,joined_at,
+                           password_hash,password_salt
                     FROM {SCHEMA}.users
-                    WHERE (LOWER(email)=%s OR LOWER(username)=%s) AND password_hash=%s""",
-                (login, login, pw_hash)
+                    WHERE (LOWER(email)=%s OR LOWER(username)=%s)""",
+                (login, login)
             )
             row = cur.fetchone()
             if not row:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "wrong"})}
+
+            stored_hash, stored_salt = row[-2], row[-1]
+            row = row[:-2]
+
+            if stored_salt:
+                password_ok = hash_password(password, stored_salt) == stored_hash
+            else:
+                # Пользователь ещё на старой схеме (общая соль) — проверяем и,
+                # при успехе, сразу мигрируем на новую случайную соль.
+                password_ok = hash_password_legacy(password) == stored_hash
+                if password_ok:
+                    new_salt = make_salt()
+                    new_hash = hash_password(password, new_salt)
+                    cur.execute(
+                        f"UPDATE {SCHEMA}.users SET password_hash=%s, password_salt=%s WHERE id=%s",
+                        (new_hash, new_salt, row[0])
+                    )
+
+            if not password_ok:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "wrong"})}
 
             cols = ["id","account_id","username","email","role","is_owner","staff_perms",

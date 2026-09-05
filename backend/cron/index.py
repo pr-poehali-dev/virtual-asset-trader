@@ -76,37 +76,41 @@ def handler(event: dict, context) -> dict:
                 shield=True)
             released_holds += 1
 
-        # ── 2. Разблокируем средства неверифицированных продавцов (2 дня) ─────
-        # Сделки: status=completed (обычные, не холд), возраст >= 2 дня,
-        # продавец не верифицирован, locked_rub > 0
+        # ── 2. Авто-завершение обычных сделок (без спец. холда) через 72 часа ──
+        # Если покупатель за 72 часа не подтвердил получение и не открыл спор,
+        # сделка считается успешной и деньги переходят продавцу автоматически.
+        # Это применяется ко ВСЕМ продавцам (не только неверифицированным) —
+        # раньше верифицированные продавцы могли остаться без выплаты навсегда,
+        # если покупатель просто не заходил подтвердить получение.
         cur.execute(
-            f"""SELECT DISTINCT d.seller_id,
-                       SUM(ROUND(d.amount * %s / 100, 2)) as to_release
-                FROM {SCHEMA}.deals d
-                JOIN {SCHEMA}.users u ON u.id = d.seller_id
-                WHERE d.status = 'completed'
-                AND d.updated_at <= NOW() - INTERVAL '2 days'
-                AND u.verified = FALSE
-                AND u.locked_rub > 0
-                GROUP BY d.seller_id""",
-            (100 - PLATFORM_COMMISSION,)
+            f"""SELECT id, seller_id, buyer_id, amount FROM {SCHEMA}.deals
+                WHERE status = 'escrow'
+                AND created_at <= NOW() - INTERVAL '72 hours'"""
         )
-        unverified_rows = cur.fetchall()
+        escrow_expired = cur.fetchall()
 
-        for seller_id, to_release in unverified_rows:
-            to_release = float(to_release)
-            if to_release <= 0:
-                continue
+        for deal_id, seller_id, buyer_id, amount in escrow_expired:
+            amount = float(amount)
+            seller_receives = round(amount * (1 - PLATFORM_COMMISSION / 100), 2)
+            cur.execute(
+                f"UPDATE {SCHEMA}.deals SET status='completed', updated_at=NOW() WHERE id=%s",
+                (deal_id,)
+            )
             cur.execute(
                 f"""UPDATE {SCHEMA}.users
-                    SET balance_rub = balance_rub + LEAST(locked_rub, %s),
+                    SET balance_rub = balance_rub + %s,
                         locked_rub  = GREATEST(0, locked_rub - %s)
                     WHERE id = %s""",
-                (to_release, to_release, seller_id)
+                (seller_receives, seller_receives, seller_id)
+            )
+            cur.execute(
+                f"UPDATE {SCHEMA}.users SET deals_count=deals_count+1 WHERE id=%s OR id=%s",
+                (buyer_id, seller_id)
             )
             add_notification(cur, seller_id, "deal_sold",
-                "Средства разблокированы",
-                f"₽{to_release:,.0f} переведены с замороженного баланса на основной (2-дневный период истёк).")
+                "Сделка автоматически завершена",
+                f"Прошло 72 часа с момента покупки без спора. По сделке {deal_id} на баланс зачислено ₽{seller_receives:,.0f}.",
+                shield=True)
             released_unverified += 1
 
         conn.commit()

@@ -468,6 +468,42 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+        # ── POST /finance/admin/unfreeze-balance — владелец снимает заморозку ──
+        # В отличие от /admin/user-status, этот эндпоинт доступен ТОЛЬКО владельцу
+        # и может быть применён к ЛЮБОМУ пользователю (включая других владельцев
+        # и самого себя) — специально для разблокировки locked_rub без ограничений.
+        if method == "POST" and path.endswith("/admin/unfreeze-balance"):
+            if not (user and user.get("is_owner")):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            target_id = body.get("user_id")
+            if not target_id:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
+
+            cur.execute(f"SELECT locked_rub, status FROM {SCHEMA}.users WHERE id=%s", (target_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
+            locked_rub, target_status = float(row[0]), row[1]
+
+            # Переводим весь замороженный баланс на основной и снимаем статус заморозки
+            cur.execute(
+                f"""UPDATE {SCHEMA}.users
+                    SET balance_rub = balance_rub + locked_rub,
+                        locked_rub = 0,
+                        status = CASE WHEN status = 'frozen' THEN 'active' ELSE status END,
+                        freeze_reason = CASE WHEN status = 'frozen' THEN NULL ELSE freeze_reason END
+                    WHERE id=%s""",
+                (target_id,)
+            )
+            add_notification(cur, target_id, "system",
+                "Заморозка средств снята",
+                f"Администрация разблокировала ваш баланс. ₽{locked_rub:,.0f} переведены на доступный баланс.",
+                shield=True)
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "ok": True, "released": locked_rub, "wasStatus": target_status
+            })}
+
         # ── GET /finance/admin/withdrawals ────────────────────────────────────
         if method == "GET" and path.endswith("/admin/withdrawals"):
             if not require_admin(user):

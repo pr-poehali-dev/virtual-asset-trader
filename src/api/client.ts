@@ -219,10 +219,11 @@ export const api = {
   },
 
   deals: {
-    buy: (product_id: number, quantity: number = 1) =>
+    buy: (product_id: number, quantity: number = 1, buyer_contact: string = "") =>
       req<{ deal_id: string; status: string }>("deals", "/deals/buy", "POST", {
         product_id,
         quantity,
+        buyer_contact,
       }),
 
     list: () => req<{ deals: ApiDeal[] }>("deals", "/deals"),
@@ -235,6 +236,21 @@ export const api = {
 
     resolve: (deal_id: string, refund_buyer: boolean) =>
       req("deals", "/deals/resolve", "POST", { deal_id, refund_buyer }),
+
+    confirm: (deal_id: string) =>
+      req<{ ok: boolean }>("deals", "/deals/confirm", "POST", { deal_id }),
+
+    ship: (deal_id: string) =>
+      req<{ ok: boolean }>("deals", "/deals/ship", "POST", { deal_id }),
+
+    cancel: (deal_id: string, reason?: string) =>
+      req<{ ok: boolean }>("deals", "/deals/cancel", "POST", { deal_id, reason }),
+
+    chatList: (deal_id: string) =>
+      req<{ messages: ApiDealChatMessage[] }>("deals", `/deals/chat?deal_id=${encodeURIComponent(deal_id)}`),
+
+    chatSend: (deal_id: string, text: string) =>
+      req<{ ok: boolean }>("deals", "/deals/chat", "POST", { deal_id, text }),
   },
 
   finance: {
@@ -307,6 +323,10 @@ export const api = {
 
     adminUserStatus: (user_id: string, status: string, reason?: string) =>
       req("finance", "/user-status", "POST", { user_id, status, reason }),
+
+    // Только для владельца: снять заморозку и разблокировать locked_rub у любого пользователя
+    unfreezeBalance: (user_id: string) =>
+      req<{ ok: boolean; released: number }>("finance", "/admin/unfreeze-balance", "POST", { user_id }),
 
     adminDeposits: () =>
       req<{ deposits: ApiDeposit[] }>("finance", "/deposits"),
@@ -720,6 +740,10 @@ export type ApiDeal = {
   step: number;
   quantity?: number;
   unitLabel?: string;
+  buyerContact?: string;
+  sellerShipped?: boolean;
+  sellerShippedAt?: string;
+  cancelReason?: string;
   disputeMessages: {
     from: string;
     role: string;
@@ -727,6 +751,14 @@ export type ApiDeal = {
     time?: string;
     isSystem?: boolean;
   }[];
+};
+
+export type ApiDealChatMessage = {
+  id: number;
+  fromUserId: string;
+  role: "buyer" | "seller";
+  text: string;
+  time: string;
 };
 
 export type ApiNotification = {

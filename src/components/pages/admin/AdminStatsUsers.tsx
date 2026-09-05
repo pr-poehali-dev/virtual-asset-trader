@@ -231,8 +231,9 @@ export function AdminStatsTab() {
 // ─── USERS TAB ────────────────────────────────────────────────────────────────
 
 export function AdminUsersTab() {
-  const { users, updateUsers } = useAuth();
+  const { users, updateUsers, user: me } = useAuth();
   const [search, setSearch] = useState("");
+  const [unfreezing, setUnfreezing] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     userId: string;
     action: AppUser["status"];
@@ -300,6 +301,25 @@ export function AdminUsersTab() {
     }
     setConfirmAction(null);
     setReasonInput("");
+  };
+
+  const handleUnfreezeBalance = async (userId: string) => {
+    setActionError("");
+    setUnfreezing(userId);
+    try {
+      await api.finance.unfreezeBalance(userId);
+      const updated = users.map((u) => u.id === userId ? {
+        ...u,
+        status: u.status === "frozen" ? "active" as const : u.status,
+        freezeReason: u.status === "frozen" ? undefined : u.freezeReason,
+        lockedBalances: { ...u.lockedBalances, RUB: 0 },
+        balances: { ...u.balances, RUB: (u.balances.RUB ?? 0) + (u.lockedBalances.RUB ?? 0) },
+      } : u);
+      updateUsers(updated);
+    } catch (e) {
+      setActionError(apiErrorMessage(e));
+    }
+    setUnfreezing(null);
   };
 
   return (
@@ -370,21 +390,35 @@ export function AdminUsersTab() {
                 </td>
                 <td className="p-4 text-muted-foreground">{u.deals}</td>
                 <td className="p-4">
-                  {u.isOwner ? (
-                    <span className="text-xs text-muted-foreground">Неприкосновенен</span>
-                  ) : (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {u.status !== "active" && (
-                        <button onClick={() => updateStatus(u.id, "active", "")} className="text-xs px-2.5 py-1 rounded-lg bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 transition-colors font-semibold border border-emerald-400/20">Разблокировать</button>
-                      )}
-                      {u.status !== "frozen" && (
-                        <button onClick={() => { setConfirmAction({ userId: u.id, action: "frozen", reason: "" }); setReasonInput(""); }} className="text-xs px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 transition-colors font-semibold border border-amber-400/20">Заморозить</button>
-                      )}
-                      {u.status !== "blocked" && (
-                        <button onClick={() => { setConfirmAction({ userId: u.id, action: "blocked", reason: "" }); setReasonInput(""); }} className="text-xs px-2.5 py-1 rounded-lg bg-red-400/10 text-red-400 hover:bg-red-400/20 transition-colors font-semibold border border-red-400/20">Заблокировать</button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {u.isOwner ? (
+                      <span className="text-xs text-muted-foreground">Неприкосновенен</span>
+                    ) : (
+                      <>
+                        {u.status !== "active" && (
+                          <button onClick={() => updateStatus(u.id, "active", "")} className="text-xs px-2.5 py-1 rounded-lg bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 transition-colors font-semibold border border-emerald-400/20">Разблокировать</button>
+                        )}
+                        {u.status !== "frozen" && (
+                          <button onClick={() => { setConfirmAction({ userId: u.id, action: "frozen", reason: "" }); setReasonInput(""); }} className="text-xs px-2.5 py-1 rounded-lg bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 transition-colors font-semibold border border-amber-400/20">Заморозить</button>
+                        )}
+                        {u.status !== "blocked" && (
+                          <button onClick={() => { setConfirmAction({ userId: u.id, action: "blocked", reason: "" }); setReasonInput(""); }} className="text-xs px-2.5 py-1 rounded-lg bg-red-400/10 text-red-400 hover:bg-red-400/20 transition-colors font-semibold border border-red-400/20">Заблокировать</button>
+                        )}
+                      </>
+                    )}
+                    {/* Владелец может снять заморозку баланса кому угодно, включая себя и других владельцев */}
+                    {me?.isOwner && (u.lockedBalances.RUB ?? 0) > 0 && (
+                      <button
+                        onClick={() => handleUnfreezeBalance(u.id)}
+                        disabled={unfreezing === u.id}
+                        title="Перевести замороженный баланс на доступный и снять заморозку статуса"
+                        className="text-xs px-2.5 py-1 rounded-lg bg-blue-400/10 text-blue-400 hover:bg-blue-400/20 transition-colors font-semibold border border-blue-400/20 flex items-center gap-1"
+                      >
+                        <Icon name={unfreezing === u.id ? "Loader" : "Unlock"} size={11} className={unfreezing === u.id ? "animate-spin" : ""} />
+                        Снять заморозку ₽{(u.lockedBalances.RUB ?? 0).toLocaleString("ru-RU")}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

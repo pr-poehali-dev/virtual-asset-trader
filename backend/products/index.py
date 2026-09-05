@@ -349,8 +349,8 @@ def handler(event: dict, context) -> dict:
             if not row:
                 return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
-            is_admin = user.get("role") in ("admin", "staff")
-            if row[0] != user["id"] and not is_admin:
+            user_is_staff = user.get("role") in ("admin", "staff") or user.get("is_owner")
+            if row[0] != user["id"] and not user_is_staff:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
 
             cur.execute(f"UPDATE {SCHEMA}.products SET active=FALSE WHERE id=%s", (product_id,))

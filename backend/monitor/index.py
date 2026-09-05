@@ -15,6 +15,25 @@ def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
+def get_user_by_token(cur, token):
+    if not token:
+        return None
+    cur.execute(
+        f"""SELECT u.id, u.role, u.is_owner
+            FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
+            WHERE s.token=%s AND s.expires_at > NOW()""",
+        (token,)
+    )
+    row = cur.fetchone()
+    if not row:
+        return None
+    return {"id": row[0], "role": row[1], "is_owner": row[2]}
+
+
+def is_admin(user):
+    return bool(user) and (user["role"] in ("admin", "staff") or user.get("is_owner"))
+
+
 def handler(event: dict, context) -> dict:
     """Мониторинг ошибок: POST /report — отправить событие, GET /list — список для админа, POST /resolve — закрыть событие."""
     if event.get("httpMethod") == "OPTIONS":
@@ -29,7 +48,9 @@ def handler(event: dict, context) -> dict:
         except Exception:
             pass
 
-    # ── POST /report — фронтенд присылает пойманную ошибку ────────────────────
+    token = (event.get("headers") or {}).get("X-Session-Token")
+
+    # ── POST /report — фронтенд присылает пойманную ошибку (доступно всем) ────
     if path.endswith("/report"):
         event_type  = body.get("event_type", "frontend_error")
         severity    = body.get("severity", "error")
@@ -74,6 +95,8 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         try:
             cur = conn.cursor()
+            if not is_admin(get_user_by_token(cur, token)):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             where = "WHERE resolved = FALSE" if only_active else ""
             cur.execute(
                 f"""SELECT id, event_type, severity, title, description, url,
@@ -116,6 +139,8 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         try:
             cur = conn.cursor()
+            if not is_admin(get_user_by_token(cur, token)):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             cur.execute(
                 f"UPDATE {SCHEMA}.monitor_events SET resolved=TRUE, resolved_at=NOW() WHERE id=%s",
                 (event_id,),
@@ -130,6 +155,8 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         try:
             cur = conn.cursor()
+            if not is_admin(get_user_by_token(cur, token)):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             cur.execute(f"UPDATE {SCHEMA}.monitor_events SET resolved=TRUE, resolved_at=NOW() WHERE resolved=FALSE")
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}

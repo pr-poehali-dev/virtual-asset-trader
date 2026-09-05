@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_deal_chat_messages_deal_id ON t_p38600009_virtual_asset_trader.deal_chat_messages(deal_id);
