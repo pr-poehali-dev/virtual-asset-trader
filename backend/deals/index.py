@@ -276,6 +276,25 @@ def handler(event: dict, context) -> dict:
                 (user["id"], user["id"])
             )
             rows = cur.fetchall()
+            deal_ids = [r[0] for r in rows]
+
+            # Подтягиваем реальную переписку споров одним запросом (не N+1).
+            # staff_only=TRUE — внутренние заметки администрации, стороны их не видят.
+            dispute_msgs_by_deal: dict = {}
+            if deal_ids:
+                cur.execute(
+                    f"""SELECT dm.deal_id, dm.from_user, dm.role, dm.text, dm.is_system, dm.created_at
+                        FROM {SCHEMA}.dispute_messages dm
+                        WHERE dm.deal_id = ANY(%s) AND dm.staff_only = FALSE
+                        ORDER BY dm.created_at""",
+                    (deal_ids,)
+                )
+                for dr in cur.fetchall():
+                    dispute_msgs_by_deal.setdefault(dr[0], []).append({
+                        "from": dr[1], "role": dr[2], "text": dr[3],
+                        "isSystem": dr[4], "time": dr[5].strftime("%H:%M %d.%m.%Y"),
+                    })
+
             deals = []
             for r in rows:
                 deals.append({
@@ -292,7 +311,7 @@ def handler(event: dict, context) -> dict:
                     "sellerShippedAt": r[17].strftime("%d.%m.%Y %H:%M") if r[17] else None,
                     "cancelReason": r[18],
                     "step": 3,
-                    "disputeMessages": [],
+                    "disputeMessages": dispute_msgs_by_deal.get(r[0], []),
                 })
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"deals": deals})}
 
@@ -314,7 +333,7 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "cannot_open_dispute"})}
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.dispute_messages (deal_id, from_user, role, text, is_system)
-                    VALUES (%s,%s,'buyer',%s,TRUE)""",
+                    VALUES (%s,%s,'system',%s,TRUE)""",
                 (deal_id, "system", f"Спор открыт пользователем {user['username']}. Ожидайте назначения арбитра.")
             )
             # Anti-spam: открытие спора
@@ -350,8 +369,13 @@ def handler(event: dict, context) -> dict:
             is_staff = user.get("role") in ("admin", "staff") or user.get("is_owner")
             if user["id"] not in (buyer_id, seller_id, arbiter_id) and not is_staff:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
-            role = "arbiter" if user["id"] == arbiter_id else \
-                   "buyer" if user["id"] == buyer_id else "seller"
+            if user["id"] == buyer_id:
+                role = "buyer"
+            elif user["id"] == seller_id:
+                role = "seller"
+            else:
+                # Арбитр или другой сотрудник поддержки, не назначенный явно арбитром
+                role = "arbiter"
 
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.dispute_messages (deal_id, from_user, role, text)

@@ -500,8 +500,8 @@ export const api = {
         "support",
         `/admin/dispute/${deal_id}/messages`,
       ),
-    disputeMessage: (deal_id: string, text: string) =>
-      req("support", "/admin/dispute/message", "POST", { deal_id, text }),
+    disputeMessage: (deal_id: string, text: string, internal: boolean = false) =>
+      req("support", "/admin/dispute/message", "POST", { deal_id, text, internal }),
     resolveDispute: (deal_id: string, refund_buyer: boolean) =>
       req("support", "/admin/dispute/resolve", "POST", {
         deal_id,
@@ -995,6 +995,7 @@ export type ApiDisputeMessage = {
   text: string;
   isSystem: boolean;
   time: string;
+  staffOnly?: boolean;
 };
 
 export type ApiGameBet = {

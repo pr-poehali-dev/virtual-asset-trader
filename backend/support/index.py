@@ -341,7 +341,7 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             deal_id = path.split("/admin/dispute/")[-1].replace("/messages", "")
             cur.execute(
-                f"""SELECT dm.id, dm.from_user, u.username, dm.role, dm.text, dm.is_system, dm.created_at
+                f"""SELECT dm.id, dm.from_user, u.username, dm.role, dm.text, dm.is_system, dm.created_at, dm.staff_only
                     FROM {SCHEMA}.dispute_messages dm
                     LEFT JOIN {SCHEMA}.users u ON u.id=dm.from_user
                     WHERE dm.deal_id=%s ORDER BY dm.created_at""",
@@ -350,21 +350,24 @@ def handler(event: dict, context) -> dict:
             messages = [{
                 "id": r[0], "fromUser": r[1], "fromUsername": r[2] or r[3],
                 "role": r[3], "text": r[4], "isSystem": r[5],
-                "time": r[6].strftime("%H:%M %d.%m")
+                "time": r[6].strftime("%H:%M %d.%m"), "staffOnly": r[7]
             } for r in cur.fetchall()]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"messages": messages})}
 
-        # POST /support/admin/dispute/message — отправить сообщение арбитра в спор
+        # POST /support/admin/dispute/message — отправить сообщение арбитра в спор.
+        # internal=True — внутренняя заметка, видна только персоналу, стороны спора её не увидят.
         if method == "POST" and path.endswith("/admin/dispute/message"):
             if not is_staff(user):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             deal_id = body.get("deal_id")
             text = (body.get("text") or "").strip()
+            internal = bool(body.get("internal", False))
             if not deal_id or not text:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
             cur.execute(
-                f"INSERT INTO {SCHEMA}.dispute_messages (deal_id, from_user, role, text) VALUES (%s,%s,'arbiter',%s)",
-                (deal_id, user["id"], text)
+                f"""INSERT INTO {SCHEMA}.dispute_messages (deal_id, from_user, role, text, staff_only)
+                    VALUES (%s,%s,'arbiter',%s,%s)""",
+                (deal_id, user["id"], text, internal)
             )
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}

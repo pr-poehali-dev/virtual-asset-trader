@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
-import { DealsPage, EscrowPage, SupportPage, AboutPage } from "@/components/pages/InfoPages";
+import { DealsPage, EscrowPage, SupportPage, AboutPage, ChatsPage } from "@/components/pages/InfoPages";
 import { GamesPage } from "@/components/pages/GamesPage";
 import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
 import { VerifyPage } from "@/components/pages/VerifyPage";
@@ -198,6 +198,7 @@ function AppContent() {
       case "cabinet": return <CabinetPage setActive={handleSetActive} />;
       case "verify": return <VerifyPage setActive={handleSetActive} />;
       case "deals": return <DealsPage />;
+      case "chats": return <ChatsPage />;
       case "games": return <GamesPage />;
       case "escrow": return <EscrowPage />;
       case "support": {

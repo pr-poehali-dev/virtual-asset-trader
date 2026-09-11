@@ -1,323 +1,34 @@
-import { useState, useRef, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useAuth } from "@/context/AuthContext";
-import {
-  api,
-  type ApiSupportTicket,
-  type ApiSupportMessage,
-} from "@/api/client";
 
-// ─── ЧАТ ─────────────────────────────────────────────────────────────────────
+// ─── ЧАТ ПОДДЕРЖКИ ────────────────────────────────────────────────────────────
+// Живой чат теперь работает через виджет parsesite.ru (подключён в index.html,
+// открывается плавающей кнопкой в правом нижнем углу на всех страницах сайта).
+// Самописный чат-компонент убран, чтобы не дублировать функциональность.
 
-function SupportChat() {
-  const { user } = useAuth();
-  const [ticket, setTicket] = useState<ApiSupportTicket | null>(null);
-  const [messages, setMessages] = useState<ApiSupportMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [subject, setSubject] = useState("");
-  const [showNew, setShowNew] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const msgCountRef = useRef<number>(0);
-
-  // Backend возвращает ТОЛЬКО открытый тикет — если пользователь только что закрыл
-  // тикет и открыл форму нового обращения, поллинг больше не перезапишет её закрытым тикетом.
-  const loadTicket = useCallback(async () => {
-    if (!user) return;
-    try {
-      const { ticket: t } = await api.support.getTicket();
-      if (t) {
-        setTicket(t);
-        setMessages((prev) => {
-          const newMsgs = t.messages;
-          // Скроллим только если добавились новые сообщения
-          if (newMsgs.length > msgCountRef.current) {
-            msgCountRef.current = newMsgs.length;
-            setTimeout(
-              () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-              50,
-            );
-          }
-          return newMsgs;
-        });
-      } else {
-        setTicket(null);
-        setMessages([]);
-        msgCountRef.current = 0;
-      }
-    } catch {
-      /* ignore */
-    }
-    setLoading(false);
-  }, [user]);
-
-  useEffect(() => {
-    loadTicket();
-    pollRef.current = setInterval(loadTicket, 5000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [loadTicket]);
-
-  const openTicket = async () => {
-    const firstMessage = input.trim();
-    if (!firstMessage && !subject.trim()) return;
-    setSending(true);
-    try {
-      const { ticketId } = await api.support.openTicket(
-        subject.trim() || "Вопрос в поддержку",
-        firstMessage,
-      );
-      setInput("");
-      setSubject("");
-      setShowNew(false);
-      await loadTicket();
-      if (firstMessage) {
-        api.aiSupport.respond(ticketId).then(() => loadTicket()).catch(() => {});
-      }
-    } catch {
-      /* ignore */
-    }
-    setSending(false);
-  };
-
-  const sendMessage = async () => {
-    if (!input.trim() || !ticket) return;
-    setSending(true);
-    const text = input.trim();
-    setInput("");
-    // Оптимистично добавляем
-    const optimistic: ApiSupportMessage = {
-      id: Date.now(),
-      fromUser: user?.id ?? "",
-      role: "user",
-      text,
-      time: new Date().toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    setMessages((prev) => {
-      const updated = [...prev, optimistic];
-      msgCountRef.current = updated.length;
-      setTimeout(
-        () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-        50,
-      );
-      return updated;
-    });
-    try {
-      await api.support.sendMessage(ticket.id, text);
-      api.aiSupport.respond(ticket.id).then(() => loadTicket()).catch(() => {});
-    } catch {
-      /* ignore */
-    }
-    setSending(false);
-  };
-
-  if (!user) {
-    return (
-      <div className="bg-surface border border-border rounded-2xl p-8 text-center">
-        <Icon
-          name="Lock"
-          size={28}
-          className="mx-auto mb-3 text-muted-foreground opacity-40"
-        />
-        <p className="text-sm text-muted-foreground">
-          Войдите в аккаунт, чтобы написать в поддержку
-        </p>
-      </div>
-    );
-  }
-
+function OpenWidgetCard() {
   return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-background/50">
-        <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
-          <Icon name="Headphones" size={15} className="text-gold" />
-        </div>
-        <div className="flex-1">
-          <div className="font-display font-semibold text-sm text-foreground">
-            {ticket ? `Тикет #${ticket.id}` : "Поддержка Gorant Shop"}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs text-emerald-400">
-              {ticket?.operatorName
-                ? `Оператор: ${ticket.operatorName}`
-                : ticket?.escalated
-                  ? "Ожидание оператора"
-                  : "Отвечает Gorant AI"}
-            </span>
-          </div>
-        </div>
-        {ticket && ticket.status === "open" && (
-          <button
-            onClick={() =>
-              api.support.closeTicket(ticket.id).then(() => {
-                setTicket(null);
-                setMessages([]);
-                setShowNew(false);
-              })
-            }
-            className="text-xs text-muted-foreground hover:text-red-400 transition-colors"
-            title="Закрыть тикет"
-          >
-            <Icon name="X" size={14} />
-          </button>
-        )}
-        {ticket && ticket.status === "closed" && (
-          <button
-            onClick={() => {
-              setTicket(null);
-              setMessages([]);
-              setShowNew(true);
-            }}
-            className="text-xs text-gold hover:text-gold/80 transition-colors font-semibold"
-            title="Создать новое обращение"
-          >
-            <Icon name="Plus" size={14} />
-          </button>
-        )}
+    <div className="bg-surface border border-border rounded-2xl p-8 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-4">
+        <Icon name="MessageCircle" size={26} className="text-gold" />
       </div>
-
-      {/* Messages */}
-      <div className="h-64 sm:h-80 overflow-y-auto p-3 sm:p-5 space-y-3">
-        {loading && (
-          <div className="flex justify-center pt-10">
-            <Icon name="Loader" size={20} className="text-gold animate-spin" />
-          </div>
-        )}
-
-        {!loading && !ticket && !showNew && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-            <Icon
-              name="MessageCircle"
-              size={32}
-              className="text-muted-foreground opacity-30"
-            />
-            <p className="text-sm text-muted-foreground">
-              Напишите нам — оператор ответит в течение 30 минут
-            </p>
-            <Button
-              size="sm"
-              className="bg-gold text-background hover:bg-gold/90 font-bold mt-1"
-              onClick={() => setShowNew(true)}
-            >
-              Начать чат
-            </Button>
-          </div>
-        )}
-
-        {!loading && !ticket && showNew && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground text-center">
-              Тема обращения (необязательно)
-            </p>
-            <Input
-              placeholder="Например: проблема с выводом"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="bg-background border-border text-sm"
-            />
-          </div>
-        )}
-
-        {messages.map((m, i) => (
-          <div
-            key={m.id ?? i}
-            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {m.role === "system" ? (
-              <div className="text-[10px] text-muted-foreground bg-background border border-border rounded-full px-3 py-1 mx-auto">
-                {m.text}
-              </div>
-            ) : (
-              <div
-                className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${
-                  m.role === "user"
-                    ? "bg-gold text-background rounded-br-sm"
-                    : "bg-secondary text-foreground rounded-bl-sm"
-                }`}
-              >
-                {m.role === "operator" && (
-                  <p className="text-[10px] font-semibold mb-0.5 opacity-70">
-                    Оператор
-                  </p>
-                )}
-                {m.role === "ai" && (
-                  <p className="text-[10px] font-semibold mb-0.5 opacity-70 flex items-center gap-1">
-                    <Icon name="Sparkles" size={10} />
-                    Gorant AI
-                  </p>
-                )}
-                <p className="text-sm leading-relaxed">{m.text}</p>
-                <p
-                  className={`text-[10px] mt-1 ${m.role === "user" ? "text-background/60 text-right" : "text-muted-foreground"}`}
-                >
-                  {m.time}
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {ticket?.status === "closed" && (
-          <div className="flex flex-col items-center gap-3 pt-4 text-center">
-            <span className="text-[10px] text-muted-foreground bg-background border border-border rounded-full px-3 py-1">
-              Тикет закрыт
-            </span>
-            <p className="text-xs text-muted-foreground">
-              Хотите создать новое обращение?
-            </p>
-            <Button
-              size="sm"
-              className="bg-gold text-background hover:bg-gold/90 font-bold text-xs"
-              onClick={() => {
-                setTicket(null);
-                setMessages([]);
-                setShowNew(false);
-              }}
-            >
-              Новое обращение
-            </Button>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      {(!ticket || ticket.status === "open") && (
-        <div className="p-4 border-t border-border flex gap-3">
-          <Input
-            placeholder={
-              ticket ? "Написать сообщение..." : "Опишите проблему..."
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && (ticket ? sendMessage() : openTicket())
-            }
-            className="bg-background border-border text-sm flex-1"
-          />
-          <Button
-            className="bg-gold text-background hover:bg-gold/90 font-bold px-4 shrink-0"
-            onClick={ticket ? sendMessage : openTicket}
-            disabled={sending || !input.trim()}
-          >
-            {sending ? (
-              <Icon name="Loader" size={16} className="animate-spin" />
-            ) : (
-              <Icon name="Send" size={16} />
-            )}
-          </Button>
-        </div>
-      )}
+      <h3 className="font-display font-semibold text-base text-foreground mb-2">
+        Онлайн-чат с поддержкой
+      </h3>
+      <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
+        Нажмите на значок чата в правом нижнем углу экрана — оператор ответит вам в реальном времени.
+      </p>
+      <Button
+        className="bg-gold text-background hover:bg-gold/90 font-bold"
+        onClick={() => {
+          // Виджет parsesite.ru сам создаёт кнопку в углу экрана — просто подсказываем где искать
+          const el = document.querySelector<HTMLElement>("[data-key='pk_0ae32170e969dec33900de7a5b3cfb94']");
+          el?.click();
+        }}
+      >
+        <Icon name="Headphones" size={15} className="mr-2" />
+        Открыть чат
+      </Button>
     </div>
   );
 }
@@ -366,7 +77,7 @@ export function SupportPage() {
 
       {/* Онлайн-чат */}
       <div className="mb-10">
-        <SupportChat />
+        <OpenWidgetCard />
       </div>
 
       {/* FAQ */}

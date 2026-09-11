@@ -17,16 +17,20 @@ function ChatWindow({
   currentUserId,
   closed,
   title,
+  allowInternal,
 }: {
-  messages: { id: number | string; role: string; text: string; time: string; fromUsername?: string; isSystem?: boolean }[];
-  onSend: (text: string) => Promise<void>;
+  messages: { id: number | string; role: string; text: string; time: string; fromUsername?: string; isSystem?: boolean; staffOnly?: boolean }[];
+  onSend: (text: string, internal?: boolean) => Promise<void>;
   loading: boolean;
   currentUserId?: string;
   closed?: boolean;
   title?: string;
+  // Если true — показывает переключатель «внутренняя заметка» (видна только персоналу, не сторонам спора)
+  allowInternal?: boolean;
 }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [internal, setInternal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,7 +42,7 @@ function ChatWindow({
     const text = input.trim();
     setInput("");
     setSending(true);
-    await onSend(text);
+    await onSend(text, internal);
     setSending(false);
   };
 
@@ -61,13 +65,20 @@ function ChatWindow({
             ) : (
               <div className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
                 <div className={`max-w-[72%] rounded-2xl px-3 py-2 ${
+                  m.staffOnly ? "bg-purple-400/15 border border-purple-400/30 text-foreground rounded-br-sm" :
                   m.role === "user" ? "bg-secondary text-foreground rounded-bl-sm" : m.role === "ai" ? "bg-blue-400/20 text-foreground rounded-br-sm" : "bg-gold text-background rounded-br-sm"
                 }`}>
                   {m.fromUsername && m.role === "user" && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-70">{m.fromUsername}</p>
                   )}
-                  {m.role === "arbiter" && (
+                  {m.role === "arbiter" && !m.staffOnly && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-70">Арбитр</p>
+                  )}
+                  {m.staffOnly && (
+                    <p className="text-[10px] font-bold mb-0.5 text-purple-400 flex items-center gap-1">
+                      <Icon name="EyeOff" size={10} />
+                      Внутренняя заметка (сторонам не видна)
+                    </p>
                   )}
                   {m.role === "operator" && (
                     <p className="text-[10px] font-semibold mb-0.5 opacity-80">Оператор</p>
@@ -79,7 +90,7 @@ function ChatWindow({
                     </p>
                   )}
                   <p className="text-sm">{m.text}</p>
-                  <p className={`text-[10px] mt-0.5 ${m.role === "user" ? "text-muted-foreground" : "text-background/60 text-right"}`}>{m.time}</p>
+                  <p className={`text-[10px] mt-0.5 ${m.staffOnly ? "text-muted-foreground" : m.role === "user" ? "text-muted-foreground" : "text-background/60 text-right"}`}>{m.time}</p>
                 </div>
               </div>
             )}
@@ -88,17 +99,38 @@ function ChatWindow({
         <div ref={bottomRef} />
       </div>
       {!closed && (
-        <div className="p-3 border-t border-border flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Написать сообщение..."
-            className="flex-1 bg-surface border-border text-sm h-9"
-          />
-          <Button size="sm" className="bg-gold text-background hover:bg-gold/90 px-3 shrink-0" onClick={send} disabled={sending || !input.trim()}>
-            {sending ? <Icon name="Loader" size={14} className="animate-spin" /> : <Icon name="Send" size={14} />}
-          </Button>
+        <div className="border-t border-border">
+          {allowInternal && (
+            <label className="flex items-center gap-2 px-3 pt-2.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={internal}
+                onChange={(e) => setInternal(e.target.checked)}
+                className="accent-purple-400"
+              />
+              <Icon name="EyeOff" size={12} className={internal ? "text-purple-400" : ""} />
+              <span className={internal ? "text-purple-400 font-semibold" : ""}>
+                Внутренняя заметка (не увидят покупатель и продавец)
+              </span>
+            </label>
+          )}
+          <div className="p-3 flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send()}
+              placeholder={internal ? "Заметка для коллег..." : "Написать сообщение..."}
+              className="flex-1 bg-surface border-border text-sm h-9"
+            />
+            <Button
+              size="sm"
+              className={`px-3 shrink-0 ${internal ? "bg-purple-400 text-background hover:bg-purple-400/90" : "bg-gold text-background hover:bg-gold/90"}`}
+              onClick={send}
+              disabled={sending || !input.trim()}
+            >
+              {sending ? <Icon name="Loader" size={14} className="animate-spin" /> : <Icon name="Send" size={14} />}
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -151,9 +183,9 @@ export function AdminDisputesTab() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const sendMsg = async (text: string) => {
+  const sendMsg = async (text: string, internal?: boolean) => {
     if (!selected) return;
-    await api.support.disputeMessage(selected.id, text);
+    await api.support.disputeMessage(selected.id, text, internal);
     await loadMsgs(selected.id);
   };
 
@@ -310,6 +342,7 @@ export function AdminDisputesTab() {
               onSend={sendMsg}
               loading={msgsLoading}
               title="Чат спора (покупатель · продавец · арбитр)"
+              allowInternal
             />
           </div>
         ) : (

@@ -21,6 +21,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "Защищённое соединение",
     admin: "Админ",
     games: "Ставки",
+    chats: "Чаты",
   },
   en: {
     home: "Home", catalog: "Catalog", deals: "Deals", about: "About",
@@ -39,6 +40,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "Secure Connection",
     admin: "Admin",
     games: "Bets",
+    chats: "Chats",
   },
   kz: {
     home: "Басты бет", catalog: "Каталог", deals: "Мәмілелер", about: "Платформа туралы",
@@ -56,6 +58,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "Сома", to_receive: "Алынатын сома",
     protected: "Қорғалған байланыс",
     admin: "Әкімші",
+    chats: "Чаттар",
   },
   uk: {
     home: "Головна", catalog: "Каталог", deals: "Угоди", about: "Про платформу",
@@ -73,6 +76,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "Сума", to_receive: "До отримання",
     protected: "Захищене з'єднання",
     admin: "Адмін",
+    chats: "Чати",
   },
   de: {
     home: "Startseite", catalog: "Katalog", deals: "Deals", about: "Über uns",
@@ -90,6 +94,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "Betrag", to_receive: "Zu erhalten",
     protected: "Sichere Verbindung",
     admin: "Admin",
+    chats: "Chats",
   },
   zh: {
     home: "首页", catalog: "目录", deals: "交易", about: "关于平台",
@@ -107,6 +112,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     amount: "金额", to_receive: "到账金额",
     protected: "安全连接",
     admin: "管理员",
+    chats: "聊天",
   },
 };
 
