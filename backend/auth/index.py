@@ -118,6 +118,9 @@ def handler(event: dict, context) -> dict:
             email    = (body.get("email") or "").strip().lower()
             password = body.get("password") or ""
             country  = (body.get("country") or "").strip().upper()[:8] or None
+            # Реферальный/промокод: принимаем и код из ссылки (?ref=), и код,
+            # введённый пользователем вручную — оба ищутся среди ref_code/promo_code партнёров
+            ref_input = (body.get("refCode") or body.get("ref_code") or body.get("promoCode") or "").strip()
 
             if not username or not email or not password:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
@@ -141,16 +144,38 @@ def handler(event: dict, context) -> dict:
             if not cur.fetchone():
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "email_not_verified"})}
 
+            # Ищем партнёра по реф-коду (из ссылки) или промокоду (введён вручную)
+            ref_partner_id = None
+            if ref_input:
+                cur.execute(
+                    f"""SELECT id FROM {SCHEMA}.partners
+                        WHERE active=TRUE AND (ref_code=%s OR promo_code=%s)""",
+                    (ref_input, ref_input)
+                )
+                found = cur.fetchone()
+                if found:
+                    ref_partner_id = found[0]
+
             uid = make_user_id(conn)
             acc_id = make_account_id()
             salt = make_salt()
             pw_hash = hash_password(password, salt)
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.users
-                    (id, account_id, username, email, password_hash, password_salt, role, verified, balance_rub, country)
-                    VALUES (%s,%s,%s,%s,%s,%s,'user',FALSE,0,%s)""",
-                (uid, acc_id, username, email, pw_hash, salt, country)
+                    (id, account_id, username, email, password_hash, password_salt, role, verified, balance_rub, country, ref_by)
+                    VALUES (%s,%s,%s,%s,%s,%s,'user',FALSE,0,%s,%s)""",
+                (uid, acc_id, username, email, pw_hash, salt, country, ref_partner_id)
             )
+            if ref_partner_id:
+                rid = "rf-" + secrets.token_hex(6)
+                cur.execute(
+                    f"""INSERT INTO {SCHEMA}.referrals (id, partner_id, referred_user_id) VALUES (%s,%s,%s)""",
+                    (rid, ref_partner_id, uid)
+                )
+                cur.execute(
+                    f"UPDATE {SCHEMA}.partners SET total_referrals = total_referrals + 1 WHERE id=%s",
+                    (ref_partner_id,)
+                )
             token = make_token()
             cur.execute(
                 f"INSERT INTO {SCHEMA}.sessions (token, user_id) VALUES (%s,%s)",

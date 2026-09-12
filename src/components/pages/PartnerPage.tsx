@@ -14,11 +14,18 @@ const MIN_VIEWS = 1000;
 
 function ActivePartnerView({ status }: { status: ApiPartnerStatus }) {
   const [copied, setCopied] = useState(false);
+  const [promoCopied, setPromoCopied] = useState(false);
 
   const copy = () => {
     navigator.clipboard.writeText(status.refUrl ?? "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyPromo = () => {
+    navigator.clipboard.writeText(status.promoCode ?? "");
+    setPromoCopied(true);
+    setTimeout(() => setPromoCopied(false), 2000);
   };
 
   return (
@@ -65,10 +72,29 @@ function ActivePartnerView({ status }: { status: ApiPartnerStatus }) {
             Поделитесь ссылкой в своих трансляциях. Каждый зарегистрировавшийся принесёт вам {status.commissionPct}% от его покупок.
           </p>
         </div>
+
+        {/* Промокод — альтернатива ссылке для ручного ввода при регистрации */}
+        {status.promoCode && (
+          <div className="mt-4">
+            <p className="text-xs text-muted-foreground font-semibold mb-2">Ваш промокод</p>
+            <div className="flex gap-2">
+              <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono font-bold text-gold tracking-wider">
+                {status.promoCode}
+              </div>
+              <Button size="sm" variant="outline" className="border-gold/30 text-gold hover:bg-gold/10 font-bold shrink-0" onClick={copyPromo}>
+                <Icon name={promoCopied ? "Check" : "Copy"} size={14} className="mr-1.5" />
+                {promoCopied ? "Скопировано" : "Копировать"}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Зрители могут ввести этот код вручную на странице регистрации — удобно, если делитесь им голосом в эфире.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Анимированный промо-баннер — доступен только реальным партнёрам сайта */}
-      <PartnerPromoBanner />
+      <PartnerPromoBanner promoCode={status.promoCode} />
 
       {/* Платформы */}
       {status.platforms && status.platforms.length > 0 && (

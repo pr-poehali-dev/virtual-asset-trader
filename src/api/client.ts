@@ -134,12 +134,13 @@ async function req<T = unknown>(
 
 export const api = {
   auth: {
-    register: (username: string, email: string, password: string, country?: string) =>
+    register: (username: string, email: string, password: string, country?: string, refCode?: string) =>
       req<{ token: string; user: ApiUser }>("auth", "/register", "POST", {
         username,
         email,
         password,
         country,
+        refCode: refCode || undefined,
       }),
 
     login: (login: string, password: string) =>
@@ -429,12 +430,12 @@ export const api = {
         "finance",
         "/admin/partner-applications",
       ),
-    approvePartner: (id: string) =>
-      req<{ ok: boolean; refCode: string }>(
+    approvePartner: (id: string, refCode?: string, promoCode?: string) =>
+      req<{ ok: boolean; refCode: string; promoCode?: string }>(
         "finance",
         "/admin/partner-approve",
         "POST",
-        { id },
+        { id, refCode, promoCode },
       ),
     rejectPartner: (id: string, reason: string) =>
       req("finance", "/admin/partner-reject", "POST", { id, reason }),
@@ -442,6 +443,12 @@ export const api = {
       req<{ partners: ApiPartner[] }>("finance", "/admin/partners"),
     togglePartner: (id: string) =>
       req("finance", "/admin/partner-toggle", "POST", { id }),
+    updatePartnerCode: (id: string, refCode?: string, promoCode?: string) =>
+      req<{ ok: boolean }>("finance", "/admin/partner-update-code", "POST", { id, refCode, promoCode }),
+    togglePartnerAutoGenerate: (id: string) =>
+      req<{ ok: boolean }>("finance", "/admin/partner-toggle-autogenerate", "POST", { id }),
+    regeneratePartnerCode: (id: string, target: "ref" | "promo") =>
+      req<{ ok: boolean; code: string }>("finance", "/admin/partner-regenerate-code", "POST", { id, target }),
   },
 
   // Реквизиты вывода (личные)
@@ -955,6 +962,8 @@ export type ApiPartner = {
   username: string;
   email: string;
   refCode: string;
+  promoCode?: string | null;
+  autoGenerate?: boolean;
   commissionPct: number;
   totalEarned: number;
   totalReferrals: number;
@@ -966,6 +975,7 @@ export type ApiPartner = {
 export type ApiPartnerStatus = {
   isPartner: boolean;
   refCode?: string;
+  promoCode?: string | null;
   commissionPct?: number;
   totalEarned?: number;
   totalReferrals?: number;

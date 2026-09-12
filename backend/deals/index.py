@@ -83,6 +83,29 @@ def add_notification(cur, user_id, ntype, title, text, shield=False):
         (nid, user_id, ntype, title, text, shield)
     )
 
+def credit_referral_commission(cur, buyer_id, seller_receives):
+    """Если покупатель пришёл по реферальной ссылке/промокоду партнёра — начисляет
+    партнёру процент комиссии с суммы, которую получил продавец по завершённой сделке."""
+    cur.execute(f"SELECT ref_by FROM {SCHEMA}.users WHERE id=%s", (buyer_id,))
+    row = cur.fetchone()
+    partner_id = row[0] if row else None
+    if not partner_id:
+        return
+    cur.execute(
+        f"SELECT commission_pct FROM {SCHEMA}.partners WHERE id=%s AND active=TRUE",
+        (partner_id,)
+    )
+    p = cur.fetchone()
+    if not p:
+        return
+    commission = round(float(seller_receives) * (float(p[0]) / 100), 2)
+    if commission <= 0:
+        return
+    cur.execute(
+        f"UPDATE {SCHEMA}.partners SET total_earned = total_earned + %s WHERE id=%s",
+        (commission, partner_id)
+    )
+
 # ── DDoS-защита: ограничение запросов с одного IP ──────────────────────────
 
 def get_client_ip(event):
@@ -478,6 +501,7 @@ def handler(event: dict, context) -> dict:
                 f"UPDATE {SCHEMA}.users SET deals_count=deals_count+1 WHERE id=%s OR id=%s",
                 (buyer_id, seller_id)
             )
+            credit_referral_commission(cur, buyer_id, seller_receives)
 
             add_notification(cur, seller_id, "deal_sold",
                 "Сделка завершена!",

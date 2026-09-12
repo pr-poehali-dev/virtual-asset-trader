@@ -158,6 +158,18 @@ export function AdminPartnersTab() {
   const [rejectReason, setRejectReason] = useState("");
   const [actionError, setActionError] = useState("");
 
+  // Редактирование кодов у одобренного партнёра (реф-код / промокод вручную)
+  const [editCodesId, setEditCodesId] = useState<string | null>(null);
+  const [editRefCode, setEditRefCode] = useState("");
+  const [editPromoCode, setEditPromoCode] = useState("");
+  const [savingCodes, setSavingCodes] = useState(false);
+  const [regenLoading, setRegenLoading] = useState<string | null>(null);
+
+  // Опциональные коды при одобрении заявки (если не заданы — сгенерируются автоматически)
+  const [approveId, setApproveId] = useState<string | null>(null);
+  const [approveRefCode, setApproveRefCode] = useState("");
+  const [approvePromoCode, setApprovePromoCode] = useState("");
+
   const loadApps = () => {
     setLoading(true);
     api.adminExtra.getPartnerApplications()
@@ -182,9 +194,14 @@ export function AdminPartnersTab() {
   const approve = async (id: string) => {
     setActionError("");
     try {
-      const { refCode } = await api.adminExtra.approvePartner(id);
+      const { refCode, promoCode } = await api.adminExtra.approvePartner(
+        id,
+        approveRefCode.trim() || undefined,
+        approvePromoCode.trim() || undefined,
+      );
       setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status: "approved" as const } : a));
-      alert(`Партнёр одобрен! Реф-код: ${refCode}`);
+      setApproveId(null); setApproveRefCode(""); setApprovePromoCode("");
+      alert(`Партнёр одобрен!\nРеф-код: ${refCode}${promoCode ? `\nПромокод: ${promoCode}` : ""}`);
     } catch (e) { setActionError(apiErrorMessage(e)); }
   };
 
@@ -201,6 +218,44 @@ export function AdminPartnersTab() {
   const toggle = async (id: string) => {
     await api.adminExtra.togglePartner(id).catch(() => {});
     setPartners((prev) => prev.map((p) => p.id === id ? { ...p, active: !p.active } : p));
+  };
+
+  const toggleAutoGenerate = async (id: string) => {
+    await api.adminExtra.togglePartnerAutoGenerate(id).catch(() => {});
+    setPartners((prev) => prev.map((p) => p.id === id ? { ...p, autoGenerate: !p.autoGenerate } : p));
+  };
+
+  const openEditCodes = (p: ApiPartner) => {
+    setEditCodesId(p.id);
+    setEditRefCode(p.refCode);
+    setEditPromoCode(p.promoCode ?? "");
+    setActionError("");
+  };
+
+  const saveCodes = async (id: string) => {
+    setSavingCodes(true);
+    setActionError("");
+    try {
+      await api.adminExtra.updatePartnerCode(id, editRefCode.trim() || undefined, editPromoCode.trim() || undefined);
+      setPartners((prev) => prev.map((p) => p.id === id ? { ...p, refCode: editRefCode.trim().toUpperCase() || p.refCode, promoCode: editPromoCode.trim().toUpperCase() || null } : p));
+      setEditCodesId(null);
+    } catch (e) { setActionError(apiErrorMessage(e)); }
+    finally { setSavingCodes(false); }
+  };
+
+  const regenerateCode = async (id: string, target: "ref" | "promo") => {
+    setRegenLoading(`${id}-${target}`);
+    setActionError("");
+    try {
+      const { code } = await api.adminExtra.regeneratePartnerCode(id, target);
+      setPartners((prev) => prev.map((p) => p.id === id
+        ? (target === "ref" ? { ...p, refCode: code } : { ...p, promoCode: code })
+        : p));
+      if (editCodesId === id) {
+        if (target === "ref") setEditRefCode(code); else setEditPromoCode(code);
+      }
+    } catch (e) { setActionError(apiErrorMessage(e)); }
+    finally { setRegenLoading(null); }
   };
 
   const STATUS_STYLE: Record<string, string> = {
@@ -252,8 +307,8 @@ export function AdminPartnersTab() {
                 </div>
                 {a.status === "pending" && (
                   <div className="flex gap-2">
-                    <button onClick={() => approve(a.id)} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-400/20 font-semibold">Одобрить</button>
-                    <button onClick={() => { setRejectId(a.id); setRejectReason(""); }} className="text-xs px-3 py-1.5 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20 font-semibold">Отклонить</button>
+                    <button onClick={() => { setApproveId(a.id); setApproveRefCode(""); setApprovePromoCode(""); setRejectId(null); }} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-400/20 font-semibold">Одобрить</button>
+                    <button onClick={() => { setRejectId(a.id); setRejectReason(""); setApproveId(null); }} className="text-xs px-3 py-1.5 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20 font-semibold">Отклонить</button>
                   </div>
                 )}
               </div>
@@ -280,6 +335,30 @@ export function AdminPartnersTab() {
                   </div>
                 </div>
               )}
+
+              {/* Approve form — коды опциональны, если не заданы, платформа сгенерирует их сама */}
+              {approveId === a.id && (
+                <div className="mt-3 bg-background border border-emerald-400/20 rounded-lg p-3 space-y-2">
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <Icon name="Info" size={11} className="text-emerald-400 shrink-0" />
+                    Коды необязательны — если оставить пустыми, сгенерируются автоматически
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Реф-код (для ссылки ?ref=)</label>
+                      <Input placeholder="Автогенерация" value={approveRefCode} onChange={(e) => setApproveRefCode(e.target.value.toUpperCase())} className="bg-surface border-border text-sm font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Промокод (ручной ввод)</label>
+                      <Input placeholder="Не задан" value={approvePromoCode} onChange={(e) => setApprovePromoCode(e.target.value.toUpperCase())} className="bg-surface border-border text-sm font-mono" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="border-border" onClick={() => setApproveId(null)}>Отмена</Button>
+                    <Button size="sm" className="bg-emerald-500 text-white hover:bg-emerald-600 font-bold" onClick={() => approve(a.id)}>Подтвердить одобрение</Button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -293,7 +372,7 @@ export function AdminPartnersTab() {
           {partners.map((p) => (
             <div key={p.id} className={`bg-surface border rounded-xl p-4 ${p.active ? "border-border" : "border-border opacity-60"}`}>
               <div className="flex items-start justify-between flex-wrap gap-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="font-display font-semibold text-sm text-foreground">{p.username}</span>
                     <span className="text-xs text-muted-foreground">{p.email}</span>
@@ -301,9 +380,10 @@ export function AdminPartnersTab() {
                       {p.active ? "Активен" : "Отключён"}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
                     {[
-                      { label: "Реф-код", value: p.refCode, mono: true },
+                      { label: "Реф-код (?ref=)", value: p.refCode, mono: true },
+                      { label: "Промокод", value: p.promoCode || "—", mono: true },
                       { label: "Комиссия", value: `${p.commissionPct}%` },
                       { label: "Заработано", value: `₽ ${p.totalEarned.toLocaleString()}` },
                       { label: "Рефералов", value: String(p.totalReferrals) },
@@ -315,12 +395,29 @@ export function AdminPartnersTab() {
                     ))}
                   </div>
                 </div>
-                <button onClick={() => toggle(p.id)} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors ${
-                  p.active ? "bg-red-400/10 text-red-400 border-red-400/20 hover:bg-red-400/20" : "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/20"
-                }`}>
-                  {p.active ? "Отключить" : "Включить"}
-                </button>
+                <div className="flex flex-col gap-2 items-end shrink-0">
+                  <button onClick={() => toggle(p.id)} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors ${
+                    p.active ? "bg-red-400/10 text-red-400 border-red-400/20 hover:bg-red-400/20" : "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/20"
+                  }`}>
+                    {p.active ? "Отключить" : "Включить"}
+                  </button>
+                  <button onClick={() => openEditCodes(p)} className="text-xs px-3 py-1.5 rounded-lg border border-gold/30 text-gold hover:bg-gold/10 font-semibold">
+                    <Icon name="Pencil" size={11} className="mr-1 inline" />Коды
+                  </button>
+                </div>
               </div>
+
+              {/* Автогенерация — переключатель на партнёра */}
+              <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={p.autoGenerate ?? true}
+                  onChange={() => toggleAutoGenerate(p.id)}
+                  className="accent-gold w-3.5 h-3.5"
+                />
+                Автогенерация кода при перевыпуске
+              </label>
+
               {/* Платформы */}
               {(p.platforms || []).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -330,6 +427,46 @@ export function AdminPartnersTab() {
                       <Icon name="Play" size={10} />{pl.platform}
                     </a>
                   ))}
+                </div>
+              )}
+
+              {/* Редактирование кодов */}
+              {editCodesId === p.id && (
+                <div className="mt-3 bg-background border border-gold/20 rounded-lg p-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Реф-код (используется в ссылке ?ref=)</label>
+                      <div className="flex gap-1.5">
+                        <Input value={editRefCode} onChange={(e) => setEditRefCode(e.target.value.toUpperCase())} className="bg-surface border-border text-sm font-mono" />
+                        <Button
+                          size="sm" variant="outline" className="border-border shrink-0 px-2"
+                          disabled={regenLoading === `${p.id}-ref`}
+                          onClick={() => regenerateCode(p.id, "ref")}
+                        >
+                          <Icon name={regenLoading === `${p.id}-ref` ? "Loader" : "Shuffle"} size={13} className={regenLoading === `${p.id}-ref` ? "animate-spin" : ""} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Промокод (вводится вручную при регистрации)</label>
+                      <div className="flex gap-1.5">
+                        <Input placeholder="Не задан" value={editPromoCode} onChange={(e) => setEditPromoCode(e.target.value.toUpperCase())} className="bg-surface border-border text-sm font-mono" />
+                        <Button
+                          size="sm" variant="outline" className="border-border shrink-0 px-2"
+                          disabled={regenLoading === `${p.id}-promo`}
+                          onClick={() => regenerateCode(p.id, "promo")}
+                        >
+                          <Icon name={regenLoading === `${p.id}-promo` ? "Loader" : "Shuffle"} size={13} className={regenLoading === `${p.id}-promo` ? "animate-spin" : ""} />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="border-border" onClick={() => setEditCodesId(null)}>Отмена</Button>
+                    <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold" disabled={savingCodes} onClick={() => saveCodes(p.id)}>
+                      {savingCodes && <Icon name="Loader" size={13} className="animate-spin mr-1.5" />}Сохранить
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

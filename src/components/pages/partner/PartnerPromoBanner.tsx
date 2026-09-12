@@ -3,57 +3,73 @@ import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { LOOP_MS, renderPromoFrame } from "@/components/pages/partner/promoAnimation";
+import { renderStaticBanner } from "@/components/pages/partner/promoStaticBanner";
+import { PROMO_FORMATS, getPromoFormat } from "@/components/pages/partner/promoFormats";
 
-// ─── АНИМИРОВАННЫЙ ПРОМО-РОЛИК ДЛЯ ПАРТНЁРОВ ────────────────────────────────
-// Полностью процедурная canvas-анимация (см. promoAnimation.ts): покупатель
-// платит → деньги летят в щит-эскроу Gorant Shop → щит замораживает средства
-// (иней, замок) → быстрый обратный отсчёт 8 дней холда → замок открывается →
-// деньги улетают продавцу → финальный кадр с щитом и названием сайта. Всё
-// рисуется кадр за кадром одним рендерером — ничего не наложено статичными
-// картинками. Тот же рендер кодируется в реальный .gif файл, который партнёр
-// может скачать и использовать в своей рекламе.
+// ─── АНИМИРОВАННЫЙ ПРОМО-РОЛИК + СТАТИЧНЫЕ БАННЕРЫ ДЛЯ ПАРТНЁРОВ ────────────
+// Один и тот же процедурный рендерер сцены (promoAnimation.ts — зацикленный
+// ролик про то, как работает эскроу; promoStaticBanner.ts — одиночный кадр со
+// щитом и слоганом) адаптируется под 6 форматов: Twitch/YouTube/TikTok/
+// VK Play/Kick (анимированный GIF нужного размера) и Яндекс Директ (только
+// статичная PNG-картинка — медийные площадки GIF не принимают). Все элементы
+// рисуются на canvas кадр за кадром — ничего не наложено готовыми картинками.
 
-const PREVIEW_W = 960;
-const PREVIEW_H = 540;
-const GIF_W = 640;
-const GIF_H = 360;
-const GIF_FPS = 20;
+const PREVIEW_MAX = 420; // ограничение превью на странице, чтобы вертикальные форматы не вылезали
+const GIF_FPS = 16;
+const GIF_MAX_SIDE = 480; // кадры GIF ужимаем для разумного размера файла
 
-export function PartnerPromoBanner() {
+export function PartnerPromoBanner({ promoCode }: { promoCode?: string | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>();
+  const [formatId, setFormatId] = useState(PROMO_FORMATS[0].id);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Живое превью прямо на странице — рисуется в реальном времени, не GIF
+  const format = getPromoFormat(formatId);
+  const isAnimated = format.supportsGif;
+
+  // Превью на странице — вписываем формат в квадрат PREVIEW_MAX, сохраняя пропорции
+  const previewScale = PREVIEW_MAX / Math.max(format.width, format.height);
+  const previewW = Math.round(format.width * previewScale);
+  const previewH = Math.round(format.height * previewScale);
+
+  // Живое canvas-превью — рисуется в реальном времени, не выгружается как файл
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    canvas.width = PREVIEW_W;
-    canvas.height = PREVIEW_H;
+    canvas.width = previewW;
+    canvas.height = previewH;
+
+    if (!isAnimated) {
+      renderStaticBanner(ctx, previewW, previewH, { code: promoCode ?? undefined });
+      return;
+    }
 
     const start = performance.now();
     const tick = (now: number) => {
       const t = ((now - start) % LOOP_MS) / LOOP_MS;
-      renderPromoFrame(ctx, PREVIEW_W, PREVIEW_H, t);
+      renderPromoFrame(ctx, previewW, previewH, t);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+  }, [previewW, previewH, isAnimated, promoCode]);
 
-  const handleDownload = async () => {
+  const handleDownloadGif = async () => {
     setDownloading(true);
     setProgress(0);
     try {
-      // Рендерим ролик покадрово в отдельный offscreen-canvas и кодируем в GIF
+      const scale = Math.min(1, GIF_MAX_SIDE / Math.max(format.width, format.height));
+      const gifW = Math.round(format.width * scale);
+      const gifH = Math.round(format.height * scale);
+
       const off = document.createElement("canvas");
-      off.width = GIF_W;
-      off.height = GIF_H;
+      off.width = gifW;
+      off.height = gifH;
       const octx = off.getContext("2d");
       if (!octx) return;
 
@@ -63,13 +79,12 @@ export function PartnerPromoBanner() {
 
       for (let i = 0; i < totalFrames; i++) {
         const t = i / totalFrames;
-        renderPromoFrame(octx, GIF_W, GIF_H, t);
-        const { data } = octx.getImageData(0, 0, GIF_W, GIF_H);
+        renderPromoFrame(octx, gifW, gifH, t);
+        const { data } = octx.getImageData(0, 0, gifW, gifH);
         const palette = quantize(data, 256);
         const index = applyPalette(data, palette);
-        gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: delayMs, repeat: 0 });
+        gif.writeFrame(index, gifW, gifH, { palette, delay: delayMs, repeat: 0 });
         setProgress(Math.round(((i + 1) / totalFrames) * 100));
-        // Не блокируем поток UI полностью — даём отрисоваться прогрессу
         if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
       }
       gif.finish();
@@ -77,7 +92,7 @@ export function PartnerPromoBanner() {
       const blob = new Blob([gif.bytes().buffer as ArrayBuffer], { type: "image/gif" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = "gorant-shop-promo.gif";
+      link.download = `gorant-shop-${format.id}.gif`;
       link.href = url;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
@@ -89,41 +104,102 @@ export function PartnerPromoBanner() {
     }
   };
 
+  const handleDownloadPng = () => {
+    const off = document.createElement("canvas");
+    off.width = format.width;
+    off.height = format.height;
+    const octx = off.getContext("2d");
+    if (!octx) return;
+    renderStaticBanner(octx, format.width, format.height, { code: promoCode ?? undefined });
+    off.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = `gorant-shop-${format.id}.png`;
+      link.href = url;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }, "image/png");
+  };
+
   return (
     <div className="bg-surface border border-gold/20 rounded-2xl overflow-hidden">
-      <div className="px-5 pt-4 pb-2 flex items-center justify-between flex-wrap gap-2">
-        <h3 className="font-display font-semibold text-sm text-foreground flex items-center gap-2">
+      <div className="px-5 pt-4 pb-2">
+        <h3 className="font-display font-semibold text-sm text-foreground flex items-center gap-2 mb-3">
           <Icon name="Sparkles" size={14} className="text-gold" />
           Реклама для вашей аудитории
         </h3>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-gold/30 text-gold hover:bg-gold/10 text-xs"
-          onClick={handleDownload}
-          disabled={downloading}
-        >
-          {downloading ? (
-            <>
-              <Icon name="Loader" size={13} className="animate-spin mr-1.5" />
-              Рендерю GIF… {progress}%
-            </>
-          ) : (
-            <>
-              <Icon name="Download" size={13} className="mr-1.5" />
-              Скачать GIF
-            </>
-          )}
-        </Button>
+
+        {/* Выбор формата под конкретную площадку */}
+        <div className="flex flex-wrap gap-1.5">
+          {PROMO_FORMATS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFormatId(f.id)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                formatId === f.id
+                  ? "bg-gold text-background border-gold"
+                  : "bg-background border-border text-muted-foreground hover:border-gold/40 hover:text-foreground"
+              }`}
+            >
+              <Icon name={f.icon} size={12} />
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          {format.hint} · {format.width}×{format.height}px {format.supportsGif ? "· доступен анимированный GIF" : "· статичное изображение"}
+        </p>
       </div>
 
-      {/* Живое canvas-превью ролика — все элементы анимированы процедурно */}
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
-        <canvas ref={canvasRef} className="w-full h-full block" />
+      {/* Живое canvas-превью — процедурная анимация или статичный кадр в зависимости от формата */}
+      <div className="flex items-center justify-center bg-background/40 py-5">
+        <div
+          className="relative overflow-hidden rounded-lg border border-border shadow-lg"
+          style={{ width: previewW, height: previewH }}
+        >
+          <canvas ref={canvasRef} className="w-full h-full block" />
+        </div>
+      </div>
+
+      <div className="px-5 pb-4 flex justify-center">
+        {isAnimated ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-gold/30 text-gold hover:bg-gold/10 text-xs"
+            onClick={handleDownloadGif}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <>
+                <Icon name="Loader" size={13} className="animate-spin mr-1.5" />
+                Рендерю GIF… {progress}%
+              </>
+            ) : (
+              <>
+                <Icon name="Download" size={13} className="mr-1.5" />
+                Скачать GIF для {format.label}
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-gold/30 text-gold hover:bg-gold/10 text-xs"
+            onClick={handleDownloadPng}
+          >
+            <Icon name="Download" size={13} className="mr-1.5" />
+            Скачать PNG для {format.label}
+          </Button>
+        )}
       </div>
 
       <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
-        Ролик показывает, как работает эскроу: деньги покупателя замораживаются на щите Gorant Shop и хранятся в безопасности до 8 дней, а затем автоматически переводятся продавцу. Скачайте зацикленный GIF и используйте его в трансляциях, соцсетях или роликах — он поможет зрителям увидеть надёжность сервиса.
+        {isAnimated
+          ? "Ролик показывает, как работает эскроу: деньги покупателя замораживаются на щите Gorant Shop и хранятся в безопасности до 8 дней, а затем автоматически переводятся продавцу. Скачайте зацикленный GIF нужного размера и используйте его в оформлении канала или трансляции."
+          : "Статичный баннер с названием сайта и вашим промокодом — готов для загрузки в рекламный кабинет Яндекс Директ."}
       </p>
     </div>
   );

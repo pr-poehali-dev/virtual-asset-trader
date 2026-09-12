@@ -198,6 +198,18 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   const [sending, setSending] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  // Реферальный код: подхватывается автоматически из ссылки ?ref=CODE,
+  // либо пользователь может ввести промокод вручную — оба варианта равнозначны
+  const [refCode, setRefCode] = useState("");
+  const [refFromLink, setRefFromLink] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("ref");
+    if (fromUrl) {
+      setRefCode(fromUrl.trim().toUpperCase());
+      setRefFromLink(true);
+    }
+  }, []);
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setInterval(
@@ -258,7 +270,7 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
         setRegistering(false);
         return;
       }
-      const result = await register(username, email, password, country);
+      const result = await register(username, email, password, country, refCode.trim() || undefined);
       if (result === "exists") {
         setError("Никнейм или email уже занят");
       } else if (result === "ok") {
@@ -386,6 +398,25 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                   onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
                   className="bg-background border-border text-sm"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block flex items-center gap-1.5">
+                  <Icon name="Gift" size={12} className="text-gold" />
+                  Промокод {refFromLink ? "" : "(необязательно)"}
+                </label>
+                <Input
+                  placeholder="Например: FRIEND123"
+                  value={refCode}
+                  disabled={refFromLink}
+                  onChange={(e) => setRefCode(e.target.value.toUpperCase())}
+                  className="bg-background border-border text-sm disabled:opacity-70 font-mono uppercase"
+                />
+                {refFromLink && (
+                  <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                    <Icon name="CheckCircle" size={10} />
+                    Промокод подставлен по вашей реферальной ссылке
+                  </p>
+                )}
               </div>
               {error && (
                 <p className="text-xs text-red-400 flex items-center gap-1">

@@ -15,6 +15,30 @@
       "expectedStatus": 403,
       "expectedBody": {"error": "forbidden"},
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Update partner code without auth",
+      "method": "POST",
+      "path": "/admin/partner-update-code",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Toggle partner autogenerate without auth",
+      "method": "POST",
+      "path": "/admin/partner-toggle-autogenerate",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Regenerate partner code without auth",
+      "method": "POST",
+      "path": "/admin/partner-regenerate-code",
+      "expectedStatus": 403,
+      "expectedBody": {"error": "forbidden"},
+      "bodyMatcher": "partial"
     }
   ]
 }

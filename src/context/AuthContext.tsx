@@ -64,7 +64,7 @@ type AuthContextType = {
   login: (loginStr: string, password: string) => Promise<"ok" | "blocked" | "frozen" | "wrong">;
   loginWithOAuth: (provider: "google", code: string, redirect_uri: string) => Promise<"ok" | "blocked" | "error">;
   loginWithVK: (data: { access_token: string; user_id: string; email?: string; first_name?: string; last_name?: string }) => Promise<"ok" | "blocked" | "error">;
-  register: (username: string, email: string, password: string, country?: string) => Promise<"ok" | "exists" | "error">;
+  register: (username: string, email: string, password: string, country?: string, refCode?: string) => Promise<"ok" | "exists" | "error">;
   logout: () => Promise<void>;
 
   updateUsers: (users: AppUser[]) => void;
@@ -179,9 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (username: string, email: string, password: string, country?: string): Promise<"ok" | "exists" | "error"> => {
+  const register = async (username: string, email: string, password: string, country?: string, refCode?: string): Promise<"ok" | "exists" | "error"> => {
     try {
-      const { token, user: u } = await api.auth.register(username, email, password, country);
+      const { token, user: u } = await api.auth.register(username, email, password, country, refCode);
       setToken(token);
       setUser(apiUserToApp(u));
       return "ok";

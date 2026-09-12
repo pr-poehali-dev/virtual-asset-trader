@@ -904,7 +904,7 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             # Проверяем партнёрство
             cur.execute(
-                f"SELECT id, ref_code, commission_pct, total_earned, total_referrals, platforms FROM {SCHEMA}.partners WHERE user_id=%s AND active=TRUE",
+                f"SELECT id, ref_code, commission_pct, total_earned, total_referrals, platforms, promo_code FROM {SCHEMA}.partners WHERE user_id=%s AND active=TRUE",
                 (user["id"],)
             )
             p = cur.fetchone()
@@ -917,6 +917,7 @@ def handler(event: dict, context) -> dict:
                     "totalReferrals": p[4],
                     "platforms": p[5],
                     "refUrl": f"https://gorant.shop?ref={p[1]}",
+                    "promoCode": p[6],
                 })}
             # Проверяем заявку
             cur.execute(
@@ -948,10 +949,14 @@ def handler(event: dict, context) -> dict:
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"applications": apps})}
 
         # POST /finance/admin/partner-approve
+        # Опционально принимает refCode/promoCode — если админ хочет задать код
+        # вручную сразу при одобрении. Если не переданы — генерируются автоматически.
         if method == "POST" and path.endswith("/admin/partner-approve"):
             if not require_admin(user):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             app_id = body.get("id")
+            custom_ref = (body.get("refCode") or "").strip().upper()[:20] or None
+            custom_promo = (body.get("promoCode") or "").strip().upper()[:20] or None
             cur.execute(
                 f"SELECT user_id, platforms FROM {SCHEMA}.partner_applications WHERE id=%s AND status='pending'",
                 (app_id,)
@@ -960,12 +965,20 @@ def handler(event: dict, context) -> dict:
             if not app:
                 return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
             target_user_id, platforms = app
-            # Генерируем уникальный реф-код
-            ref_code = secrets.token_urlsafe(8).upper()[:10]
+            if custom_ref:
+                cur.execute(f"SELECT id FROM {SCHEMA}.partners WHERE ref_code=%s", (custom_ref,))
+                if cur.fetchone():
+                    return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "ref_code_taken"})}
+            if custom_promo:
+                cur.execute(f"SELECT id FROM {SCHEMA}.partners WHERE promo_code=%s", (custom_promo,))
+                if cur.fetchone():
+                    return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "promo_code_taken"})}
+            ref_code = custom_ref or secrets.token_urlsafe(8).upper().replace("-", "").replace("_", "")[:10]
             partner_id = "p-" + secrets.token_hex(5)
             cur.execute(
-                f"INSERT INTO {SCHEMA}.partners (id, user_id, ref_code, platforms) VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (user_id) DO UPDATE SET active=TRUE",
-                (partner_id, target_user_id, ref_code, json.dumps(platforms) if isinstance(platforms, list) else platforms)
+                f"""INSERT INTO {SCHEMA}.partners (id, user_id, ref_code, promo_code, platforms)
+                    VALUES (%s,%s,%s,%s,%s::jsonb) ON CONFLICT (user_id) DO UPDATE SET active=TRUE""",
+                (partner_id, target_user_id, ref_code, custom_promo, json.dumps(platforms) if isinstance(platforms, list) else platforms)
             )
             cur.execute(
                 f"UPDATE {SCHEMA}.partner_applications SET status='approved', reviewed_at=NOW(), reviewed_by=%s WHERE id=%s",
@@ -976,7 +989,7 @@ def handler(event: dict, context) -> dict:
                 f"Ваша заявка одобрена. Ваша реферальная ссылка: https://gorant.shop?ref={ref_code}",
                 shield=True)
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "refCode": ref_code})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "refCode": ref_code, "promoCode": custom_promo})}
 
         # POST /finance/admin/partner-reject
         if method == "POST" and path.endswith("/admin/partner-reject"):
@@ -1004,7 +1017,8 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
             cur.execute(
                 f"""SELECT p.id, p.user_id, u.username, u.email, p.ref_code, p.commission_pct,
-                           p.total_earned, p.total_referrals, p.active, p.created_at, p.platforms
+                           p.total_earned, p.total_referrals, p.active, p.created_at, p.platforms,
+                           p.promo_code, p.auto_generate
                     FROM {SCHEMA}.partners p JOIN {SCHEMA}.users u ON u.id=p.user_id
                     ORDER BY p.created_at DESC"""
             )
@@ -1013,7 +1027,8 @@ def handler(event: dict, context) -> dict:
                          "refCode": r[4], "commissionPct": float(r[5]),
                          "totalEarned": float(r[6]), "totalReferrals": r[7],
                          "active": r[8], "date": r[9].strftime("%d.%m.%Y"),
-                         "platforms": r[10]} for r in rows]
+                         "platforms": r[10], "promoCode": r[11],
+                         "autoGenerate": r[12]} for r in rows]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"partners": partners})}
 
         # POST /finance/admin/partner-toggle
@@ -1024,6 +1039,57 @@ def handler(event: dict, context) -> dict:
             cur.execute(f"UPDATE {SCHEMA}.partners SET active=NOT active WHERE id=%s", (pid,))
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /finance/admin/partner-update-code — ручное редактирование
+        # реф-кода (ссылка ?ref=) и/или промокода (для ручного ввода при регистрации).
+        # Если auto_generate=True, коды по-прежнему можно менять вручную здесь —
+        # флаг влияет только на то, генерирует ли платформа их сама при одобрении.
+        if method == "POST" and path.endswith("/admin/partner-update-code"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            pid = body.get("id")
+            ref_code = (body.get("refCode") or "").strip().upper()[:20] or None
+            promo_code = (body.get("promoCode") or "").strip().upper()[:20] or None
+            if not pid:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
+            if ref_code:
+                cur.execute(f"SELECT id FROM {SCHEMA}.partners WHERE ref_code=%s AND id!=%s", (ref_code, pid))
+                if cur.fetchone():
+                    return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "ref_code_taken"})}
+            if promo_code:
+                cur.execute(f"SELECT id FROM {SCHEMA}.partners WHERE promo_code=%s AND id!=%s", (promo_code, pid))
+                if cur.fetchone():
+                    return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "promo_code_taken"})}
+            if ref_code:
+                cur.execute(f"UPDATE {SCHEMA}.partners SET ref_code=%s WHERE id=%s", (ref_code, pid))
+            cur.execute(f"UPDATE {SCHEMA}.partners SET promo_code=%s WHERE id=%s", (promo_code, pid))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /finance/admin/partner-toggle-autogenerate — включает/выключает
+        # автогенерацию кодов для партнёра (влияет на будущие перегенерации, не на текущие коды)
+        if method == "POST" and path.endswith("/admin/partner-toggle-autogenerate"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            pid = body.get("id")
+            cur.execute(f"UPDATE {SCHEMA}.partners SET auto_generate=NOT auto_generate WHERE id=%s", (pid,))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST /finance/admin/partner-regenerate-code — генерирует новые
+        # ref_code и/или promo_code (используется и вручную, и как «автогенерация по кнопке»)
+        if method == "POST" and path.endswith("/admin/partner-regenerate-code"):
+            if not require_admin(user):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            pid = body.get("id")
+            target = body.get("target") or "ref"  # "ref" | "promo"
+            new_code = secrets.token_urlsafe(8).upper().replace("-", "").replace("_", "")[:10]
+            if target == "promo":
+                cur.execute(f"UPDATE {SCHEMA}.partners SET promo_code=%s WHERE id=%s", (new_code, pid))
+            else:
+                cur.execute(f"UPDATE {SCHEMA}.partners SET ref_code=%s WHERE id=%s", (new_code, pid))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "code": new_code})}
 
         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}
 
