@@ -9,6 +9,7 @@ import { WithdrawalRequisitesTab } from "@/components/pages/WithdrawalRequisites
 import { PartnerPage as PartnerPageInline } from "@/components/pages/PartnerPage";
 import { AdminBadge, AdminAvatar } from "@/components/ui/admin-badge";
 import { BuyContactModal } from "@/components/ui/buy-contact-modal";
+import { AutoTranslateText } from "@/components/ui/auto-translate-text";
 import {
   INITIAL_REQUISITES,
   INITIAL_WITHDRAWALS,
@@ -2108,9 +2109,11 @@ export function SellerProfilePage({
                     <p className="text-xs text-muted-foreground">
                       {p.category}
                     </p>
-                    <h3 className="font-display font-semibold text-sm text-foreground pr-8">
-                      {p.title}
-                    </h3>
+                    <AutoTranslateText
+                      as="h3"
+                      text={p.title}
+                      className="font-display font-semibold text-sm text-foreground pr-8"
+                    />
                     <div className="font-display font-bold text-lg text-gold">
                       {format(p.price)}
                     </div>

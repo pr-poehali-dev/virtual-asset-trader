@@ -15,6 +15,7 @@ import { BigSpendVerifyModal } from "@/components/ui/big-spend-modal";
 import { BuyContactModal } from "@/components/ui/buy-contact-modal";
 import { getCategoryGlow } from "@/components/data/backgroundPalette";
 import { PublicTeamSection } from "@/components/pages/PublicTeam";
+import { AutoTranslateText } from "@/components/ui/auto-translate-text";
 
 // ─── LIVE FEED ────────────────────────────────────────────────────────────────
 
@@ -971,9 +972,11 @@ export function CatalogPage({ setActive }: { setActive: (s: string) => void }) {
 
                 <div className="p-4 flex flex-col flex-1 gap-2">
                   <p className="text-xs text-muted-foreground">{p.category}</p>
-                  <h3 className="font-display font-semibold text-sm text-foreground leading-tight line-clamp-2">
-                    {p.title}
-                  </h3>
+                  <AutoTranslateText
+                    as="h3"
+                    text={p.title}
+                    className="font-display font-semibold text-sm text-foreground leading-tight line-clamp-2"
+                  />
 
                   {/* Seller link */}
                   {p.sellerId && (

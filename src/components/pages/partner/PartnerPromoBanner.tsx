@@ -1,66 +1,95 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
-import shieldBg from "@/assets/partner-promo-shield.jpg";
+import { LOOP_MS, renderPromoFrame } from "@/components/pages/partner/promoAnimation";
 
-// ─── АНИМИРОВАННЫЙ ПРОМО-БАННЕР ДЛЯ ПАРТНЁРОВ ──────────────────────────────────
-// Короткая зацикленная анимация: покупатель → сделка → деньги продавцу → щит с
-// названием сайта в конце. Виден только реальным партнёрам сайта. Можно скачать
-// финальный кадр (со щитом) как картинку для использования в своей рекламе.
+// ─── АНИМИРОВАННЫЙ ПРОМО-РОЛИК ДЛЯ ПАРТНЁРОВ ────────────────────────────────
+// Полностью процедурная canvas-анимация (см. promoAnimation.ts) — покупатель,
+// продавец, летящие монеты, значок защиты и финальный щит с названием сайта
+// рисуются кадр за кадром одним рендерером, а не накладываются CSS-иконками
+// поверх статичной картинки. То же самое кодируется в реальный .gif файл,
+// который партнёр может скачать и использовать в своей рекламе.
+
+const PREVIEW_W = 960;
+const PREVIEW_H = 540;
+const GIF_W = 640;
+const GIF_H = 360;
+const GIF_FPS = 20;
 
 export function PartnerPromoBanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>();
   const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // Живое превью прямо на странице — рисуется в реальном времени, не GIF
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = PREVIEW_W;
+    canvas.height = PREVIEW_H;
+
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = ((now - start) % LOOP_MS) / LOOP_MS;
+      renderPromoFrame(ctx, PREVIEW_W, PREVIEW_H, t);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const handleDownload = async () => {
     setDownloading(true);
+    setProgress(0);
     try {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      // Рендерим ролик покадрово в отдельный offscreen-canvas и кодируем в GIF
+      const off = document.createElement("canvas");
+      off.width = GIF_W;
+      off.height = GIF_H;
+      const octx = off.getContext("2d");
+      if (!octx) return;
 
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("image load failed"));
-        img.src = shieldBg;
-      });
+      const totalFrames = Math.round((LOOP_MS / 1000) * GIF_FPS);
+      const delayMs = Math.round(1000 / GIF_FPS);
+      const gif = GIFEncoder();
 
-      canvas.width = 1200;
-      canvas.height = 675;
-      ctx.drawImage(img, 0, (canvas.width - img.width * (canvas.width / img.width)) / 2, canvas.width, canvas.width);
-      // Затемнение снизу для читаемости текста
-      const gradient = ctx.createLinearGradient(0, canvas.height - 220, 0, canvas.height);
-      gradient.addColorStop(0, "rgba(10,14,26,0)");
-      gradient.addColorStop(1, "rgba(10,14,26,0.92)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, canvas.height - 220, canvas.width, 220);
+      for (let i = 0; i < totalFrames; i++) {
+        const t = i / totalFrames;
+        renderPromoFrame(octx, GIF_W, GIF_H, t);
+        const { data } = octx.getImageData(0, 0, GIF_W, GIF_H);
+        const palette = quantize(data, 256);
+        const index = applyPalette(data, palette);
+        gif.writeFrame(index, GIF_W, GIF_H, { palette, delay: delayMs, repeat: 0 });
+        setProgress(Math.round(((i + 1) / totalFrames) * 100));
+        // Не блокируем поток UI полностью — даём отрисоваться прогрессу
+        if (i % 4 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+      gif.finish();
 
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#f5c542";
-      ctx.font = "bold 56px Montserrat, sans-serif";
-      ctx.fillText("Gorant Shop", canvas.width / 2, canvas.height - 110);
-
-      ctx.fillStyle = "#e8e8e8";
-      ctx.font = "500 26px 'IBM Plex Sans', sans-serif";
-      ctx.fillText("Безопасные сделки с виртуальными ценностями", canvas.width / 2, canvas.height - 65);
-
+      const blob = new Blob([gif.bytes().buffer as ArrayBuffer], { type: "image/gif" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = "gorant-shop-promo.png";
-      link.href = canvas.toDataURL("image/png");
+      link.download = "gorant-shop-promo.gif";
+      link.href = url;
       link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch {
       /* ignore */
     } finally {
       setDownloading(false);
+      setProgress(0);
     }
   };
 
   return (
     <div className="bg-surface border border-gold/20 rounded-2xl overflow-hidden">
-      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between flex-wrap gap-2">
         <h3 className="font-display font-semibold text-sm text-foreground flex items-center gap-2">
           <Icon name="Sparkles" size={14} className="text-gold" />
           Реклама для вашей аудитории
@@ -72,73 +101,27 @@ export function PartnerPromoBanner() {
           onClick={handleDownload}
           disabled={downloading}
         >
-          {downloading ? <Icon name="Loader" size={13} className="animate-spin mr-1.5" /> : <Icon name="Download" size={13} className="mr-1.5" />}
-          Скачать картинку
+          {downloading ? (
+            <>
+              <Icon name="Loader" size={13} className="animate-spin mr-1.5" />
+              Рендерю GIF… {progress}%
+            </>
+          ) : (
+            <>
+              <Icon name="Download" size={13} className="mr-1.5" />
+              Скачать GIF
+            </>
+          )}
         </Button>
       </div>
 
-      {/* Анимированная витрина */}
-      <div
-        className="relative w-full overflow-hidden"
-        style={{ aspectRatio: "16/9", backgroundImage: `url(${shieldBg})`, backgroundSize: "cover", backgroundPosition: "center" }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/30 to-background/10" />
-
-        {/* Сцена: покупатель -> монеты -> продавец */}
-        <div className="absolute inset-0 flex items-center justify-center gap-10 sm:gap-20">
-          <div className="flex flex-col items-center gap-2" style={{ animation: "promoIconPulse 2.4s ease-in-out infinite" }}>
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-blue-400/20 border border-blue-400/40 flex items-center justify-center">
-              <Icon name="User" size={22} className="text-blue-300" />
-            </div>
-            <span className="text-[10px] text-blue-200 font-semibold">Покупатель</span>
-          </div>
-
-          <div className="relative w-20 sm:w-32 h-8 flex items-center">
-            {[0, 1, 2].map((i) => (
-              <Icon
-                key={i}
-                name="Coins"
-                size={16}
-                className="text-gold absolute left-0"
-                style={{
-                  animation: `promoCoinFly 2.4s ease-in-out ${i * 0.5}s infinite`,
-                  ["--promo-fly-x" as string]: "90px",
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col items-center gap-2" style={{ animation: "promoIconPulse 2.4s ease-in-out 0.3s infinite" }}>
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-400/20 border border-emerald-400/40 flex items-center justify-center">
-              <Icon name="Store" size={22} className="text-emerald-300" />
-            </div>
-            <span className="text-[10px] text-emerald-200 font-semibold">Продавец</span>
-          </div>
-        </div>
-
-        {/* Галочка "сделка подтверждена" */}
-        <div
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-1.5 bg-emerald-400/15 border border-emerald-400/40 rounded-full px-2.5 py-1"
-          style={{ animation: "promoCheckPop 2.4s ease-in-out infinite" }}
-        >
-          <Icon name="ShieldCheck" size={12} className="text-emerald-300" />
-          <span className="text-[10px] text-emerald-200 font-semibold">Сделка защищена</span>
-        </div>
-
-        {/* Финальный щит с названием */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pb-4 sm:pb-6">
-          <Icon name="Shield" size={26} className="text-gold mb-1.5" style={{ animation: "promoShieldGlow 2.4s ease-in-out infinite" }} />
-          <span className="font-display font-bold text-base sm:text-lg text-foreground">
-            Gorant<span className="text-gold"> Shop</span>
-          </span>
-          <span className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Безопасные сделки с виртуальными ценностями</span>
-        </div>
+      {/* Живое canvas-превью ролика — все элементы анимированы процедурно */}
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        <canvas ref={canvasRef} className="w-full h-full block" />
       </div>
 
-      <canvas ref={canvasRef} className="hidden" />
-
       <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
-        Используйте это изображение в своих трансляциях, соцсетях или роликах — оно поможет зрителям узнать бренд и довериться сервису.
+        Скачайте зацикленный GIF-ролик и используйте его в своих трансляциях, соцсетях или роликах — он поможет зрителям узнать бренд и довериться сервису.
       </p>
     </div>
   );
