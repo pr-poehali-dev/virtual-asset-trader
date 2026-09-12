@@ -337,15 +337,21 @@ export function renderPromoFrame(ctx: CanvasRenderingContext2D, w: number, h: nu
   const timerStart = 0.30, timerDur = 0.32;
   const timerProgress = clamp01((t - timerStart) / timerDur);
   const timerAlpha = trapezoid(t, timerStart - 0.02, 0.03, timerDur - 0.02, 0.05);
-  const unlockGlow = trapezoid(t, timerStart + timerDur, 0.04, 0.06, 0.05);
-  const coinsToSeller = { start: timerStart + timerDur + 0.02, dur: 0.16 };
+  const holdEnd = timerStart + timerDur;
+  const unlockGlow = trapezoid(t, holdEnd, 0.04, 0.06, 0.05);
+  const coinsToSeller = { start: holdEnd + 0.02, dur: 0.16 };
   const sellerGlow = trapezoid(t, coinsToSeller.start + coinsToSeller.dur - 0.03, 0.05, 0.10, 0.06);
   const finalStart = coinsToSeller.start + coinsToSeller.dur + 0.03;
 
-  // Замок закрыт с момента получения средств щитом и до конца отсчёта таймера
-  const lockClosed = clamp01(
-    trapezoid(t, freezeStart, 0.04, (timerStart + timerDur) - freezeStart - 0.04, 0.05)
-  );
+  // Щит на протяжении ролика показывает РОВНО один индикатор состояния:
+  // галочка (обычное состояние) → короткий переход → замок (заморозка,
+  // freezeStart..holdEnd) → короткий переход обратно → галочка. Крестфейд
+  // короткий (0.03) и середины фаз не пересекаются, поэтому замок и галочка
+  // никогда не отрисовываются одновременно с заметной альфой.
+  const fade = 0.03;
+  const lockAlpha = trapezoid(t, freezeStart - fade, fade, (holdEnd - freezeStart), fade);
+  const checkAlpha = 1 - lockAlpha;
+  const lockClosed = 1; // замок в этой фазе всегда полностью заперт (дужка не анимируется)
 
   // ── Покупатель / Продавец ──────────────────────────────────────────────
   drawBadgeCircle(ctx, buyerX, midY, badgeR, "#1d3a6e", "#3b82f6", buyerGlow);
@@ -360,17 +366,22 @@ export function renderPromoFrame(ctx: CanvasRenderingContext2D, w: number, h: nu
   ctx.fillStyle = "#a7f3d0";
   ctx.fillText("Продавец", sellerX, midY + badgeR + 20);
 
-  // ── Щит-эскроу в центре (всегда виден, кроме самого начала) ────────────
-  const shieldVisibleAlpha = t < finalStart ? 1 : 1; // щит виден всю сцену
+  // ── Щит-эскроу в центре (виден всю сцену до финального крупного плана) ──
   const centerShieldScale = shieldScale * 0.72 * (0.85 + 0.15 * clamp01(t / 0.05));
-  ctx.globalAlpha = shieldVisibleAlpha;
-  drawShield(ctx, shieldX, midY, centerShieldScale, Math.max(shieldCatchGlow, unlockGlow) * 0.9, lockClosed > 0.5 ? "rgba(96,165,250,0.7)" : "rgba(245,197,66,0.9)");
-  if (lockClosed < 0.3) {
+  drawShield(ctx, shieldX, midY, centerShieldScale, Math.max(shieldCatchGlow, unlockGlow) * 0.9, lockAlpha > 0.5 ? "rgba(96,165,250,0.7)" : "rgba(245,197,66,0.9)");
+
+  // Ровно один из двух индикаторов виден одновременно (крестфейд, не наложение)
+  if (checkAlpha > 0.01) {
+    ctx.globalAlpha = checkAlpha;
     drawShieldCheck(ctx, shieldX, midY, centerShieldScale);
+    ctx.globalAlpha = 1;
   }
-  drawFrost(ctx, shieldX, midY, centerShieldScale, lockClosed * 0.8);
-  drawLock(ctx, shieldX, midY + 2, centerShieldScale * 0.9, lockClosed);
-  ctx.globalAlpha = 1;
+  if (lockAlpha > 0.01) {
+    drawFrost(ctx, shieldX, midY, centerShieldScale, lockAlpha * 0.8);
+    ctx.globalAlpha = lockAlpha;
+    drawLock(ctx, shieldX, midY + 2, centerShieldScale * 0.9, lockClosed);
+    ctx.globalAlpha = 1;
+  }
 
   ctx.fillStyle = "#fde68a";
   ctx.font = "700 12px 'IBM Plex Sans', sans-serif";

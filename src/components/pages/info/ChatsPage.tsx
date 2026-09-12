@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,14 @@ import { TranslateMessage } from "@/components/ui/translate-message";
 // ─── ВКЛАДКА «ЧАТЫ» ─────────────────────────────────────────────────────────────
 // Единое место со всеми перепиcками пользователя по его сделкам — и как покупателя,
 // и как продавца. Отдельно от истории сделок, чтобы быстро находить нужный диалог.
+// На мобильной версии переписка по сделке доступна ТОЛЬКО здесь — в деталях
+// сделки (DealsPage) чат скрыт на маленьких экранах, чтобы не перегружать
+// карточку, и ведёт сюда кнопкой «Открыть чат» с параметром ?deal=<id>.
 
 export function ChatsPage() {
   const { deals, user, sendDisputeMessage, refreshDeals } = useAuth();
   const { t } = useCurrency();
+  const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dealChat, setDealChat] = useState<ApiDealChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -24,6 +29,15 @@ export function ChatsPage() {
   const myDeals = user
     ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id)
     : [];
+
+  // Переход из деталей сделки (?deal=ID) сразу открывает нужный диалог
+  useEffect(() => {
+    const dealParam = searchParams.get("deal");
+    if (dealParam && myDeals.some((d) => d.id === dealParam)) {
+      setSelectedId(dealParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, deals.length]);
 
   const selected = myDeals.find((d) => d.id === selectedId) ?? null;
   const isDispute = selected?.status === "dispute";

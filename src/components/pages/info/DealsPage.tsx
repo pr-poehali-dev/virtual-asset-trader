@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ const ACTIVE_STATUSES = ["escrow", "hold", "hold_cs2", "hold_pubg"];
 export function DealsPage() {
   const { deals, user, openDispute, sendDisputeMessage, refreshDeals } = useAuth();
   const { t } = useCurrency();
+  const navigate = useNavigate();
   const [showClosed, setShowClosed] = useState(false);
   const [selected, setSelected] = useState<typeof deals[0] | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -445,8 +447,21 @@ export function DealsPage() {
                 )
               )}
 
+              {/* Чат на мобильных экранах не встраивается в детали сделки —
+                  ведём в отдельный раздел «Чаты», чтобы не перегружать карточку */}
+              <button
+                onClick={() => navigate(`/chats?deal=${selectedFresh.id}`)}
+                className="sm:hidden w-full flex items-center justify-between gap-2 bg-background border border-border rounded-lg px-3 py-2.5 text-xs text-foreground hover:border-gold/40 transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon name={selectedFresh.status === "dispute" ? "AlertTriangle" : "MessageCircle"} size={13} className={selectedFresh.status === "dispute" ? "text-red-400" : "text-gold"} />
+                  {selectedFresh.status === "dispute" ? t("dispute_chat") : t("deal_chat")}
+                </span>
+                <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
+              </button>
+
               {selectedFresh.status === "dispute" && showDisputeChat && (
-                <div className="space-y-2">
+                <div className="hidden sm:block space-y-2">
                   <p className="text-xs text-muted-foreground font-semibold">{t("dispute_chat")}</p>
                   <div className="bg-background border border-border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
                     {(selectedFresh.disputeMessages ?? []).map((m, i) => (
@@ -472,9 +487,9 @@ export function DealsPage() {
                 </div>
               )}
 
-              {/* Чат покупателя и продавца по сделке — доступен пока сделка не отменена/не в споре */}
+              {/* Чат покупателя и продавца по сделке — доступен пока сделка не отменена/не в споре. Только на ПК — на мобильных см. кнопку выше */}
               {selectedFresh.status !== "dispute" && (
-                <div className="space-y-2 pt-2 border-t border-border">
+                <div className="hidden sm:block space-y-2 pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
                     <Icon name="MessageCircle" size={12} />
                     {t("chat_with_prefix")} {user?.id === selectedFresh.buyerId ? t("chat_with_seller") : t("chat_with_buyer")}
