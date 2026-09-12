@@ -1,13 +1,19 @@
 // ─── ПРОЦЕДУРНАЯ АНИМАЦИЯ ПРОМО-РОЛИКА ПАРТНЁРА ─────────────────────────────
-// Всё рисуется на canvas кадр за кадром (t от 0 до 1 — прогресс зацикленного
-// ролика). Никаких статичных фоновых картинок с наложенными CSS-иконками —
-// каждый элемент (звёзды, монеты, значки, щит, текст) — часть одного и того
-// же кадра, который также кодируется в реальный анимированный GIF-файл.
+// Сценарий: покупатель платит → деньги летят в щит Gorant Shop (эскроу) →
+// щит замораживает средства (иконка замка, ледяной блик) → быстрый таймер
+// отсчитывает 8 дней защиты сделки → замок открывается → деньги улетают
+// продавцу → финальный кадр с щитом и названием сайта. Все элементы рисуются
+// на canvas кадр за кадром одним рендерером — ничего не наложено статичными
+// картинками. Тот же рендер кодируется в реальный анимированный GIF.
 
-export const LOOP_MS = 4200;
+export const LOOP_MS = 7000;
+
+function clamp01(x: number): number {
+  return Math.min(1, Math.max(0, x));
+}
 
 function smoothstep(x: number): number {
-  const c = Math.min(1, Math.max(0, x));
+  const c = clamp01(x);
   return c * c * (3 - 2 * c);
 }
 
@@ -51,16 +57,14 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, t: 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // Плавающее золотое свечение — позиция задаётся синусом от t, поэтому цикл идеально замкнут
-  const glowX = w * (0.5 + 0.28 * Math.sin(2 * Math.PI * t));
-  const glowY = h * (0.42 + 0.10 * Math.cos(2 * Math.PI * t));
+  const glowX = w * (0.5 + 0.24 * Math.sin(2 * Math.PI * t));
+  const glowY = h * (0.4 + 0.08 * Math.cos(2 * Math.PI * t));
   const glow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, w * 0.45);
   glow.addColorStop(0, "rgba(245,197,66,0.10)");
   glow.addColorStop(1, "rgba(245,197,66,0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, w, h);
 
-  // Звёзды — мерцают, но не двигаются (позиции фиксированы seed'ом)
   for (const s of STARS) {
     const alpha = 0.25 + 0.6 * Math.abs(Math.sin(2 * Math.PI * (t * s.speed + s.phase)));
     ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
@@ -68,20 +72,6 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, t: 
     ctx.arc(s.x * w, s.y * h * 0.85, s.r, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  // Вращающееся декоративное кольцо (полный оборот за цикл — бесшовно)
-  const ringAngle = 2 * Math.PI * t;
-  ctx.save();
-  ctx.translate(w * 0.5, h * 0.46);
-  ctx.rotate(ringAngle);
-  ctx.strokeStyle = "rgba(245,197,66,0.10)";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 10]);
-  ctx.beginPath();
-  ctx.arc(0, 0, h * 0.36, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-  ctx.setLineDash([]);
 }
 
 function drawBadgeCircle(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, colorA: string, colorB: string, glow: number) {
@@ -119,16 +109,13 @@ function drawPersonGlyph(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
 function drawStoreGlyph(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number) {
   ctx.fillStyle = "rgba(255,255,255,0.92)";
-  // Крыша
   ctx.beginPath();
   ctx.moveTo(cx - scale * 0.5, cy - scale * 0.05);
   ctx.lineTo(cx, cy - scale * 0.55);
   ctx.lineTo(cx + scale * 0.5, cy - scale * 0.05);
   ctx.closePath();
   ctx.fill();
-  // Корпус
   ctx.fillRect(cx - scale * 0.38, cy - scale * 0.05, scale * 0.76, scale * 0.55);
-  // Дверь (вырез)
   ctx.fillStyle = "rgba(16,20,40,0.9)";
   ctx.fillRect(cx - scale * 0.12, cy + scale * 0.12, scale * 0.24, scale * 0.38);
 }
@@ -151,14 +138,15 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   ctx.restore();
 }
 
-function drawShield(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number, glowAlpha: number) {
+// Щит — одновременно "иконка эскроу" в центре сцены и финальный логотип
+function drawShield(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number, glowAlpha: number, glowColor = "rgba(245,197,66,0.9)") {
   if (scale <= 0.01) return;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(scale, scale);
 
   if (glowAlpha > 0.01) {
-    ctx.shadowColor = "rgba(245,197,66,0.9)";
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = 30 * glowAlpha;
   }
 
@@ -179,8 +167,14 @@ function drawShield(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#fff6da";
   ctx.stroke();
+  ctx.restore();
+}
 
-  ctx.shadowBlur = 0;
+// Галочка внутри щита (используется когда щит без замка — на входе/выходе)
+function drawShieldCheck(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
   ctx.strokeStyle = "#0b1020";
   ctx.lineWidth = 5;
   ctx.lineCap = "round";
@@ -190,11 +184,80 @@ function drawShield(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale
   ctx.lineTo(-3, 14);
   ctx.lineTo(16, -12);
   ctx.stroke();
+  ctx.restore();
+}
+
+// Замок поверх щита: closed=1 — полностью заперт, closed=0 — дужка откинута (открыт)
+function drawLock(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number, closed: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+
+  // Дужка — поворачивается наружу при разморозке
+  const shackleOpen = (1 - closed) * 28;
+  ctx.save();
+  ctx.translate(6, -6);
+  ctx.rotate((-shackleOpen * Math.PI) / 180);
+  ctx.translate(-6, 6);
+  ctx.strokeStyle = "#0b1020";
+  ctx.lineWidth = 4.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(0, -6, 9, Math.PI, 0, false);
+  ctx.stroke();
+  ctx.restore();
+
+  // Корпус замка
+  ctx.fillStyle = "#0b1020";
+  ctx.beginPath();
+  const bw = 22, bh = 17;
+  const r = 3;
+  ctx.moveTo(-bw / 2 + r, 0);
+  ctx.arcTo(bw / 2, 0, bw / 2, bh, r);
+  ctx.arcTo(bw / 2, bh, -bw / 2, bh, r);
+  ctx.arcTo(-bw / 2, bh, -bw / 2, 0, r);
+  ctx.arcTo(-bw / 2, 0, bw / 2, 0, r);
+  ctx.closePath();
+  ctx.fill();
+
+  // Замочная скважина
+  ctx.fillStyle = closed > 0.5 ? "#f5c542" : "#94a3b8";
+  ctx.beginPath();
+  ctx.arc(0, 6, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-1, 6, 2, 5);
 
   ctx.restore();
 }
 
-function drawPill(ctx: CanvasRenderingContext2D, cx: number, cy: number, text: string, alpha: number, scale: number, w: number, h: number) {
+// Ледяной иней вокруг щита во время заморозки средств
+function drawFrost(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number, alpha: number) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = "#bfe8ff";
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const x1 = Math.cos(angle) * 42, y1 = Math.sin(angle) * 48;
+    const x2 = Math.cos(angle) * 54, y2 = Math.sin(angle) * 60;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPill(ctx: CanvasRenderingContext2D, cx: number, cy: number, text: string, alpha: number, scale: number, w: number, h: number, tone: "green" | "amber" | "blue" = "green") {
+  const palette = {
+    green: { fill: "rgba(16,185,129,0.18)", stroke: "rgba(52,211,153,0.55)", text: "#a7f3d0", accent: "#34d399" },
+    amber: { fill: "rgba(245,158,11,0.18)", stroke: "rgba(251,191,36,0.55)", text: "#fde68a", accent: "#fbbf24" },
+    blue: { fill: "rgba(59,130,246,0.18)", stroke: "rgba(96,165,250,0.55)", text: "#bfdbfe", accent: "#60a5fa" },
+  }[tone];
+
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, cy);
@@ -207,26 +270,53 @@ function drawPill(ctx: CanvasRenderingContext2D, cx: number, cy: number, text: s
   ctx.arcTo(-w / 2, h / 2, -w / 2, -h / 2, r);
   ctx.arcTo(-w / 2, -h / 2, w / 2, -h / 2, r);
   ctx.closePath();
-  ctx.fillStyle = "rgba(16,185,129,0.18)";
+  ctx.fillStyle = palette.fill;
   ctx.fill();
-  ctx.strokeStyle = "rgba(52,211,153,0.55)";
+  ctx.strokeStyle = palette.stroke;
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  ctx.strokeStyle = "#34d399";
-  ctx.lineWidth = 2;
-  ctx.lineCap = "round";
+  ctx.fillStyle = palette.text;
+  ctx.font = "600 12px 'IBM Plex Sans', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 6, 1);
+  ctx.restore();
+}
+
+// Быстрый круговой таймер обратного отсчёта (8 дней защиты сделки)
+function drawCountdownRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, progress: number, alpha: number) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Фоновый трек
   ctx.beginPath();
-  ctx.moveTo(-w / 2 + 14, 0);
-  ctx.lineTo(-w / 2 + 19, 5);
-  ctx.lineTo(-w / 2 + 27, -6);
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(148,163,184,0.18)";
+  ctx.lineWidth = 4;
   ctx.stroke();
 
-  ctx.fillStyle = "#a7f3d0";
-  ctx.font = "600 12px 'IBM Plex Sans', sans-serif";
-  ctx.textAlign = "left";
+  // Прогресс — несколько быстрых оборотов создают ощущение "перемотки времени"
+  const laps = 3;
+  const angle = progress * Math.PI * 2 * laps;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (angle % (Math.PI * 2)));
+  ctx.strokeStyle = "#fbbf24";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  const daysLeft = Math.max(0, Math.round(8 * (1 - progress)));
+  ctx.fillStyle = "#fde68a";
+  ctx.font = `bold ${Math.round(r * 0.62)}px Montserrat, sans-serif`;
+  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, -w / 2 + 34, 1);
+  ctx.fillText(String(daysLeft), cx, cy - r * 0.08);
+  ctx.font = `500 ${Math.round(r * 0.22)}px 'IBM Plex Sans', sans-serif`;
+  ctx.fillStyle = "#fbbf24";
+  ctx.fillText("дней холда", cx, cy + r * 0.42);
+
   ctx.restore();
 }
 
@@ -234,25 +324,30 @@ export function renderPromoFrame(ctx: CanvasRenderingContext2D, w: number, h: nu
   ctx.clearRect(0, 0, w, h);
   drawBackground(ctx, w, h, t);
 
-  const buyerX = w * 0.24, sellerX = w * 0.76, midY = h * 0.46;
-  const badgeR = h * 0.10;
+  const buyerX = w * 0.15, sellerX = w * 0.85, midY = h * 0.40;
+  const shieldX = w * 0.5;
+  const badgeR = h * 0.095;
+  const shieldScale = h / 230;
 
-  // Луч связи между сторонами — пульсирует, не "едет" (бесшовный цикл)
-  ctx.save();
-  ctx.strokeStyle = "rgba(245,197,66,0.22)";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 8]);
-  ctx.lineDashOffset = Math.sin(2 * Math.PI * t) * 14;
-  ctx.beginPath();
-  ctx.moveTo(buyerX + badgeR, midY);
-  ctx.lineTo(sellerX - badgeR, midY);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
+  // ── Фазы сценария ──────────────────────────────────────────────────────
+  const buyerGlow = trapezoid(t, 0.0, 0.04, 0.10, 0.06);
+  const coinsToShield = { start: 0.06, dur: 0.16 };
+  const freezeStart = 0.24;
+  const shieldCatchGlow = trapezoid(t, coinsToShield.start + coinsToShield.dur - 0.02, 0.04, 0.08, 0.05);
+  const timerStart = 0.30, timerDur = 0.32;
+  const timerProgress = clamp01((t - timerStart) / timerDur);
+  const timerAlpha = trapezoid(t, timerStart - 0.02, 0.03, timerDur - 0.02, 0.05);
+  const unlockGlow = trapezoid(t, timerStart + timerDur, 0.04, 0.06, 0.05);
+  const coinsToSeller = { start: timerStart + timerDur + 0.02, dur: 0.16 };
+  const sellerGlow = trapezoid(t, coinsToSeller.start + coinsToSeller.dur - 0.03, 0.05, 0.10, 0.06);
+  const finalStart = coinsToSeller.start + coinsToSeller.dur + 0.03;
 
-  const buyerGlow = trapezoid(t, 0.0, 0.05, 0.12, 0.08);
-  const sellerGlow = trapezoid(t, 0.30, 0.05, 0.15, 0.08);
+  // Замок закрыт с момента получения средств щитом и до конца отсчёта таймера
+  const lockClosed = clamp01(
+    trapezoid(t, freezeStart, 0.04, (timerStart + timerDur) - freezeStart - 0.04, 0.05)
+  );
 
+  // ── Покупатель / Продавец ──────────────────────────────────────────────
   drawBadgeCircle(ctx, buyerX, midY, badgeR, "#1d3a6e", "#3b82f6", buyerGlow);
   drawPersonGlyph(ctx, buyerX, midY, badgeR * 0.7);
   drawBadgeCircle(ctx, sellerX, midY, badgeR, "#0f4a3a", "#34d399", sellerGlow);
@@ -265,50 +360,99 @@ export function renderPromoFrame(ctx: CanvasRenderingContext2D, w: number, h: nu
   ctx.fillStyle = "#a7f3d0";
   ctx.fillText("Продавец", sellerX, midY + badgeR + 20);
 
-  // Монеты, летящие покупатель -> продавец (3 штуки со сдвигом по фазе)
+  // ── Щит-эскроу в центре (всегда виден, кроме самого начала) ────────────
+  const shieldVisibleAlpha = t < finalStart ? 1 : 1; // щит виден всю сцену
+  const centerShieldScale = shieldScale * 0.72 * (0.85 + 0.15 * clamp01(t / 0.05));
+  ctx.globalAlpha = shieldVisibleAlpha;
+  drawShield(ctx, shieldX, midY, centerShieldScale, Math.max(shieldCatchGlow, unlockGlow) * 0.9, lockClosed > 0.5 ? "rgba(96,165,250,0.7)" : "rgba(245,197,66,0.9)");
+  if (lockClosed < 0.3) {
+    drawShieldCheck(ctx, shieldX, midY, centerShieldScale);
+  }
+  drawFrost(ctx, shieldX, midY, centerShieldScale, lockClosed * 0.8);
+  drawLock(ctx, shieldX, midY + 2, centerShieldScale * 0.9, lockClosed);
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = "#fde68a";
+  ctx.font = "700 12px 'IBM Plex Sans', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Эскроу Gorant Shop", shieldX, midY + badgeR + 20);
+
+  // ── Монеты: покупатель → щит ────────────────────────────────────────────
   for (let i = 0; i < 3; i++) {
-    const start = 0.10 + i * 0.085;
-    const dur = 0.24;
+    const start = coinsToShield.start + i * 0.045;
+    const dur = coinsToShield.dur;
     const p = (t - start) / dur;
     if (p < 0 || p > 1) continue;
     const eased = smoothstep(p);
-    const x = lerp(buyerX + badgeR * 0.8, sellerX - badgeR * 0.8, eased);
-    const arc = Math.sin(p * Math.PI) * -h * 0.09;
+    const x = lerp(buyerX + badgeR * 0.8, shieldX - badgeR * 0.55, eased);
+    const arc = Math.sin(p * Math.PI) * -h * 0.08;
     const y = midY + arc;
-    const fadeIn = Math.min(1, p / 0.12);
-    const fadeOut = Math.min(1, (1 - p) / 0.12);
+    const fadeIn = Math.min(1, p / 0.15);
+    const fadeOut = Math.min(1, (1 - p) / 0.15);
     ctx.globalAlpha = Math.min(fadeIn, fadeOut);
-    drawCoin(ctx, x, y, h * 0.032, p * 10);
+    drawCoin(ctx, x, y, h * 0.028, p * 10);
     ctx.globalAlpha = 1;
   }
 
-  // Значок "Сделка защищена"
-  const checkA = trapezoid(t, 0.42, 0.04, 0.18, 0.08);
-  if (checkA > 0.01) {
-    const riseP = Math.min(1, (t - 0.42) / 0.04);
-    const scale = 0.7 + 0.3 * easeOutBack(riseP);
-    drawPill(ctx, w * 0.5, h * 0.16, "Сделка защищена", checkA, Math.max(0.01, scale), w * 0.34, h * 0.09);
+  // ── Монеты: щит → продавец ───────────────────────────────────────────────
+  for (let i = 0; i < 3; i++) {
+    const start = coinsToSeller.start + i * 0.045;
+    const dur = coinsToSeller.dur;
+    const p = (t - start) / dur;
+    if (p < 0 || p > 1) continue;
+    const eased = smoothstep(p);
+    const x = lerp(shieldX + badgeR * 0.55, sellerX - badgeR * 0.8, eased);
+    const arc = Math.sin(p * Math.PI) * -h * 0.08;
+    const y = midY + arc;
+    const fadeIn = Math.min(1, p / 0.15);
+    const fadeOut = Math.min(1, (1 - p) / 0.15);
+    ctx.globalAlpha = Math.min(fadeIn, fadeOut);
+    drawCoin(ctx, x, y, h * 0.028, p * 10);
+    ctx.globalAlpha = 1;
   }
 
-  // Финал: щит + название сайта
-  const shieldA = trapezoid(t, 0.60, 0.08, 0.22, 0.10);
-  if (shieldA > 0.01) {
-    const riseP = Math.min(1, (t - 0.60) / 0.08);
+  // ── Таймер обратного отсчёта (8 дней холда пролетают быстро) — сверху ──
+  const ringY = h * 0.15;
+  drawCountdownRing(ctx, shieldX, ringY, h * 0.10, timerProgress, timerAlpha);
+
+  // ── Пилюли-статусы — под таймером, чтобы не пересекаться с ним ─────────
+  const pillY = h * 0.15 + h * 0.14;
+  const freezeLabelA = trapezoid(t, freezeStart, 0.04, 0.10, 0.05) * (1 - timerAlpha);
+  if (freezeLabelA > 0.01) {
+    drawPill(ctx, shieldX, pillY, "Средства заморожены", freezeLabelA, 1, w * 0.30, h * 0.085, "blue");
+  }
+  const unlockLabelA = trapezoid(t, timerStart + timerDur, 0.03, 0.09, 0.05);
+  if (unlockLabelA > 0.01) {
+    drawPill(ctx, shieldX, pillY, "Проверено. Средства переведены", unlockLabelA, 1, w * 0.38, h * 0.085, "green");
+  }
+  const receivedA = trapezoid(t, coinsToSeller.start + coinsToSeller.dur, 0.04, 0.08, 0.05);
+  if (receivedA > 0.01) {
+    drawPill(ctx, sellerX, midY - badgeR - 22, "Оплата получена", receivedA, 1, w * 0.24, h * 0.075, "green");
+  }
+
+  // ── Финальный кадр: щит крупным планом + название сайта ────────────────
+  const finalA = trapezoid(t, finalStart, 0.06, 0.14, 0.08);
+  if (finalA > 0.01) {
+    const riseP = clamp01((t - finalStart) / 0.06);
     const scale = 0.5 + 0.5 * easeOutBack(riseP);
     ctx.save();
-    ctx.globalAlpha = shieldA;
-    drawShield(ctx, w * 0.5, h * 0.44, scale * (h / 220), shieldA);
-    ctx.restore();
+    ctx.globalAlpha = finalA;
+    // Полностью перекрываем сцену позади для читаемости финального лого
+    ctx.fillStyle = `rgba(10,14,26,${0.96 * finalA})`;
+    ctx.fillRect(0, 0, w, h);
+    drawShield(ctx, w * 0.5, h * 0.4, scale * (h / 200), finalA, "rgba(245,197,66,0.95)");
+    drawShieldCheck(ctx, w * 0.5, h * 0.4, scale * (h / 200));
 
-    ctx.save();
-    ctx.globalAlpha = shieldA;
     ctx.textAlign = "center";
     ctx.fillStyle = "#f5c542";
-    ctx.font = `bold ${Math.round(h * 0.085)}px Montserrat, sans-serif`;
-    ctx.fillText("Gorant Shop", w * 0.5, h * 0.78);
+    ctx.font = `bold ${Math.round(h * 0.09)}px Montserrat, sans-serif`;
+    ctx.fillText("Gorant Shop", w * 0.5, h * 0.74);
     ctx.fillStyle = "#e5e7eb";
-    ctx.font = `500 ${Math.round(h * 0.038)}px 'IBM Plex Sans', sans-serif`;
-    ctx.fillText("Безопасные сделки с виртуальными ценностями", w * 0.5, h * 0.86);
+    ctx.font = `500 ${Math.round(h * 0.036)}px 'IBM Plex Sans', sans-serif`;
+    ctx.fillText("Заморозка средств. Гарантия безопасной сделки.", w * 0.5, h * 0.82);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `500 ${Math.round(h * 0.03)}px 'IBM Plex Sans', sans-serif`;
+    ctx.fillText("Эскроу · Холд до 8 дней · Защита от мошенничества", w * 0.5, h * 0.88);
     ctx.restore();
   }
 }
