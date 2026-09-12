@@ -281,6 +281,7 @@ def handler(event: dict, context) -> dict:
             # Подтягиваем реальную переписку споров одним запросом (не N+1).
             # staff_only=TRUE — внутренние заметки администрации, стороны их не видят.
             dispute_msgs_by_deal: dict = {}
+            reviewed_deal_ids: set = set()
             if deal_ids:
                 cur.execute(
                     f"""SELECT dm.deal_id, dm.from_user, dm.role, dm.text, dm.is_system, dm.created_at
@@ -294,6 +295,11 @@ def handler(event: dict, context) -> dict:
                         "from": dr[1], "role": dr[2], "text": dr[3],
                         "isSystem": dr[4], "time": dr[5].strftime("%H:%M %d.%m.%Y"),
                     })
+                cur.execute(
+                    f"SELECT deal_id FROM {SCHEMA}.reviews WHERE deal_id = ANY(%s)",
+                    (deal_ids,)
+                )
+                reviewed_deal_ids = {rr[0] for rr in cur.fetchall()}
 
             deals = []
             for r in rows:
@@ -312,6 +318,7 @@ def handler(event: dict, context) -> dict:
                     "cancelReason": r[18],
                     "step": 3,
                     "disputeMessages": dispute_msgs_by_deal.get(r[0], []),
+                    "reviewed": r[0] in reviewed_deal_ids,
                 })
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"deals": deals})}
 

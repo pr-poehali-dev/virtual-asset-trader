@@ -15,6 +15,9 @@ import {
   WITHDRAW_STATUS_MAP,
   WithdrawRequest,
   WITHDRAW_FEE_FIXED,
+  COUNTRIES,
+  CURRENCIES,
+  LANGUAGES,
 } from "@/components/data/constants";
 
 // ─── FROZEN PAGE ──────────────────────────────────────────────────────────────
@@ -182,11 +185,13 @@ export function LoginPage({
 
 export function RegisterPage({ onLogin }: { onLogin: () => void }) {
   const { register } = useAuth();
+  const { setCurrency, setLang } = useCurrency();
   const [step, setStep] = useState<"form" | "verify">("form");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [country, setCountry] = useState(COUNTRIES[0].code);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -252,9 +257,18 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
         setRegistering(false);
         return;
       }
-      const result = await register(username, email, password);
+      const result = await register(username, email, password, country);
       if (result === "exists") {
         setError("Никнейм или email уже занят");
+      } else if (result === "ok") {
+        // Применяем валюту и язык по выбранной стране сразу после регистрации
+        const c = COUNTRIES.find((c) => c.code === country);
+        if (c) {
+          const curr = CURRENCIES.find((cur) => cur.code === c.currency);
+          const langInfo = LANGUAGES.find((l) => l.code === c.lang);
+          if (curr) setCurrency(curr);
+          if (langInfo) setLang(langInfo);
+        }
       }
     } catch {
       setError("Неверный или просроченный код");
@@ -338,6 +352,23 @@ export function RegisterPage({ onLogin }: { onLogin: () => void }) {
                   }}
                   className="bg-background border-border text-sm"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium mb-1.5 block">
+                  Страна
+                </label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground"
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.label}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Определяет валюту и язык интерфейса по умолчанию — их можно сменить позже
+                </p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground font-medium mb-1.5 block">

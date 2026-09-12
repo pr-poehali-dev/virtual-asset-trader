@@ -18,7 +18,7 @@ function VkIcon({ size = 18, className = "" }: { size?: number; className?: stri
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 
-export function Nav({ active, setActive, isAdmin }: { active: string; setActive: (s: string) => void; isAdmin?: boolean }) {
+export function Nav({ active, setActive, isAdmin, giveawaysEnabled = true }: { active: string; setActive: (s: string) => void; isAdmin?: boolean; giveawaysEnabled?: boolean }) {
   const { user, logout } = useAuth();
   const { currency, setCurrency, lang, setLang, t } = useCurrency();
   const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
@@ -34,6 +34,7 @@ export function Nav({ active, setActive, isAdmin }: { active: string; setActive:
     ...(user ? [{ id: "deals", label: t("deals"), icon: "ArrowRightLeft" }] : []),
     ...(user ? [{ id: "chats", label: t("chats"), icon: "MessageCircle" }] : []),
     { id: "games",   label: t("games"),   icon: "Coins" },
+    ...(giveawaysEnabled ? [{ id: "giveaways", label: "Раздачи", icon: "Gift" }] : []),
     { id: "about",   label: t("about"),   icon: "Info" },
     { id: "support", label: t("support"), icon: "Headphones" },
   ];

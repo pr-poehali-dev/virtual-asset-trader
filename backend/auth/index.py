@@ -117,6 +117,7 @@ def handler(event: dict, context) -> dict:
             username = (body.get("username") or "").strip()
             email    = (body.get("email") or "").strip().lower()
             password = body.get("password") or ""
+            country  = (body.get("country") or "").strip().upper()[:8] or None
 
             if not username or not email or not password:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_fields"})}
@@ -146,9 +147,9 @@ def handler(event: dict, context) -> dict:
             pw_hash = hash_password(password, salt)
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.users
-                    (id, account_id, username, email, password_hash, password_salt, role, verified, balance_rub)
-                    VALUES (%s,%s,%s,%s,%s,%s,'user',FALSE,0)""",
-                (uid, acc_id, username, email, pw_hash, salt)
+                    (id, account_id, username, email, password_hash, password_salt, role, verified, balance_rub, country)
+                    VALUES (%s,%s,%s,%s,%s,%s,'user',FALSE,0,%s)""",
+                (uid, acc_id, username, email, pw_hash, salt, country)
             )
             token = make_token()
             cur.execute(
@@ -163,7 +164,8 @@ def handler(event: dict, context) -> dict:
                     "user": {"id": uid, "accountId": acc_id, "username": username,
                              "email": email, "role": "user", "verified": False,
                              "status": "active", "balance_rub": 0, "locked_rub": 0,
-                             "deals_count": 0, "joined_at": datetime.now().strftime("%d.%m.%Y")}
+                             "deals_count": 0, "joined_at": datetime.now().strftime("%d.%m.%Y"),
+                             "country": country}
                 })
             }
 
@@ -178,7 +180,7 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 f"""SELECT id,account_id,username,email,role,is_owner,staff_perms,
                            status,freeze_reason,block_reason,verified,
-                           balance_rub,locked_rub,deals_count,joined_at,
+                           balance_rub,locked_rub,deals_count,joined_at,country,
                            password_hash,password_salt
                     FROM {SCHEMA}.users
                     WHERE (LOWER(email)=%s OR LOWER(username)=%s)""",
@@ -210,7 +212,7 @@ def handler(event: dict, context) -> dict:
 
             cols = ["id","account_id","username","email","role","is_owner","staff_perms",
                     "status","freeze_reason","block_reason","verified",
-                    "balance_rub","locked_rub","deals_count","joined_at"]
+                    "balance_rub","locked_rub","deals_count","joined_at","country"]
             user = user_row_to_dict(row, cols)
 
             if user["status"] == "blocked":
@@ -235,7 +237,7 @@ def handler(event: dict, context) -> dict:
                 f"""SELECT u.id,u.account_id,u.username,u.email,u.role,u.is_owner,u.staff_perms,
                            u.status,u.freeze_reason,u.block_reason,u.verified,
                            u.balance_rub,u.locked_rub,u.deals_count,u.joined_at,
-                           u.perma_banned,u.chat_banned
+                           u.perma_banned,u.chat_banned,u.country
                     FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id=s.user_id
                     WHERE s.token=%s AND s.expires_at > NOW()""",
                 (token,)
@@ -247,7 +249,7 @@ def handler(event: dict, context) -> dict:
             cols = ["id","account_id","username","email","role","is_owner","staff_perms",
                     "status","freeze_reason","block_reason","verified",
                     "balance_rub","locked_rub","deals_count","joined_at",
-                    "perma_banned","chat_banned"]
+                    "perma_banned","chat_banned","country"]
             user = user_row_to_dict(row, cols)
             cur.execute(f"UPDATE {SCHEMA}.users SET last_seen_at=NOW() WHERE id=%s", (user["id"],))
             conn.commit()

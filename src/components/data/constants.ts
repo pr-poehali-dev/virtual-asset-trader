@@ -553,3 +553,18 @@ export const LANGUAGES: LangInfo[] = [
   { code: "de", label: "Deutsch", flag: "🇩🇪" },
   { code: "zh", label: "中文", flag: "🇨🇳" },
 ];
+
+// ─── COUNTRIES ────────────────────────────────────────────────────────────────
+// Выбирается при регистрации: определяет валюту и язык интерфейса по умолчанию.
+
+export type CountryInfo = { code: string; label: string; flag: string; currency: string; lang: string };
+export const COUNTRIES: CountryInfo[] = [
+  { code: "RU", label: "Россия", flag: "🇷🇺", currency: "RUB", lang: "ru" },
+  { code: "KZ", label: "Казахстан", flag: "🇰🇿", currency: "KZT", lang: "kz" },
+  { code: "UA", label: "Украина", flag: "🇺🇦", currency: "UAH", lang: "uk" },
+  { code: "BY", label: "Беларусь", flag: "🇧🇾", currency: "BYN", lang: "ru" },
+  { code: "US", label: "США", flag: "🇺🇸", currency: "USD", lang: "en" },
+  { code: "DE", label: "Германия", flag: "🇩🇪", currency: "EUR", lang: "de" },
+  { code: "CN", label: "Китай", flag: "🇨🇳", currency: "USDT", lang: "zh" },
+  { code: "OTHER", label: "Другая страна", flag: "🌍", currency: "USD", lang: "en" },
+];

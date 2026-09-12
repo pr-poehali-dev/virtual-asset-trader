@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, apiErrorMessage, type ApiPartnerStatus, type ApiPartnerPlatform } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
+import { PartnerPromoBanner } from "@/components/pages/partner/PartnerPromoBanner";
 
 const PLATFORMS = ["Twitch", "YouTube", "TikTok", "VK Play", "Kick", "Другое"];
 const MIN_SUBSCRIBERS = 2000;
@@ -65,6 +66,9 @@ function ActivePartnerView({ status }: { status: ApiPartnerStatus }) {
           </p>
         </div>
       </div>
+
+      {/* Анимированный промо-баннер — доступен только реальным партнёрам сайта */}
+      <PartnerPromoBanner />
 
       {/* Платформы */}
       {status.platforms && status.platforms.length > 0 && (

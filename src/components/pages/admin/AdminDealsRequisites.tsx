@@ -1,19 +1,8 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  PLATFORM_COMMISSION,
-  INITIAL_REQUISITES,
-  Requisite,
-} from "@/components/data/constants";
-import { useAuth } from "@/context/AuthContext";
+import { PLATFORM_COMMISSION } from "@/components/data/constants";
 import { api, type ApiDeal } from "@/api/client";
-
-let reqCounter = INITIAL_REQUISITES.length + 1;
-function genReqId() {
-  return `req-${String(reqCounter++).padStart(3, "0")}`;
-}
 
 // ─── DEALS TAB ────────────────────────────────────────────────────────────────
 
@@ -116,113 +105,6 @@ export function AdminDealsTab() {
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── REQUISITES TAB ────────────────────────────────────────────────────────────
-
-export function AdminRequisitesTab() {
-  const { requisites, addRequisite, toggleRequisite, deleteRequisite } = useAuth();
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState<Partial<Requisite>>({ type: "Банковская карта", currency: "RUB", active: true });
-
-  const handleAdd = () => {
-    if (!form.name || !form.details) return;
-    addRequisite({
-      id: genReqId(),
-      name: form.name!,
-      type: form.type!,
-      details: form.details!,
-      bank: form.bank,
-      currency: form.currency!,
-      active: true,
-    });
-    setForm({ type: "Банковская карта", currency: "RUB", active: true });
-    setShowAdd(false);
-  };
-
-  return (
-    <div className="animate-fade-in space-y-4">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="font-display font-semibold text-base text-foreground">Реквизиты вывода</h2>
-        <Button size="sm" className="bg-gold text-background hover:bg-gold/90 font-bold text-xs" onClick={() => setShowAdd((p) => !p)}>
-          <Icon name={showAdd ? "X" : "Plus"} size={13} className="mr-1.5" />
-          {showAdd ? "Отмена" : "Добавить"}
-        </Button>
-      </div>
-
-      {showAdd && (
-        <div className="bg-surface border border-gold/20 rounded-xl p-5 space-y-3">
-          <h3 className="font-display font-semibold text-sm text-foreground">Новый реквизит</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Название *</label>
-              <Input placeholder="Сбербанк" value={form.name ?? ""} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="bg-background border-border text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Тип</label>
-              <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-                className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground">
-                <option>Банковская карта</option>
-                <option>СБП</option>
-                <option>Электронный кошелёк</option>
-                <option>Криптовалюта</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Реквизиты *</label>
-              <Input placeholder="1234 5678 9012 3456" value={form.details ?? ""} onChange={(e) => setForm((p) => ({ ...p, details: e.target.value }))} className="bg-background border-border text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Банк</label>
-              <Input placeholder="Сбербанк" value={form.bank ?? ""} onChange={(e) => setForm((p) => ({ ...p, bank: e.target.value }))} className="bg-background border-border text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Валюта</label>
-              <select value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
-                className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground">
-                <option value="RUB">RUB</option>
-                <option value="USDT">USDT</option>
-              </select>
-            </div>
-          </div>
-          <Button className="bg-gold text-background hover:bg-gold/90 font-bold text-sm" onClick={handleAdd}>
-            Добавить реквизит
-          </Button>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {requisites.length === 0 && (
-          <div className="bg-surface border border-border rounded-xl p-8 text-center text-muted-foreground">
-            <Icon name="CreditCard" size={28} className="mx-auto mb-2 opacity-20" />
-            <p className="text-sm">Нет реквизитов</p>
-          </div>
-        )}
-        {requisites.map((r) => (
-          <div key={r.id} className="bg-surface border border-border rounded-xl p-4 flex items-center gap-4">
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${r.active ? "bg-gold/10 border border-gold/30" : "bg-background border border-border"}`}>
-              <Icon name={r.type === "Криптовалюта" ? "Bitcoin" : r.type === "Электронный кошелёк" ? "Wallet" : "CreditCard"} size={16} className={r.active ? "text-gold" : "text-muted-foreground"} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm text-foreground">{r.name}</div>
-              <div className="text-xs text-muted-foreground">{r.type} · {r.currency}</div>
-              <div className="font-mono text-xs text-foreground mt-0.5">{r.details}</div>
-            </div>
-            <div className="flex gap-2 items-center shrink-0">
-              <button onClick={() => toggleRequisite(r.id)}
-                className={`text-xs px-2.5 py-1 rounded-lg border font-semibold transition-colors ${r.active ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" : "text-muted-foreground border-border bg-background"}`}>
-                {r.active ? "Активен" : "Откл."}
-              </button>
-              <button onClick={() => deleteRequisite(r.id)}
-                className="text-xs px-2 py-1 rounded-lg bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20">
-                <Icon name="Trash2" size={12} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

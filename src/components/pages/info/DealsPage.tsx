@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { STEPS, STATUS_MAP } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import { api, type ApiDealChatMessage } from "@/api/client";
 
 const TERMINAL = ["completed", "refunded", "cancelled"];
@@ -11,6 +12,7 @@ const ACTIVE_STATUSES = ["escrow", "hold", "hold_cs2", "hold_pubg"];
 
 export function DealsPage() {
   const { deals, user, openDispute, sendDisputeMessage, refreshDeals } = useAuth();
+  const { t } = useCurrency();
   const [showClosed, setShowClosed] = useState(false);
   const [selected, setSelected] = useState<typeof deals[0] | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -25,6 +27,13 @@ export function DealsPage() {
   const [dealChatLoading, setDealChatLoading] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelForm, setShowCancelForm] = useState(false);
+
+  // Отзыв о продавце после завершения сделки
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSending, setReviewSending] = useState(false);
+  const [reviewSentIds, setReviewSentIds] = useState<Record<string, boolean>>({});
+  const [reviewError, setReviewError] = useState("");
 
   const userDeals = user ? deals.filter((d) => d.buyerId === user.id || d.sellerId === user.id) : deals;
   const activeDeals = userDeals.filter((d) => !TERMINAL.includes(d.status));
@@ -137,6 +146,25 @@ export function DealsPage() {
     await sendDisputeMessage(dealId, disputeInput.trim());
     setDisputeInput("");
     await refreshDeals();
+  };
+
+  const handleSendReview = async (dealId: string, sellerId: string) => {
+    if (!reviewText.trim()) {
+      setReviewError("Напишите текст отзыва");
+      return;
+    }
+    setReviewSending(true);
+    setReviewError("");
+    try {
+      await api.finance.review(sellerId, reviewRating, reviewText.trim(), dealId);
+      setReviewSentIds((prev) => ({ ...prev, [dealId]: true }));
+      setReviewText("");
+      setReviewRating(5);
+    } catch {
+      setReviewError("Не удалось отправить отзыв. Попробуйте позже.");
+    } finally {
+      setReviewSending(false);
+    }
   };
 
   if (!user) {
@@ -314,6 +342,48 @@ export function DealsPage() {
                   <Icon name="CheckCircle" size={13} />Сделка успешно завершена
                 </div>
               )}
+
+              {/* Предложение оставить отзыв о продавце — только покупателю, только один раз на сделку */}
+              {selectedFresh.status === "completed" && user?.id === selectedFresh.buyerId &&
+                !selectedFresh.reviewed && !reviewSentIds[selectedFresh.id] && (
+                <div className="bg-surface border border-gold/20 rounded-lg p-4 space-y-2.5">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Icon name="Star" size={13} className="text-gold" />
+                    Расскажите, как прошла сделка с {selectedFresh.sellerName}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <button key={s} onClick={() => setReviewRating(s)}>
+                        <Icon name="Star" size={18} className={s <= reviewRating ? "text-gold" : "text-border"} />
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    placeholder="Напишите отзыв о продавце..."
+                    value={reviewText}
+                    onChange={(e) => { setReviewText(e.target.value); setReviewError(""); }}
+                    className="bg-background border-border text-xs h-8"
+                  />
+                  {reviewError && (
+                    <p className="text-[11px] text-amber-400 flex items-center gap-1"><Icon name="AlertTriangle" size={11} />{reviewError}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full bg-gold text-background hover:bg-gold/90 font-semibold text-xs"
+                    disabled={reviewSending}
+                    onClick={() => handleSendReview(selectedFresh.id, selectedFresh.sellerId)}
+                  >
+                    {reviewSending ? <Icon name="Loader" size={13} className="animate-spin mr-1.5" /> : <Icon name="Send" size={13} className="mr-1.5" />}
+                    Отправить отзыв
+                  </Button>
+                </div>
+              )}
+              {selectedFresh.status === "completed" && user?.id === selectedFresh.buyerId &&
+                (selectedFresh.reviewed || reviewSentIds[selectedFresh.id]) && (
+                <div className="bg-background border border-border rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2">
+                  <Icon name="CheckCircle" size={13} className="text-emerald-400" />Спасибо, вы уже оставили отзыв по этой сделке
+                </div>
+              )}
               {selectedFresh.status === "refunded" && (
                 <div className="bg-blue-400/10 border border-blue-400/20 rounded-lg p-3 text-xs text-blue-400 flex items-center gap-2">
                   <Icon name="RotateCcw" size={13} />Средства возвращены покупателю
@@ -376,7 +446,7 @@ export function DealsPage() {
 
               {selectedFresh.status === "dispute" && showDisputeChat && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground font-semibold">Чат по спору</p>
+                  <p className="text-xs text-muted-foreground font-semibold">{t("dispute_chat")}</p>
                   <div className="bg-background border border-border rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
                     {(selectedFresh.disputeMessages ?? []).map((m, i) => (
                       <div key={i} className="text-xs">
@@ -387,7 +457,7 @@ export function DealsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Сообщение..."
+                      placeholder={t("write_message")}
                       value={disputeInput}
                       onChange={(e) => setDisputeInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSendMessage(selectedFresh.id)}
@@ -405,16 +475,16 @@ export function DealsPage() {
                 <div className="space-y-2 pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
                     <Icon name="MessageCircle" size={12} />
-                    Чат со {user?.id === selectedFresh.buyerId ? "продавцом" : "покупателем"}
+                    {t("chat_with_prefix")} {user?.id === selectedFresh.buyerId ? t("chat_with_seller") : t("chat_with_buyer")}
                   </p>
                   <div className="bg-background border border-border rounded-lg p-3 max-h-40 overflow-y-auto space-y-1.5">
                     {dealChat.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-2">Сообщений пока нет</p>
+                      <p className="text-xs text-muted-foreground text-center py-2">{t("no_messages")}</p>
                     ) : (
                       dealChat.map((m) => (
                         <div key={m.id} className={`text-xs ${m.fromUserId === user?.id ? "text-right" : ""}`}>
                           <span className="font-semibold text-foreground">
-                            {m.fromUserId === user?.id ? "Вы" : (m.role === "buyer" ? selectedFresh.buyerName : selectedFresh.sellerName)}:{" "}
+                            {m.fromUserId === user?.id ? t("you_label") : (m.role === "buyer" ? selectedFresh.buyerName : selectedFresh.sellerName)}:{" "}
                           </span>
                           <span className="text-muted-foreground">{m.text}</span>
                         </div>
@@ -423,7 +493,7 @@ export function DealsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Сообщение..."
+                      placeholder={t("write_message")}
                       value={dealChatInput}
                       onChange={(e) => setDealChatInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSendDealChat(selectedFresh.id)}

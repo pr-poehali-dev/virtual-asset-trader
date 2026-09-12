@@ -22,6 +22,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     admin: "Админ",
     games: "Ставки",
     chats: "Чаты",
+    chats_subtitle: "Переписка с продавцами и покупателями по вашим сделкам",
+    no_chats: "Пока нет сделок с перепиской",
+    select_dialog: "Выберите диалог из списка слева",
+    dispute_chat: "Чат по спору",
+    deal_chat: "Чат по сделке",
+    seller_label: "Продавец",
+    buyer_label: "Покупатель",
+    no_messages: "Сообщений пока нет",
+    write_message: "Написать сообщение...",
+    arbiter_label: "Арбитр",
+    dispute_label: "Спор",
+    login_required_chats: "Войдите в аккаунт",
+    login_required_chats_desc: "Чаты доступны только авторизованным пользователям",
+    you_label: "Вы",
+    chat_with_seller: "продавцом",
+    chat_with_buyer: "покупателем",
+    chat_with_prefix: "Чат со",
   },
   en: {
     home: "Home", catalog: "Catalog", deals: "Deals", about: "About",
@@ -41,6 +58,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     admin: "Admin",
     games: "Bets",
     chats: "Chats",
+    chats_subtitle: "Correspondence with sellers and buyers on your deals",
+    no_chats: "No deals with correspondence yet",
+    select_dialog: "Select a dialog from the list on the left",
+    dispute_chat: "Dispute chat",
+    deal_chat: "Deal chat",
+    seller_label: "Seller",
+    buyer_label: "Buyer",
+    no_messages: "No messages yet",
+    write_message: "Write a message...",
+    arbiter_label: "Arbiter",
+    dispute_label: "Dispute",
+    login_required_chats: "Sign in to your account",
+    login_required_chats_desc: "Chats are available only to logged-in users",
+    you_label: "You",
+    chat_with_seller: "the seller",
+    chat_with_buyer: "the buyer",
+    chat_with_prefix: "Chat with",
   },
   kz: {
     home: "Басты бет", catalog: "Каталог", deals: "Мәмілелер", about: "Платформа туралы",
@@ -59,6 +93,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "Қорғалған байланыс",
     admin: "Әкімші",
     chats: "Чаттар",
+    chats_subtitle: "Мәмілелер бойынша сатушылар мен сатып алушылармен хат алмасу",
+    no_chats: "Әзірге хат алмасумен мәмілелер жоқ",
+    select_dialog: "Сол жақтағы тізімнен диалогты таңдаңыз",
+    dispute_chat: "Дау чаты",
+    deal_chat: "Мәміле чаты",
+    seller_label: "Сатушы",
+    buyer_label: "Сатып алушы",
+    no_messages: "Әзірге хабарлама жоқ",
+    write_message: "Хабарлама жазу...",
+    arbiter_label: "Төреші",
+    dispute_label: "Дау",
+    login_required_chats: "Аккаунтқа кіріңіз",
+    login_required_chats_desc: "Чаттар тек тіркелген пайдаланушыларға қолжетімді",
+    you_label: "Сіз",
+    chat_with_seller: "сатушымен",
+    chat_with_buyer: "сатып алушымен",
+    chat_with_prefix: "Чат",
   },
   uk: {
     home: "Головна", catalog: "Каталог", deals: "Угоди", about: "Про платформу",
@@ -77,6 +128,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "Захищене з'єднання",
     admin: "Адмін",
     chats: "Чати",
+    chats_subtitle: "Листування з продавцями та покупцями за вашими угодами",
+    no_chats: "Поки немає угод із листуванням",
+    select_dialog: "Виберіть діалог зі списку зліва",
+    dispute_chat: "Чат по спору",
+    deal_chat: "Чат по угоді",
+    seller_label: "Продавець",
+    buyer_label: "Покупець",
+    no_messages: "Повідомлень поки немає",
+    write_message: "Написати повідомлення...",
+    arbiter_label: "Арбітр",
+    dispute_label: "Спір",
+    login_required_chats: "Увійдіть в акаунт",
+    login_required_chats_desc: "Чати доступні лише авторизованим користувачам",
+    you_label: "Ви",
+    chat_with_seller: "продавцем",
+    chat_with_buyer: "покупцем",
+    chat_with_prefix: "Чат з",
   },
   de: {
     home: "Startseite", catalog: "Katalog", deals: "Deals", about: "Über uns",
@@ -95,6 +163,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "Sichere Verbindung",
     admin: "Admin",
     chats: "Chats",
+    chats_subtitle: "Korrespondenz mit Verkäufern und Käufern zu Ihren Deals",
+    no_chats: "Noch keine Deals mit Korrespondenz",
+    select_dialog: "Wählen Sie einen Dialog aus der Liste links",
+    dispute_chat: "Streit-Chat",
+    deal_chat: "Deal-Chat",
+    seller_label: "Verkäufer",
+    buyer_label: "Käufer",
+    no_messages: "Noch keine Nachrichten",
+    write_message: "Nachricht schreiben...",
+    arbiter_label: "Schlichter",
+    dispute_label: "Streit",
+    login_required_chats: "Melden Sie sich an",
+    login_required_chats_desc: "Chats sind nur für angemeldete Benutzer verfügbar",
+    you_label: "Sie",
+    chat_with_seller: "dem Verkäufer",
+    chat_with_buyer: "dem Käufer",
+    chat_with_prefix: "Chat mit",
   },
   zh: {
     home: "首页", catalog: "目录", deals: "交易", about: "关于平台",
@@ -113,6 +198,23 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     protected: "安全连接",
     admin: "管理员",
     chats: "聊天",
+    chats_subtitle: "与买卖双方就您的交易进行的往来消息",
+    no_chats: "暂无带聊天记录的交易",
+    select_dialog: "从左侧列表中选择一个对话",
+    dispute_chat: "争议聊天",
+    deal_chat: "交易聊天",
+    seller_label: "卖家",
+    buyer_label: "买家",
+    no_messages: "暂无消息",
+    write_message: "输入消息...",
+    arbiter_label: "仲裁员",
+    dispute_label: "争议",
+    login_required_chats: "请登录账户",
+    login_required_chats_desc: "聊天功能仅对登录用户开放",
+    you_label: "您",
+    chat_with_seller: "卖家",
+    chat_with_buyer: "买家",
+    chat_with_prefix: "与聊天",
   },
 };
 
@@ -139,14 +241,34 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const fetchRates = async () => {
       try {
-        // Используем frankfurter.app — бесплатный, без ключа, CORS-разрешённый
-        // base=RUB, конвертируем в нужные валюты
-        const res = await fetch("https://api.frankfurter.app/latest?from=RUB&to=USD,EUR,KZT,UAH,BYN");
+        // ЦБ РФ — бесплатный, без ключа, CORS-разрешённый, поддерживает RUB/KZT/UAH/BYN
+        // (frankfurter.app эти валюты не поддерживает вообще, поэтому был заменён)
+        const res = await fetch("https://www.cbr-xml-daily.ru/daily_json.js");
         if (!res.ok) throw new Error("fetch failed");
         const data = await res.json();
-        if (data.rates) {
-          // frankfurter возвращает сколько целевой валюты за 1 RUB
-          setRates({ RUB: 1, USDT: data.rates.USD ?? FALLBACK_RATES.USDT, ...data.rates });
+        const valute = data?.Valute;
+        if (valute) {
+          // ЦБ даёт "сколько рублей стоит X единиц валюты" (Value за Nominal единиц) —
+          // нам нужно обратное: сколько валюты за 1 рубль.
+          const rubPerUnit = (code: string) => {
+            const v = valute[code];
+            if (!v || !v.Value || !v.Nominal) return null;
+            return v.Value / v.Nominal; // рублей за 1 единицу валюты
+          };
+          const usd = rubPerUnit("USD");
+          const eur = rubPerUnit("EUR");
+          const kzt = rubPerUnit("KZT");
+          const uah = rubPerUnit("UAH");
+          const byn = rubPerUnit("BYN");
+          setRates({
+            RUB: 1,
+            USD: usd ? 1 / usd : FALLBACK_RATES.USD,
+            USDT: usd ? 1 / usd : FALLBACK_RATES.USDT,
+            EUR: eur ? 1 / eur : FALLBACK_RATES.EUR,
+            KZT: kzt ? 1 / kzt : FALLBACK_RATES.KZT,
+            UAH: uah ? 1 / uah : FALLBACK_RATES.UAH,
+            BYN: byn ? 1 / byn : FALLBACK_RATES.BYN,
+          });
         }
       } catch {
         // Используем резервные курсы

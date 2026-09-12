@@ -113,6 +113,13 @@ def handler(event: dict, context) -> dict:
                 shield=True)
             released_unverified += 1
 
+        # ── 3. Снимаем поднятие в топ (boost) по истечении 24 часов ────────────
+        cur.execute(
+            f"""UPDATE {SCHEMA}.products SET boosted=FALSE, boost_until=NULL
+                WHERE boosted=TRUE AND boost_until IS NOT NULL AND boost_until <= NOW()"""
+        )
+        released_boosts = cur.rowcount
+
         conn.commit()
 
         return {
@@ -122,6 +129,7 @@ def handler(event: dict, context) -> dict:
                 "ok": True,
                 "released_holds": released_holds,
                 "released_unverified": released_unverified,
+                "released_boosts": released_boosts,
             })
         }
 

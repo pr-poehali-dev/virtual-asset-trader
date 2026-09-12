@@ -6,9 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { api, apiErrorMessage } from "@/api/client";
 void Button; void Input; void useAuth; void apiErrorMessage;
 import { AdminStatsTab, AdminUsersTab } from "@/components/pages/admin/AdminStatsUsers";
-import { AdminDealsTab, AdminRequisitesTab } from "@/components/pages/admin/AdminDealsRequisites";
+import { AdminDealsTab } from "@/components/pages/admin/AdminDealsRequisites";
 import {
-  AdminWithdrawalsTab,
   AdminDepositsTab,
   AdminStaffTab,
 } from "@/components/pages/admin/AdminFinanceStaff";
@@ -17,6 +16,7 @@ import { AdminDepositRequisitesTab, AdminPartnersTab } from "@/components/pages/
 import { AdminDisputesTab, AdminSupportTab } from "@/components/pages/admin/AdminSupportDisputes";
 import { AdminMonitorTab } from "@/components/pages/admin/AdminMonitor";
 import { AdminGamesTab } from "@/components/pages/admin/AdminGames";
+import { AdminGiveawaysTab } from "@/components/pages/admin/AdminGiveaways";
 import { AdminTeamTab } from "@/components/pages/admin/AdminTeam";
 import { AdminSecurityTab } from "@/components/pages/admin/AdminSecurity";
 import { AdminCategoriesTab } from "@/components/pages/admin/AdminCategories";
@@ -126,12 +126,11 @@ type AdminTab =
   | "users"
   | "deals"
   | "games"
+  | "giveaways"
   | "categories"
   | "disputes"
   | "support-chat"
-  | "requisites"
   | "dep-requisites"
-  | "withdrawals"
   | "deposits"
   | "staff"
   | "verifications"
@@ -146,12 +145,11 @@ const TABS: { id: AdminTab; label: string; icon: string }[] = [
   { id: "users", label: "Пользователи", icon: "Users" },
   { id: "deals", label: "Сделки", icon: "ArrowRightLeft" },
   { id: "games", label: "Ставки", icon: "Coins" },
+  { id: "giveaways", label: "Раздачи", icon: "Gift" },
   { id: "categories", label: "Категории", icon: "Tags" },
   { id: "disputes", label: "Споры", icon: "AlertTriangle" },
   { id: "support-chat", label: "Поддержка", icon: "Headphones" },
-  { id: "requisites", label: "Реквизиты вывода", icon: "CreditCard" },
   { id: "dep-requisites", label: "Реквизиты пополн.", icon: "ArrowDownCircle" },
-  { id: "withdrawals", label: "Выводы", icon: "Banknote" },
   { id: "deposits", label: "Пополнения", icon: "PlusCircle" },
   { id: "staff", label: "Сотрудники", icon: "UserCheck" },
   { id: "verifications", label: "Верификации", icon: "ShieldCheck" },
@@ -278,12 +276,11 @@ export function AdminPage() {
       {tab === "users" && <AdminUsersTab />}
       {tab === "deals" && <AdminDealsTab />}
       {tab === "games" && <AdminGamesTab />}
+      {tab === "giveaways" && <AdminGiveawaysTab />}
       {tab === "categories" && <AdminCategoriesTab />}
       {tab === "disputes" && <AdminDisputesTab />}
       {tab === "support-chat" && <AdminSupportTab />}
-      {tab === "requisites" && <AdminRequisitesTab />}
       {tab === "dep-requisites" && <AdminDepositRequisitesTab />}
-      {tab === "withdrawals" && <AdminWithdrawalsTab />}
       {tab === "deposits" && <AdminDepositsTab />}
       {tab === "staff" && <AdminStaffTab />}
       {tab === "verifications" && <AdminVerificationsTab />}

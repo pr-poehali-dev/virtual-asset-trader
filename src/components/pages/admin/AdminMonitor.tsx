@@ -29,6 +29,85 @@ function timeAgo(isoStr: string) {
   return `${Math.floor(h / 24)} д назад`;
 }
 
+function VisitsStatsCard() {
+  const [stats, setStats] = useState<{ today: number; week: number; month: number; total: number; daily: { date: string; visitors: number }[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.monitor.visitsStats();
+      setStats(res);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const maxDaily = stats ? Math.max(1, ...stats.daily.map((d) => d.visitors)) : 1;
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display font-semibold text-sm text-foreground flex items-center gap-2">
+          <Icon name="Users" size={15} className="text-gold" />
+          Посетители сайта
+        </h3>
+        <button onClick={load} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+          <Icon name={loading ? "Loader" : "RefreshCw"} size={12} className={loading ? "animate-spin" : ""} />Обновить
+        </button>
+      </div>
+
+      {loading && !stats ? (
+        <div className="flex justify-center py-8"><Icon name="Loader" size={20} className="text-gold animate-spin" /></div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-background border border-border rounded-lg p-3">
+              <p className="text-[11px] text-muted-foreground mb-1">Сегодня</p>
+              <p className="text-xl font-bold text-foreground">{stats?.today ?? 0}</p>
+            </div>
+            <div className="bg-background border border-border rounded-lg p-3">
+              <p className="text-[11px] text-muted-foreground mb-1">За 7 дней</p>
+              <p className="text-xl font-bold text-foreground">{stats?.week ?? 0}</p>
+            </div>
+            <div className="bg-background border border-border rounded-lg p-3">
+              <p className="text-[11px] text-muted-foreground mb-1">За 30 дней</p>
+              <p className="text-xl font-bold text-foreground">{stats?.month ?? 0}</p>
+            </div>
+            <div className="bg-background border border-border rounded-lg p-3">
+              <p className="text-[11px] text-muted-foreground mb-1">Всего</p>
+              <p className="text-xl font-bold text-gold">{stats?.total ?? 0}</p>
+            </div>
+          </div>
+
+          {stats && stats.daily.length > 0 && (
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-2">Уникальные посетители за последние 30 дней</p>
+              <div className="flex items-end gap-0.5 h-20">
+                {stats.daily.map((d) => (
+                  <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                    <div
+                      className="w-full bg-gold/60 hover:bg-gold rounded-t-sm transition-colors"
+                      style={{ height: `${Math.max(4, (d.visitors / maxDaily) * 100)}%` }}
+                    />
+                    <div className="absolute -top-6 hidden group-hover:flex bg-background border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground whitespace-nowrap">
+                      {d.date}: {d.visitors}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AdminMonitorTab() {
   const [events, setEvents] = useState<ApiMonitorEvent[]>([]);
   const [openCount, setOpenCount] = useState(0);
@@ -75,6 +154,8 @@ export function AdminMonitorTab() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <VisitsStatsCard />
+
       {/* Сводка */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-surface border border-border rounded-xl p-4">

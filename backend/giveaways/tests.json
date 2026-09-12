@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "List public giveaways",
+      "method": "GET",
+      "path": "/giveaways",
+      "expectedStatus": 200,
+      "expectedBody": {"giveaways": []},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

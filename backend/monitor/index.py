@@ -163,4 +163,70 @@ def handler(event: dict, context) -> dict:
         finally:
             conn.close()
 
+    # ── POST /visit — фронтенд фиксирует посещение страницы (доступно всем) ───
+    # visitor_id — анонимный идентификатор из localStorage на фронте, не привязан к юзеру.
+    if path.endswith("/visit"):
+        visitor_id = (body.get("visitor_id") or "")[:64]
+        page_path  = (body.get("path") or "")[:255]
+        if not visitor_id:
+            return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "missing_visitor_id"})}
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.site_visits (visitor_id, path) VALUES (%s,%s)",
+                (visitor_id, page_path),
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+        finally:
+            conn.close()
+
+    # ── GET /visits-stats — статистика посещений для админки ──────────────────
+    # Возвращает уникальных посетителей за сегодня/неделю/месяц + график по дням (30 дней).
+    if path.endswith("/visits-stats"):
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            if not is_admin(get_user_by_token(cur, token)):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+
+            cur.execute(
+                f"""SELECT COUNT(DISTINCT visitor_id) FROM {SCHEMA}.site_visits
+                    WHERE created_at >= CURRENT_DATE"""
+            )
+            today = cur.fetchone()[0]
+
+            cur.execute(
+                f"""SELECT COUNT(DISTINCT visitor_id) FROM {SCHEMA}.site_visits
+                    WHERE created_at >= NOW() - INTERVAL '7 days'"""
+            )
+            week = cur.fetchone()[0]
+
+            cur.execute(
+                f"""SELECT COUNT(DISTINCT visitor_id) FROM {SCHEMA}.site_visits
+                    WHERE created_at >= NOW() - INTERVAL '30 days'"""
+            )
+            month = cur.fetchone()[0]
+
+            cur.execute(
+                f"""SELECT COUNT(DISTINCT visitor_id) FROM {SCHEMA}.site_visits"""
+            )
+            total = cur.fetchone()[0]
+
+            cur.execute(
+                f"""SELECT date_trunc('day', created_at)::date AS d, COUNT(DISTINCT visitor_id)
+                    FROM {SCHEMA}.site_visits
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                    GROUP BY d ORDER BY d"""
+            )
+            daily = [{"date": r[0].strftime("%d.%m"), "visitors": r[1]} for r in cur.fetchall()]
+
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "today": today, "week": week, "month": month, "total": total,
+                "daily": daily,
+            })}
+        finally:
+            conn.close()
+
     return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "not_found"})}

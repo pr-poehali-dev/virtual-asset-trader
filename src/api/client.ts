@@ -16,6 +16,7 @@ const URLS = {
   games: "https://functions.poehali.dev/81e75bfe-0ae5-45a5-bee5-bfa430b15eb9",
   security: "https://functions.poehali.dev/028a5ec8-d990-4d93-98ef-d1ebdb0f316c",
   "ai-support": "https://functions.poehali.dev/03171705-36ec-4004-acf3-440b75a3f829",
+  giveaways: "https://functions.poehali.dev/e6191fd9-2e14-40b6-8877-0f80cb18cc0a",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -132,11 +133,12 @@ async function req<T = unknown>(
 
 export const api = {
   auth: {
-    register: (username: string, email: string, password: string) =>
+    register: (username: string, email: string, password: string, country?: string) =>
       req<{ token: string; user: ApiUser }>("auth", "/register", "POST", {
         username,
         email,
         password,
+        country,
       }),
 
     login: (login, password) =>
@@ -281,6 +283,17 @@ export const api = {
         { enabled },
       ),
 
+    giveawaysStatus: () =>
+      req<{ giveawaysEnabled: boolean }>("finance", "/giveaways-status"),
+
+    setGiveawaysStatus: (enabled: boolean) =>
+      req<{ ok: boolean; giveawaysEnabled: boolean }>(
+        "finance",
+        "/admin/giveaways-status",
+        "POST",
+        { enabled },
+      ),
+
     deposit: (amount: number, currency: string) =>
       req<{
         id: string;
@@ -315,8 +328,8 @@ export const api = {
     myWithdrawals: () =>
       req<{ withdrawals: ApiWithdrawal[] }>("finance", "/withdrawals"),
 
-    review: (seller_id: string, rating: number, text: string) =>
-      req("finance", "/review", "POST", { seller_id, rating, text }),
+    review: (seller_id: string, rating: number, text: string, deal_id?: string) =>
+      req("finance", "/review", "POST", { seller_id, rating, text, deal_id }),
 
     // Admin
     adminUsers: () => req<{ users: ApiAdminUser[] }>("finance", "/admin/users"),
@@ -558,6 +571,15 @@ export const api = {
 
     resolveAll: () =>
       req<{ ok: boolean }>("monitor", "/resolve-all", "POST", {}),
+
+    trackVisit: (visitor_id: string, path: string) =>
+      req<{ ok: boolean }>("monitor", "/visit", "POST", { visitor_id, path }),
+
+    visitsStats: () =>
+      req<{
+        today: number; week: number; month: number; total: number;
+        daily: { date: string; visitors: number }[];
+      }>("monitor", "/visits-stats"),
   },
 
   games: {
@@ -583,6 +605,35 @@ export const api = {
       req<{ game: ApiGame }>("games", "/games/finish-now", "POST", { game_id }),
 
     history: () => req<{ games: ApiGame[] }>("games", "/games/history"),
+  },
+
+  giveaways: {
+    list: () => req<{ giveaways: ApiGiveaway[] }>("giveaways", "/giveaways"),
+
+    history: () => req<{ giveaways: ApiGiveaway[] }>("giveaways", "/giveaways/history"),
+
+    adminList: () => req<{ giveaways: ApiGiveaway[] }>("giveaways", "/giveaways/admin"),
+
+    create: (data: {
+      title: string;
+      description?: string;
+      prize_description: string;
+      prize_amount?: number;
+      requirement_type: "deposit" | "sell";
+      requirement_amount: number;
+      requirement_days: number;
+      duration_days: number;
+      winners_count?: number;
+    }) => req<{ giveaway: ApiGiveaway }>("giveaways", "/giveaways", "POST", data),
+
+    toggleVisibility: (id: string) =>
+      req<{ ok: boolean }>("giveaways", "/giveaways/toggle-visibility", "POST", { id }),
+
+    cancel: (id: string) =>
+      req<{ ok: boolean }>("giveaways", "/giveaways/cancel", "POST", { id }),
+
+    join: (id: string) =>
+      req<{ ok: boolean }>("giveaways", "/giveaways/join", "POST", { id }),
   },
 
   security: {
@@ -686,6 +737,7 @@ export type ApiUser = {
   permaBanned?: boolean;
   chat_banned?: boolean;
   chatBanned?: boolean;
+  country?: string;
 };
 
 export type ApiAdminUser = ApiUser & {
@@ -744,6 +796,7 @@ export type ApiDeal = {
   sellerShipped?: boolean;
   sellerShippedAt?: string;
   cancelReason?: string;
+  reviewed?: boolean;
   disputeMessages: {
     from: string;
     role: string;
@@ -1036,6 +1089,30 @@ export type ApiGame = {
   finishedAt?: string | null;
   participantsCount: number;
   bets?: ApiGameBet[];
+};
+
+export type ApiGiveawayWinner = { userId: string; username: string };
+
+export type ApiGiveaway = {
+  id: string;
+  title: string;
+  description?: string | null;
+  prizeDescription: string;
+  prizeAmount?: number | null;
+  requirementType: "deposit" | "sell";
+  requirementAmount: number;
+  requirementDays: number;
+  winnersCount: number;
+  status: "active" | "finished" | "cancelled";
+  visible: boolean;
+  createdBy: string;
+  creatorName?: string | null;
+  createdAt: string;
+  expiresAt: string;
+  finishedAt?: string | null;
+  participantsCount: number;
+  joined?: boolean;
+  winners?: ApiGiveawayWinner[];
 };
 
 export type ApiTeamMember = {

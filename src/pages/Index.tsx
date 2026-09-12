@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Nav, Footer } from "@/components/layout/NavFooter";
 import { HomePage, CatalogPage, AddProductPage } from "@/components/pages/HomePages";
 import { DealsPage, EscrowPage, SupportPage, AboutPage, ChatsPage } from "@/components/pages/InfoPages";
+import { GiveawaysPage } from "@/components/pages/GiveawaysPage";
 import { GamesPage } from "@/components/pages/GamesPage";
 import { CabinetPage, LoginPage, RegisterPage, SellerProfilePage, FrozenPage } from "@/components/pages/AuthPages";
 import { VerifyPage } from "@/components/pages/VerifyPage";
@@ -96,6 +97,7 @@ function AppContent() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [frozenReason, setFrozenReason] = useState<string | undefined>();
   const [maintenance, setMaintenance] = useState(false);
+  const [giveawaysEnabled, setGiveawaysEnabled] = useState(true);
   const { user, loading } = useAuth();
 
   const setPage = useCallback((p: string) => {
@@ -119,6 +121,23 @@ function AppContent() {
     const t = setInterval(checkMaintenance, 30000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    api.finance.giveawaysStatus()
+      .then(({ giveawaysEnabled: v }) => setGiveawaysEnabled(v))
+      .catch(() => {});
+  }, []);
+
+  // Анонимный трекинг посещений для мониторинга в админке (без сбора личных данных)
+  useEffect(() => {
+    let visitorId = localStorage.getItem("gs_visitor_id");
+    if (!visitorId) {
+      visitorId = crypto.randomUUID();
+      localStorage.setItem("gs_visitor_id", visitorId);
+    }
+    api.monitor.trackVisit(visitorId, location.pathname).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   useEffect(() => {
     if (user && (page === "login" || page === "register")) {
@@ -199,6 +218,7 @@ function AppContent() {
       case "verify": return <VerifyPage setActive={handleSetActive} />;
       case "deals": return <DealsPage />;
       case "chats": return <ChatsPage />;
+      case "giveaways": return <GiveawaysPage />;
       case "games": return <GamesPage />;
       case "escrow": return <EscrowPage />;
       case "support": {
@@ -222,7 +242,7 @@ function AppContent() {
         <div className="animated-bg-blob" />
         <div className="animated-bg-blob-2" />
       </div>
-      <Nav active={page} setActive={handleSetActive} isAdmin={isAdmin} />
+      <Nav active={page} setActive={handleSetActive} isAdmin={isAdmin} giveawaysEnabled={giveawaysEnabled} />
       <main className="pt-20 pb-16 md:pb-0">
         {renderPage()}
       </main>

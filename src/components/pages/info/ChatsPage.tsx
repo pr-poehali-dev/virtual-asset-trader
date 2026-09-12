@@ -3,6 +3,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import { api, type ApiDealChatMessage } from "@/api/client";
 
 // ─── ВКЛАДКА «ЧАТЫ» ─────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ import { api, type ApiDealChatMessage } from "@/api/client";
 
 export function ChatsPage() {
   const { deals, user, sendDisputeMessage, refreshDeals } = useAuth();
+  const { t } = useCurrency();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dealChat, setDealChat] = useState<ApiDealChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -64,9 +66,9 @@ export function ChatsPage() {
     return (
       <div className="max-w-lg mx-auto px-6 py-20 text-center animate-fade-in">
         <Icon name="Lock" size={40} className="mx-auto mb-4 text-muted-foreground opacity-30" />
-        <h2 className="font-display font-bold text-xl text-foreground mb-2">Войдите в аккаунт</h2>
+        <h2 className="font-display font-bold text-xl text-foreground mb-2">{t("login_required_chats")}</h2>
         <p className="text-muted-foreground text-sm">
-          Чаты доступны только авторизованным пользователям
+          {t("login_required_chats_desc")}
         </p>
       </div>
     );
@@ -74,8 +76,8 @@ export function ChatsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 animate-fade-in">
-      <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-1">Чаты</h1>
-      <p className="text-muted-foreground text-sm mb-8">Переписка с продавцами и покупателями по вашим сделкам</p>
+      <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-1">{t("chats")}</h1>
+      <p className="text-muted-foreground text-sm mb-8">{t("chats_subtitle")}</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Список диалогов */}
@@ -83,7 +85,7 @@ export function ChatsPage() {
           {myDeals.length === 0 ? (
             <div className="bg-surface border border-border rounded-xl p-8 text-center text-muted-foreground">
               <Icon name="MessageCircle" size={28} className="mx-auto mb-3 opacity-20" />
-              <p className="text-sm">Пока нет сделок с перепиской</p>
+              <p className="text-sm">{t("no_chats")}</p>
             </div>
           ) : myDeals.map((d) => {
             const isBuyer = user.id === d.buyerId;
@@ -99,7 +101,7 @@ export function ChatsPage() {
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="font-display font-semibold text-sm text-foreground truncate">{other}</span>
                   {d.status === "dispute" && (
-                    <span className="text-[9px] text-red-400 bg-red-400/10 border border-red-400/20 px-1.5 py-0.5 rounded-full shrink-0">Спор</span>
+                    <span className="text-[9px] text-red-400 bg-red-400/10 border border-red-400/20 px-1.5 py-0.5 rounded-full shrink-0">{t("dispute_label")}</span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{d.product}</p>
@@ -115,7 +117,7 @@ export function ChatsPage() {
             <div className="bg-surface border border-border rounded-xl flex items-center justify-center text-muted-foreground" style={{ minHeight: 400 }}>
               <div className="text-center">
                 <Icon name="MousePointerClick" size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Выберите диалог из списка слева</p>
+                <p className="text-sm">{t("select_dialog")}</p>
               </div>
             </div>
           ) : (
@@ -124,10 +126,10 @@ export function ChatsPage() {
                 <Icon name={isDispute ? "AlertTriangle" : "MessageCircle"} size={14} className={isDispute ? "text-red-400" : "text-gold"} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-foreground truncate">
-                    {isDispute ? "Чат по спору" : "Чат по сделке"} — {selected.product}
+                    {isDispute ? t("dispute_chat") : t("deal_chat")} — {selected.product}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {user.id === selected.buyerId ? "Продавец" : "Покупатель"}: {user.id === selected.buyerId ? selected.sellerName : selected.buyerName}
+                    {user.id === selected.buyerId ? t("seller_label") : t("buyer_label")}: {user.id === selected.buyerId ? selected.sellerName : selected.buyerName}
                   </p>
                 </div>
               </div>
@@ -135,7 +137,7 @@ export function ChatsPage() {
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {isDispute ? (
                   (selected.disputeMessages ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-6">Сообщений пока нет</p>
+                    <p className="text-xs text-muted-foreground text-center py-6">{t("no_messages")}</p>
                   ) : (
                     (selected.disputeMessages ?? []).map((m, i) => (
                       <div key={i}>
@@ -149,7 +151,7 @@ export function ChatsPage() {
                               m.from === user.username ? "bg-gold text-background rounded-br-sm" : "bg-secondary text-foreground rounded-bl-sm"
                             }`}>
                               {m.role === "arbiter" && (
-                                <p className="text-[10px] font-semibold mb-0.5 opacity-80">Арбитр</p>
+                                <p className="text-[10px] font-semibold mb-0.5 opacity-80">{t("arbiter_label")}</p>
                               )}
                               <p className="text-sm">{m.text}</p>
                               {m.time && <p className={`text-[10px] mt-0.5 ${m.from === user.username ? "text-background/60 text-right" : "text-muted-foreground"}`}>{m.time}</p>}
@@ -161,7 +163,7 @@ export function ChatsPage() {
                   )
                 ) : (
                   dealChat.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-6">Сообщений пока нет</p>
+                    <p className="text-xs text-muted-foreground text-center py-6">{t("no_messages")}</p>
                   ) : (
                     dealChat.map((m) => (
                       <div key={m.id} className={`flex ${m.fromUserId === user.id ? "justify-end" : "justify-start"}`}>
@@ -190,7 +192,7 @@ export function ChatsPage() {
                       handleSend();
                     }
                   }}
-                  placeholder="Написать сообщение..."
+                  placeholder={t("write_message")}
                   className="flex-1 bg-background border-border text-sm h-9"
                 />
                 <Button

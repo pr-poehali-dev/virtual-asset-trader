@@ -85,6 +85,28 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "maintenance": enabled})}
 
+        # ── GET /finance/giveaways-status — виден ли раздел "Раздачи" (публичный) ─
+        if method == "GET" and path.endswith("/giveaways-status"):
+            cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='giveaways_enabled'")
+            row = cur.fetchone()
+            is_on = not row or row[0] == "true"  # по умолчанию включён
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"giveawaysEnabled": is_on})}
+
+        # ── POST /finance/admin/giveaways-status — включить/выключить раздел ────
+        if method == "POST" and path.endswith("/admin/giveaways-status"):
+            user = get_user_by_token(cur, token)
+            if not user or not (user["role"] in ("admin",) or user.get("is_owner")):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "forbidden"})}
+            enabled = body.get("enabled", True)
+            cur.execute(
+                f"""INSERT INTO {SCHEMA}.platform_settings (key, value, updated_at)
+                    VALUES ('giveaways_enabled', %s, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+                ("true" if enabled else "false",)
+            )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "giveawaysEnabled": enabled})}
+
         # ── GET /finance/ai-support-status — глобальный статус ИИ в поддержке (публичный) ─
         if method == "GET" and path.endswith("/ai-support-status"):
             cur.execute(f"SELECT value FROM {SCHEMA}.platform_settings WHERE key='ai_support_enabled'")
@@ -393,31 +415,52 @@ def handler(event: dict, context) -> dict:
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"withdrawals": wds})}
 
         # ── POST /finance/review ──────────────────────────────────────────────
+        # deal_id опционален (для отзывов из старого UI без привязки к сделке),
+        # но если передан — привязываем отзыв к конкретной покупке и не даём
+        # оставить второй отзыв на ту же сделку.
         if method == "POST" and path.endswith("/review"):
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "unauthorized"})}
             seller_id = body.get("seller_id")
+            deal_id   = body.get("deal_id")
             rating    = int(body.get("rating") or 0)
             text      = (body.get("text") or "").strip()
 
             if not seller_id or not rating or not text:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "invalid_data"})}
 
-            # Только если есть завершённая сделка
-            cur.execute(
-                f"""SELECT id FROM {SCHEMA}.deals
-                    WHERE buyer_id=%s AND seller_id=%s
-                    AND status IN ('completed','hold','hold_cs2','hold_pubg','refunded')
-                    LIMIT 1""",
-                (user["id"], seller_id)
-            )
-            if not cur.fetchone():
-                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "not_buyer"})}
+            # Разрешаем отзыв, как только сделка реально совершена (деньги списаны
+            # с покупателя) — включая escrow, а не только терминальные статусы,
+            # иначе для категорий без холда отзыв нельзя оставить вообще никогда
+            # сразу после покупки.
+            if deal_id:
+                cur.execute(
+                    f"""SELECT id FROM {SCHEMA}.deals
+                        WHERE id=%s AND buyer_id=%s AND seller_id=%s
+                        AND status IN ('completed','escrow','hold','hold_cs2','hold_pubg','refunded')
+                        LIMIT 1""",
+                    (deal_id, user["id"], seller_id)
+                )
+                if not cur.fetchone():
+                    return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "not_buyer"})}
+                cur.execute(f"SELECT id FROM {SCHEMA}.reviews WHERE deal_id=%s", (deal_id,))
+                if cur.fetchone():
+                    return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "already_reviewed"})}
+            else:
+                cur.execute(
+                    f"""SELECT id FROM {SCHEMA}.deals
+                        WHERE buyer_id=%s AND seller_id=%s
+                        AND status IN ('completed','escrow','hold','hold_cs2','hold_pubg','refunded')
+                        LIMIT 1""",
+                    (user["id"], seller_id)
+                )
+                if not cur.fetchone():
+                    return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "not_buyer"})}
 
             rev_id = "r-" + secrets.token_hex(4)
             cur.execute(
-                f"INSERT INTO {SCHEMA}.reviews (id, seller_id, from_user_id, rating, text) VALUES (%s,%s,%s,%s,%s)",
-                (rev_id, seller_id, user["id"], rating, text)
+                f"INSERT INTO {SCHEMA}.reviews (id, seller_id, from_user_id, rating, text, deal_id) VALUES (%s,%s,%s,%s,%s,%s)",
+                (rev_id, seller_id, user["id"], rating, text, deal_id)
             )
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
