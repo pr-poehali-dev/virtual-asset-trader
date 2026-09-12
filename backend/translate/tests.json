@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Translate single text",
+      "method": "POST",
+      "path": "/",
+      "body": { "text": "Привет, как дела?", "target": "en" },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial",
+      "expectedBody": { "translated": "string" }
+    }
+  ]
+}

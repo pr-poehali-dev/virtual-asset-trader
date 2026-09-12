@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { api, getToken, setToken, clearToken, type ApiUser, type ApiProduct, type ApiDeal, type ApiNotification, type ApiWithdrawal, type ApiDeposit } from "@/api/client";
+import { api, getToken, setToken, clearToken, type ApiUser, type ApiProduct, type ApiDeal, type ApiNotification, type ApiDeposit } from "@/api/client";
 import { HOLD_CATEGORIES, PLATFORM_COMMISSION } from "@/components/data/constants";
 import type { StaffPermission } from "@/components/data/constants";
 import { setMonitorUserId } from "@/lib/errorMonitor";
@@ -301,7 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const addDeposit = async (dep: Omit<ApiDeposit, "id" | "status" | "date">) => {
-    await api.finance.deposit(dep.amount, dep.currency, dep.requisiteType);
+    await api.finance.deposit(dep.amount, dep.currency);
     await refreshNotifications();
   };
 

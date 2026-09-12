@@ -17,6 +17,7 @@ const URLS = {
   security: "https://functions.poehali.dev/028a5ec8-d990-4d93-98ef-d1ebdb0f316c",
   "ai-support": "https://functions.poehali.dev/03171705-36ec-4004-acf3-440b75a3f829",
   giveaways: "https://functions.poehali.dev/e6191fd9-2e14-40b6-8877-0f80cb18cc0a",
+  translate: "https://functions.poehali.dev/c71bf1ee-ef62-4112-9781-f0c2aa5d2d58",
 };
 
 // ── Токен сессии ──────────────────────────────────────────────────────────────
@@ -141,8 +142,8 @@ export const api = {
         country,
       }),
 
-    login: (login, password) =>
-      req("auth", "/login", "POST", { login, password }),
+    login: (login: string, password: string) =>
+      req<{ token: string; user: ApiUser }>("auth", "/login", "POST", { login, password }),
 
     me: () => req<{ user: ApiUser }>("auth", "/me"),
 
@@ -693,6 +694,13 @@ export const api = {
         "POST",
         { ticket_id },
       ),
+  },
+
+  translate: {
+    text: (text: string, target: string) =>
+      req<{ translated: string }>("translate", "/", "POST", { text, target }),
+    many: (texts: string[], target: string) =>
+      req<{ translations: string[] }>("translate", "/", "POST", { texts, target }),
   },
 };
 

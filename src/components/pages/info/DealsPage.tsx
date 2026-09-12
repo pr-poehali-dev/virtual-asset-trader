@@ -6,6 +6,7 @@ import { STEPS, STATUS_MAP } from "@/components/data/constants";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { api, type ApiDealChatMessage } from "@/api/client";
+import { TranslateMessage } from "@/components/ui/translate-message";
 
 const TERMINAL = ["completed", "refunded", "cancelled"];
 const ACTIVE_STATUSES = ["escrow", "hold", "hold_cs2", "hold_pubg"];
@@ -452,6 +453,7 @@ export function DealsPage() {
                       <div key={i} className="text-xs">
                         <span className="font-semibold text-foreground">{m.from}: </span>
                         <span className="text-muted-foreground">{m.text}</span>
+                        {m.from !== user?.username && <TranslateMessage text={m.text} className="mt-0.5" />}
                       </div>
                     ))}
                   </div>
@@ -487,6 +489,7 @@ export function DealsPage() {
                             {m.fromUserId === user?.id ? t("you_label") : (m.role === "buyer" ? selectedFresh.buyerName : selectedFresh.sellerName)}:{" "}
                           </span>
                           <span className="text-muted-foreground">{m.text}</span>
+                          {m.fromUserId !== user?.id && <TranslateMessage text={m.text} className="mt-0.5" />}
                         </div>
                       ))
                     )}

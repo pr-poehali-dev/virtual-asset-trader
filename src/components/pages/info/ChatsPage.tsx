@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { api, type ApiDealChatMessage } from "@/api/client";
+import { TranslateMessage } from "@/components/ui/translate-message";
 
 // ─── ВКЛАДКА «ЧАТЫ» ─────────────────────────────────────────────────────────────
 // Единое место со всеми перепиcками пользователя по его сделкам — и как покупателя,
@@ -155,6 +156,7 @@ export function ChatsPage() {
                               )}
                               <p className="text-sm">{m.text}</p>
                               {m.time && <p className={`text-[10px] mt-0.5 ${m.from === user.username ? "text-background/60 text-right" : "text-muted-foreground"}`}>{m.time}</p>}
+                              {m.from !== user.username && <TranslateMessage text={m.text} />}
                             </div>
                           </div>
                         )}
@@ -172,6 +174,7 @@ export function ChatsPage() {
                         }`}>
                           <p className="text-sm">{m.text}</p>
                           <p className={`text-[10px] mt-0.5 ${m.fromUserId === user.id ? "text-background/60 text-right" : "text-muted-foreground"}`}>{m.time}</p>
+                          {m.fromUserId !== user.id && <TranslateMessage text={m.text} />}
                         </div>
                       </div>
                     ))
